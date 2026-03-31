@@ -1,0 +1,26 @@
+detector:
+  conf_thresh: 0.3
+
+tracker:
+  track_thresh: 0.5
+  match_thresh: 0.8
+  max_age: 30
+  min_hits: 3
+
+rules:
+  h_ratio_thresh: 0.5
+  n_ground_min: 3
+  motion_window_seconds: 1.5
+  trigger_thresh: 0.6
+
+fusion:
+  alpha: 0.35
+  beta: 0.45
+  gamma: 0.20
+  alarm_thresh: 0.70
+  alarm_min_frames: 5
+  reset_seconds: 3.0
+
+pipeline:
+  skip_frames: 2
+  fps: 25
