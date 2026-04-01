@@ -24,3 +24,31 @@ fusion:
 pipeline:
   skip_frames: 2
   fps: 25
+
+training:
+  detector:
+    data_yaml: "data/fall_detection.yaml"
+    epochs: 50
+    imgsz: 832
+    batch: 16
+    output_dir: "train/detector"
+  pose:
+    data_yaml: "data/fall_pose.yaml"
+    epochs: 100
+    imgsz: 128
+    batch: 64
+    output_dir: "train/pose"
+  classifier:
+    feature_cache: "train/cache"
+    epochs: 100
+    batch_size: 32
+    lr: 0.001
+    output_dir: "train/classifier"
+  tracker:
+    video_dir: "data/videos"
+    gt_dir: "data/tracker_gt"
+    output_dir: "train/tracker"
+  pipeline:
+    val_video_dir: "data/videos"
+    val_gt_dir: "data/event_gt"
+    output_dir: "train/eval"

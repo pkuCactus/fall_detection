@@ -1,0 +1,17 @@
+# Training outputs
+train/
+*.pt
+*.onnx
+*.engine
+*.mlmodel
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+
+# IDE
+.vscode/
+.idea/
