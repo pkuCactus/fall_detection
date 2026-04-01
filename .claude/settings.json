@@ -27,7 +27,9 @@
       "Bash(python scripts/demo_tracker.py --video data/sample_fall.mp4 --output data/output_tracker.mp4)",
       "Bash(python scripts/download_real_sample.py --method create --output-dir data)",
       "Bash(python scripts/demo_tracker.py --video data/demo_with_person.mp4 --output data/output_tracker_demo.mp4)",
-      "Bash(python scripts/run_pipeline_demo_short.py --video data/fall_test.mp4 --output data/pipeline_output_short.mp4 --max-frames 300)"
+      "Bash(python scripts/run_pipeline_demo_short.py --video data/fall_test.mp4 --output data/pipeline_output_short.mp4 --max-frames 300)",
+      "Bash(python scripts/demo_tracker.py --video data/fall_test.mp4 --output data/tracker_headless.mp4 --headless --max-frames 60)",
+      "Bash(timeout 30 python scripts/demo_tracker.py --video data/fall_test.mp4 --output data/tracker_headless.mp4 --headless)"
     ]
   }
 }
