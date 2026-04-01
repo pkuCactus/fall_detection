@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \":*)",
+      "Bash(PYTHONPATH=src pytest tests/test_training_scripts.py::test_train_detector_help -v)",
+      "Bash(PYTHONPATH=src pytest tests/test_training_scripts.py::test_train_pose_help -v)",
+      "Bash(PYTHONPATH=src pytest tests/test_training_scripts.py::test_tune_tracker_help -v)",
+      "Bash(PYTHONPATH=src pytest tests/test_training_scripts.py::test_extract_features_help -v)",
+      "Bash(PYTHONPATH=src pytest tests/test_training_scripts.py::test_train_classifier_help -v)",
+      "Bash(PYTHONPATH=src pytest tests/test_training_scripts.py -v)",
+      "Bash(PYTHONPATH=src pytest tests/test_training_scripts.py::test_evaluate_pipeline_help -v)",
+      "Bash(python scripts/train_classifier.py --cache-dir train/cache --epochs 2 --batch-size 4 --output-dir train/classifier)",
+      "Bash(chmod +x scripts/shell/*.sh)",
+      "Bash(for f:*)",
+      "Bash(do bash:*)",
+      "Bash(echo \"$f OK\")",
+      "Bash(done)",
+      "Bash(git remote:*)",
+      "Bash(ls .superpowers/brainstorm/*/)",
+      "Bash(bash -n scripts/shell/run_superpowers_server.sh)"
+    ]
+  }
+}
