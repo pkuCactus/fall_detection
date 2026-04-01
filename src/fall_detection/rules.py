@@ -38,17 +38,32 @@ class RuleEngine:
 
         # ---- A: 高度压缩 + 多点贴地 ----
         head_idxs = [0, 1, 2]   # nose, left eye, right eye
+        # 使用髋部作为下半身参考（脚踝经常被截断）
+        hip_idxs = [11, 12]     # left hip, right hip
         ankle_idxs = [15, 16]   # left ankle, right ankle
+
         head_vals = [kpts[i, 1] for i in head_idxs if kpts[i, 2] > 0.1]
+        # 优先使用脚踝，如果没有则使用髋部，最后使用bbox
         ankle_vals = [kpts[i, 1] for i in ankle_idxs if kpts[i, 2] > 0.1]
-        head_y = np.mean(head_vals) if head_vals else bbox[3]
-        ankle_y = np.mean(ankle_vals) if ankle_vals else bbox[1]
+        hip_vals = [kpts[i, 1] for i in hip_idxs if kpts[i, 2] > 0.1]
+
+        head_y = np.mean(head_vals) if head_vals else bbox[1]
+        if ankle_vals:
+            lower_y = np.mean(ankle_vals)
+        elif hip_vals:
+            lower_y = np.mean(hip_vals)
+        else:
+            lower_y = bbox[3]
+
         bbox_h = max(1.0, bbox[3] - bbox[1])
-        h_ratio = abs(head_y - ankle_y) / bbox_h
+        h_ratio = abs(head_y - lower_y) / bbox_h
 
         # 贴地判定：y 在 bbox 底部 ground_ratio 范围内
         ground_y_thresh = bbox[1] + (1.0 - self.ground_ratio) * bbox_h
         n_ground = int(np.sum((kpts[:, 2] > 0.1) & (kpts[:, 1] >= ground_y_thresh)))
+        # 如果没有足够的关键点可见，放宽到髋部
+        if n_ground < self.n_ground_min and hip_vals:
+            n_ground = max(n_ground, len(hip_vals))
 
         flags["A"] = (h_ratio < self.h_ratio_thresh) and (n_ground >= self.n_ground_min)
 

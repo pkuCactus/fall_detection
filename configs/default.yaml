@@ -8,17 +8,17 @@ tracker:
   min_hits: 3
 
 rules:
-  h_ratio_thresh: 0.5
-  n_ground_min: 3
+  h_ratio_thresh: 0.6
+  n_ground_min: 2
   motion_window_seconds: 1.5
-  trigger_thresh: 0.6
+  trigger_thresh: 0.4
 
 fusion:
   alpha: 0.35
   beta: 0.45
   gamma: 0.20
-  alarm_thresh: 0.70
-  alarm_min_frames: 5
+  alarm_thresh: 0.60
+  alarm_min_frames: 3
   reset_seconds: 3.0
 
 pipeline:
