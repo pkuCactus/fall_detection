@@ -30,3 +30,9 @@ def test_train_classifier_help():
     result = subprocess.run([sys.executable, "scripts/train_classifier.py", "--help"], capture_output=True, text=True)
     assert result.returncode == 0
     assert "--cache-dir" in result.stdout
+
+
+def test_evaluate_pipeline_help():
+    result = subprocess.run([sys.executable, "scripts/evaluate_pipeline.py", "--help"], capture_output=True, text=True)
+    assert result.returncode == 0
+    assert "--video-dir" in result.stdout
