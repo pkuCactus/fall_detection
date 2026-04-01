@@ -48,7 +48,6 @@ def draw_tracks(frame, tracks, track_history=None):
     # 显示统计信息
     info_text = [
         f"Active Tracks: {len(tracks)}",
-        f"Press 'q' to quit, 'p' to pause"
     ]
     y_offset = 30
     for text in info_text:
@@ -73,6 +72,10 @@ def main():
                         help="Matching IoU threshold")
     parser.add_argument("--max-age", type=int, default=30,
                         help="Max lost frames before deleting track")
+    parser.add_argument("--headless", action="store_true",
+                        help="Run without GUI display (for server)")
+    parser.add_argument("--max-frames", type=int, default=None,
+                        help="Maximum frames to process (for testing)")
     args = parser.parse_args()
 
     # 初始化检测器和跟踪器
@@ -103,17 +106,26 @@ def main():
         h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         fourcc = cv2.VideoWriter_fourcc(*"mp4v")
         writer = cv2.VideoWriter(args.output, fourcc, fps, (w, h))
+        print(f"Output video: {args.output} ({w}x{h} @ {fps:.1f}fps)")
 
-    print("\nControls:")
-    print("  q - quit")
-    print("  p - pause/resume")
-    print("  s - save current frame")
+    if not args.headless:
+        print("\nControls:")
+        print("  q - quit")
+        print("  p - pause/resume")
+        print("  s - save current frame")
+    else:
+        print("\nRunning in headless mode (no GUI display)")
 
     paused = False
     frame_idx = 0
     track_history = {}  # tid -> list of (cx, cy)
 
     while True:
+        # Check max frames limit
+        if args.max_frames and frame_idx >= args.max_frames:
+            print(f"Reached max frames limit: {args.max_frames}")
+            break
+
         if not paused:
             if cap:
                 ret, frame = cap.read()
@@ -167,27 +179,33 @@ def main():
             cv2.putText(vis, "PAUSED", (vis.shape[1]//2 - 50, vis.shape[0]//2),
                         cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 0, 255), 3)
 
-        cv2.imshow("Tracker Demo", vis)
-
-        if writer:
-            writer.write(vis)
-
-        key = cv2.waitKey(30) & 0xFF
-        if key == ord('q'):
-            break
-        elif key == ord('p'):
-            paused = not paused
-        elif key == ord('s'):
-            fname = f"tracker_frame_{frame_idx:04d}.png"
-            cv2.imwrite(fname, vis)
-            print(f"Saved: {fname}")
+        # 显示或保存
+        if not args.headless:
+            cv2.imshow("Tracker Demo", vis)
+            key = cv2.waitKey(30) & 0xFF
+            if key == ord('q'):
+                break
+            elif key == ord('p'):
+                paused = not paused
+            elif key == ord('s'):
+                fname = f"tracker_frame_{frame_idx:04d}.png"
+                cv2.imwrite(fname, vis)
+                print(f"Saved: {fname}")
+        else:
+            # Headless mode: just save to output
+            if writer:
+                writer.write(vis)
+            # Print progress every 30 frames
+            if frame_idx % 30 == 0:
+                print(f"Processed {frame_idx} frames, {len(tracks)} active tracks")
 
     if cap:
         cap.release()
     if writer:
         writer.release()
-    cv2.destroyAllWindows()
-    print("Done")
+    if not args.headless:
+        cv2.destroyAllWindows()
+    print(f"Done. Processed {frame_idx} frames total.")
 
 
 if __name__ == "__main__":

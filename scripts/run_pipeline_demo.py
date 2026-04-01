@@ -22,6 +22,8 @@ def main():
                         help="Output video path")
     parser.add_argument("--save-frames", default=None,
                         help="Directory to save frames")
+    parser.add_argument("--headless", action="store_true",
+                        help="Run without GUI display (for server)")
     args = parser.parse_args()
 
     print("Initializing pipeline...")
@@ -43,10 +45,12 @@ def main():
                 results["track_scores"],
                 results["track_falling"],
             )
-            cv2.imshow("Pipeline Demo", frame)
-            if cv2.waitKey(100) == 27:
-                break
-        cv2.destroyAllWindows()
+            if not args.headless:
+                cv2.imshow("Pipeline Demo", frame)
+                if cv2.waitKey(100) == 27:
+                    break
+        if not args.headless:
+            cv2.destroyAllWindows()
         return
 
     fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
@@ -58,18 +62,23 @@ def main():
     if args.output:
         fourcc = cv2.VideoWriter_fourcc(*"mp4v")
         writer = cv2.VideoWriter(args.output, fourcc, fps, (w, h))
+        print(f"Output video: {args.output} ({w}x{h} @ {fps:.1f}fps)")
 
     if args.save_frames:
         import os
         os.makedirs(args.save_frames, exist_ok=True)
 
-    print("\nControls:")
-    print("  ESC - quit")
-    print("  p - pause/resume")
-    print("  s - save current frame")
+    if not args.headless:
+        print("\nControls:")
+        print("  ESC - quit")
+        print("  p - pause/resume")
+        print("  s - save current frame")
+    else:
+        print("\nRunning in headless mode (no GUI display)")
 
     paused = False
     frame_idx = 0
+    fall_detected_count = 0
 
     while True:
         if not paused:
@@ -91,36 +100,57 @@ def main():
             cv2.putText(frame, f"Frame: {frame_idx}", (10, h - 20),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
 
+            # 统计跌倒帧
+            if any(results.get("track_falling", {}).values()):
+                fall_detected_count += 1
+
             frame_idx += 1
         else:
             cv2.putText(frame, "PAUSED", (w//2 - 60, h//2),
                         cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 0, 255), 3)
 
-        cv2.imshow("Pipeline Demo", frame)
+        # 显示或保存
+        if not args.headless:
+            cv2.imshow("Pipeline Demo", frame)
 
-        if writer:
-            writer.write(frame)
+            if writer:
+                writer.write(frame)
 
-        if args.save_frames:
-            fname = f"{args.save_frames}/frame_{frame_idx:06d}.jpg"
-            cv2.imwrite(fname, frame)
+            if args.save_frames:
+                fname = f"{args.save_frames}/frame_{frame_idx:06d}.jpg"
+                cv2.imwrite(fname, frame)
 
-        key = cv2.waitKey(delay) & 0xFF
-        if key == 27:  # ESC
-            break
-        elif key == ord('p'):
-            paused = not paused
-            print("Paused" if paused else "Resumed")
-        elif key == ord('s'):
-            fname = f"pipeline_frame_{frame_idx:04d}.png"
-            cv2.imwrite(fname, frame)
-            print(f"Saved: {fname}")
+            key = cv2.waitKey(delay) & 0xFF
+            if key == 27:  # ESC
+                break
+            elif key == ord('p'):
+                paused = not paused
+                print("Paused" if paused else "Resumed")
+            elif key == ord('s'):
+                fname = f"pipeline_frame_{frame_idx:04d}.png"
+                cv2.imwrite(fname, frame)
+                print(f"Saved: {fname}")
+        else:
+            # Headless mode: just save to output
+            if writer:
+                writer.write(frame)
+            if args.save_frames:
+                fname = f"{args.save_frames}/frame_{frame_idx:06d}.jpg"
+                cv2.imwrite(fname, frame)
+            # Print progress every 30 frames
+            if frame_idx % 30 == 0:
+                active_tracks = len(results.get("tracks", []))
+                is_falling = any(results.get("track_falling", {}).values())
+                print(f"Frame {frame_idx}: {active_tracks} tracks, fall={is_falling}")
 
     cap.release()
     if writer:
         writer.release()
-    cv2.destroyAllWindows()
-    print("Done")
+    if not args.headless:
+        cv2.destroyAllWindows()
+
+    print(f"\nDone. Processed {frame_idx} frames.")
+    print(f"Fall detected in {fall_detected_count} frames.")
 
 
 if __name__ == "__main__":
