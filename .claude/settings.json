@@ -17,7 +17,17 @@
       "Bash(done)",
       "Bash(git remote:*)",
       "Bash(ls .superpowers/brainstorm/*/)",
-      "Bash(bash -n scripts/shell/run_superpowers_server.sh)"
+      "Bash(bash -n scripts/shell/run_superpowers_server.sh)",
+      "Bash(chmod +x scripts/demo_tracker.py scripts/run_pipeline_demo.py scripts/shell/run_tracker_demo.sh scripts/shell/run_pipeline_demo.sh)",
+      "Bash(bash -n scripts/shell/run_tracker_demo.sh)",
+      "Bash(bash -n scripts/shell/run_pipeline_demo.sh)",
+      "Bash(python -m py_compile scripts/demo_tracker.py scripts/run_pipeline_demo.py)",
+      "Bash(find /data4/hjz/fall_detection -name *.mp4 -o -name *.avi)",
+      "Bash(python scripts/download_sample_video.py --output data/sample_fall.mp4)",
+      "Bash(python scripts/demo_tracker.py --video data/sample_fall.mp4 --output data/output_tracker.mp4)",
+      "Bash(python scripts/download_real_sample.py --method create --output-dir data)",
+      "Bash(python scripts/demo_tracker.py --video data/demo_with_person.mp4 --output data/output_tracker_demo.mp4)",
+      "Bash(python scripts/run_pipeline_demo_short.py --video data/fall_test.mp4 --output data/pipeline_output_short.mp4 --max-frames 300)"
     ]
   }
 }

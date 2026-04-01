@@ -51,8 +51,14 @@ class PoseEstimator:
                 xyxy = box.xyxy.cpu().numpy().flatten().tolist()
                 pose_boxes.append(xyxy)
                 # keypoints: shape (17, 3) -> [x, y, conf]
-                kpt_arr = kpt.xy.cpu().numpy()  # shape (17, 2)
-                conf_arr = kpt.conf.cpu().numpy().reshape(-1, 1)  # shape (17, 1)
+                kpt_arr = kpt.xy.cpu().numpy()  # shape (17, 2) or (1, 17, 2)
+                conf_arr = kpt.conf.cpu().numpy()  # shape (17,) or (1, 17)
+                # Handle different shapes from YOLOv8
+                if kpt_arr.ndim == 3:
+                    kpt_arr = kpt_arr.reshape(-1, 2)
+                if conf_arr.ndim == 0:
+                    conf_arr = conf_arr.reshape(1)
+                conf_arr = conf_arr.reshape(-1, 1)  # shape (17, 1)
                 pose_kpts.append(np.concatenate([kpt_arr, conf_arr], axis=1))
 
         if len(pose_boxes) == 0:
