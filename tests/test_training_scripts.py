@@ -18,3 +18,9 @@ def test_tune_tracker_help():
     result = subprocess.run([sys.executable, "scripts/tune_tracker.py", "--help"], capture_output=True, text=True)
     assert result.returncode == 0
     assert "--video-dir" in result.stdout
+
+
+def test_extract_features_help():
+    result = subprocess.run([sys.executable, "scripts/extract_features.py", "--help"], capture_output=True, text=True)
+    assert result.returncode == 0
+    assert "--video-dir" in result.stdout
