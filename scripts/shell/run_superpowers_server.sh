@@ -28,10 +28,65 @@ echo "Creating temporary directory with HTML files only..."
 TMP_DIR=$(mktemp -d)
 trap "rm -rf ${TMP_DIR}" EXIT
 
-# 查找并复制HTML文件
-find "${SUPERPOWERS_DIR}" -name "*.html" -type f | while read -r file; do
-    cp "${file}" "${TMP_DIR}/"
-done
+# 使用Python处理HTML文件，添加UTF-8 meta标签
+"${PYTHON}" << PYTHON_SCRIPT
+import os
+import re
+
+src_dir = "${SUPERPOWERS_DIR}"
+dst_dir = "${TMP_DIR}"
+
+html_template = '''<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>{title}</title>
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", "微软雅黑", sans-serif; padding: 20px; max-width: 1000px; margin: 0 auto; line-height: 1.6; }}
+        h1, h2, h3 {{ color: #333; }}
+        .subtitle {{ color: #666; font-size: 14px; }}
+        table {{ border-collapse: collapse; width: 100%; margin: 20px 0; }}
+        th, td {{ border: 1px solid #ddd; padding: 12px; text-align: left; }}
+        th {{ background-color: #f5f5f5; }}
+        code {{ background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }}
+        pre {{ background: #f4f4f4; padding: 16px; border-radius: 6px; overflow-x: auto; }}
+        .highlight {{ background: #fff3cd; padding: 2px 4px; border-radius: 3px; }}
+        .decision {{ background: #d4edda; padding: 12px; border-radius: 6px; margin: 10px 0; }}
+        .module {{ background: #e7f3ff; padding: 12px; border-radius: 6px; margin: 10px 0; border-left: 4px solid #0366d6; }}
+    </style>
+</head>
+<body>
+{content}
+</body>
+</html>'''
+
+for root, dirs, files in os.walk(src_dir):
+    for f in files:
+        if f.endswith('.html'):
+            src_path = os.path.join(root, f)
+            dst_path = os.path.join(dst_dir, f)
+
+            with open(src_path, 'r', encoding='utf-8') as fp:
+                content = fp.read()
+
+            # 如果文件已经有完整的HTML结构，只添加/确保meta charset
+            if '<html' in content.lower() and '<head>' in content.lower():
+                # 添加meta charset如果还没有
+                if 'charset' not in content.lower():
+                    content = content.replace('<head>', '<head>\n    <meta charset="UTF-8">', 1)
+                with open(dst_path, 'w', encoding='utf-8') as fp:
+                    fp.write(content)
+            else:
+                # 包裹完整HTML结构
+                title = os.path.splitext(f)[0].replace('-', ' ').replace('_', ' ').title()
+                wrapped = html_template.format(title=title, content=content)
+                with open(dst_path, 'w', encoding='utf-8') as fp:
+                    fp.write(wrapped)
+
+            print(f"Processed: {f}")
+
+print("Done processing HTML files.")
+PYTHON_SCRIPT
 
 # 生成只包含三个文件的简洁索引页
 cat > "${TMP_DIR}/index.html" << 'HTMLEOF'
@@ -41,7 +96,7 @@ cat > "${TMP_DIR}/index.html" << 'HTMLEOF'
     <meta charset="UTF-8">
     <title>Superpowers HTML Files</title>
     <style>
-        body { font-family: sans-serif; padding: 40px; max-width: 800px; margin: 0 auto; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", "微软雅黑", sans-serif; padding: 40px; max-width: 800px; margin: 0 auto; }
         h1 { border-bottom: 1px solid #ccc; padding-bottom: 10px; }
         ul { list-style: none; padding: 0; }
         li { margin: 15px 0; }
