@@ -24,3 +24,9 @@ def test_extract_features_help():
     result = subprocess.run([sys.executable, "scripts/extract_features.py", "--help"], capture_output=True, text=True)
     assert result.returncode == 0
     assert "--video-dir" in result.stdout
+
+
+def test_train_classifier_help():
+    result = subprocess.run([sys.executable, "scripts/train_classifier.py", "--help"], capture_output=True, text=True)
+    assert result.returncode == 0
+    assert "--cache-dir" in result.stdout
