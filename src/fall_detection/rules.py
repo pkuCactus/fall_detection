@@ -39,8 +39,10 @@ class RuleEngine:
         # ---- A: 高度压缩 + 多点贴地 ----
         head_idxs = [0, 1, 2]   # nose, left eye, right eye
         ankle_idxs = [15, 16]   # left ankle, right ankle
-        head_y = np.mean([kpts[i, 1] for i in head_idxs if kpts[i, 2] > 0.1])
-        ankle_y = np.mean([kpts[i, 1] for i in ankle_idxs if kpts[i, 2] > 0.1])
+        head_vals = [kpts[i, 1] for i in head_idxs if kpts[i, 2] > 0.1]
+        ankle_vals = [kpts[i, 1] for i in ankle_idxs if kpts[i, 2] > 0.1]
+        head_y = np.mean(head_vals) if head_vals else bbox[3]
+        ankle_y = np.mean(ankle_vals) if ankle_vals else bbox[1]
         bbox_h = max(1.0, bbox[3] - bbox[1])
         h_ratio = abs(head_y - ankle_y) / bbox_h
 
