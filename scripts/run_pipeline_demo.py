@@ -106,11 +106,19 @@ def log_frame_details(logger, pipeline, frame_idx, results):
         rule_score = scores.get('rule', 0)
         triggered = rule_score >= pipeline.trigger_thresh
         flags = scores.get('flags', {})
+        debug = scores.get('debug', {})
         logger.info(f"    Track {tid}:")
         logger.info(f"      - Rule score: {rule_score:.3f} (threshold: {pipeline.trigger_thresh})")
         logger.info(f"      - Rules: A={flags.get('A', False)}, B={flags.get('B', False)}, "
                     f"C={flags.get('C', False)}, D={flags.get('D', False)}")
+        logger.info(f"      - Debug: h_ratio={debug.get('h_ratio', 0):.3f}, n_ground={debug.get('n_ground', 0)}, "
+                    f"vy={debug.get('vy', 0):.1f}, centers={debug.get('centers_len', 0)}")
         logger.info(f"      - Trigger classifier: {'YES' if triggered else 'NO'}")
+        # 输出融合决策状态
+        if tid in pipeline.fusion:
+            fusion_state = pipeline.fusion[tid].get_state()
+            logger.info(f"      - Fusion: S_final={fusion_state['S_final']:.3f}, "
+                        f"state={fusion_state['state']}, alarm={fusion_state['should_alarm']}")
 
     # 分类器结果
     cls_idx = "[6]" if run_detection else "[5]"

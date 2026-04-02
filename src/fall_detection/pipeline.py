@@ -59,6 +59,8 @@ class FallDetectionPipeline:
         # 缓存上一帧活跃 tracks，用于抽帧补位
         self._last_active_tracks: List = []
         self._last_track_kpts: Dict[int, np.ndarray] = {}
+        # 缓存分类器分数，抽帧时复用
+        self._last_cls_scores: Dict[int, float] = {}
 
     def process_frame(self, frame: np.ndarray) -> Dict[str, Any]:
         run_detection = (self._frame_counter % (self.skip_frames + 1)) == 0
@@ -97,10 +99,10 @@ class FallDetectionPipeline:
                 kpts = self._last_track_kpts.get(tid, np.zeros((17, 3), dtype=np.float32))
                 bbox = track.to_tlbr().tolist()
                 history = {"centers": list(self._track_history[tid])}
-                s_rule, flags = self.rule_engine.evaluate(kpts, bbox, history)
+                s_rule, flags, rule_debug = self.rule_engine.evaluate(kpts, bbox, history)
 
                 # 抽帧时不运行分类器（节省计算），复用上一次的分类器分数
-                s_cls = 0.0  # 抽帧时不触发分类器，使用0分
+                s_cls = self._last_cls_scores.get(tid, 0.0)
 
                 if tid not in self.fusion:
                     self.fusion[tid] = FusionDecision(self.cfg.get("fusion", {}), fps=self.fps)
@@ -116,6 +118,7 @@ class FallDetectionPipeline:
                     "final": state["S_final"],
                     "state": state["state"],
                     "flags": flags,
+                    "debug": rule_debug,
                 }
                 track_falling[tid] = is_falling
                 if should_alarm:
@@ -171,7 +174,7 @@ class FallDetectionPipeline:
             kpts = track_kpts.get(tid, np.zeros((17, 3), dtype=np.float32))
             bbox = track.to_tlbr().tolist()
             history = {"centers": list(self._track_history[tid])}
-            s_rule, flags = self.rule_engine.evaluate(kpts, bbox, history)
+            s_rule, flags, rule_debug = self.rule_engine.evaluate(kpts, bbox, history)
 
             if s_rule >= self.trigger_thresh:
                 # 提取 ROI
@@ -202,10 +205,14 @@ class FallDetectionPipeline:
                 "final": state["S_final"],
                 "state": state["state"],
                 "flags": flags,
+                "debug": rule_debug,
             }
             track_falling[tid] = is_falling
             if should_alarm:
                 new_alarms.append(tid)
+
+            # 缓存分类器分数供抽帧复用
+            self._last_cls_scores[tid] = s_cls
 
         self._last_active_tracks = active_tracks
 

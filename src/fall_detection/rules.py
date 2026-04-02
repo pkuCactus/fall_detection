@@ -79,8 +79,14 @@ class RuleEngine:
             lowest3 = np.empty((0, 3))
 
         if self.ground_roi is None:
-            # 默认全图通过
-            flags["B"] = True
+            # 无ROI配置时：判断最低点是否在bbox底部区域（贴地检测）
+            if len(lowest3) > 0:
+                # 至少有一个关键点在bbox底部15%区域
+                ground_y_thresh = bbox[1] + 0.85 * bbox_h
+                n_near_ground = int(np.sum(lowest3[:, 1] >= ground_y_thresh))
+                flags["B"] = n_near_ground >= 1
+            else:
+                flags["B"] = False
         else:
             flags["B"] = all(
                 self._point_in_polygon((p[0], p[1]), self.ground_roi)
@@ -90,7 +96,7 @@ class RuleEngine:
         # ---- C: 由动到静 + 持续静止 (改进版：使用位移而不是方差) ----
         centers = history.get("centers", []) if isinstance(history, dict) else []
         # 需要至少 motion_window_seconds * fps 帧的历史数据
-        min_history_frames = max(8, int(self.motion_window_seconds * 25))
+        min_history_frames = max(4, int(self.motion_window_seconds * 15))  # 降低最低帧数要求
         if len(centers) >= min_history_frames:
             # 计算每帧位移
             displacements = []
@@ -109,20 +115,36 @@ class RuleEngine:
 
         # ---- D: 垂直方向快速下降 (检测坐着→跌倒的快速高度变化) ----
         # 使用历史中的高度变化来检测快速下降
-        if len(centers) >= 4:
-            # 计算最近几帧的垂直速度
-            recent_y = [c[1] for c in centers[-4:]]
+        vy_debug = 0.0
+        if len(centers) >= 3:
+            # 计算最近几帧的垂直速度（使用最后3帧）
+            recent_y = [c[1] for c in centers[-3:]]
             vy = recent_y[-1] - recent_y[0]  # 正值表示向下移动
+            vy_debug = vy
 
-            # 快速下降：垂直速度大且当前高度比低
+            # 快速下降：垂直速度大且当前高度比较低
             # 坐着跌倒时，人会向前/向下快速移动
             if vy > self.fall_vy_thresh and h_ratio < self.h_ratio_thresh:
                 flags["D"] = True
 
         # S_rule: 四个规则按等权平均 (A,B,C,D)
         score = sum(flags.values()) / 4.0
+
+        # 调试信息
+        debug_info = {
+            "h_ratio": float(h_ratio),
+            "n_ground": int(n_ground),
+            "ground_y_thresh": float(ground_y_thresh),
+            "bbox_h": float(bbox_h),
+            "head_y": float(head_y) if head_vals else None,
+            "lower_y": float(lower_y),
+            "vy": float(vy_debug) if 'vy_debug' in dir() else 0.0,
+            "centers_len": len(centers),
+            "min_history_frames": min_history_frames if 'min_history_frames' in dir() else 0,
+        }
+
         # 转成 Python 原生 bool 方便断言
-        return float(score), {k: bool(v) for k, v in flags.items()}
+        return float(score), {k: bool(v) for k, v in flags.items()}, debug_info
 
     @staticmethod
     def _point_in_polygon(point, polygon) -> bool:
