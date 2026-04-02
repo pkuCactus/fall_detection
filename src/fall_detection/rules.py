@@ -15,7 +15,7 @@ class RuleEngine:
         self.ground_roi = cfg.get("ground_roi", None)
         self.motion_thresh = cfg.get("motion_thresh", 75.0)
         self.static_thresh = cfg.get("static_thresh", 20.0)
-        self.ground_ratio = cfg.get("ground_ratio", 0.15)
+        self.ground_ratio = cfg.get("ground_ratio", 0.40)
         self.fall_vy_thresh = cfg.get("fall_vy_thresh", 400.0)
         self.accel_thresh = cfg.get("accel_thresh", 150.0)
         self.visible_ratio_min = cfg.get("visible_ratio_min", 0.6)
@@ -90,7 +90,8 @@ class RuleEngine:
 
         if self.ground_roi is None:
             if len(lowest3) > 0:
-                ground_y_thresh = bbox[1] + 0.85 * bbox_h
+                # 使用与规则A一致的ground_ratio判定贴地
+                ground_y_thresh = bbox[1] + (1.0 - self.ground_ratio) * bbox_h
                 n_near_ground = int(np.sum(lowest3[:, 1] >= ground_y_thresh))
                 flags["B"] = n_near_ground >= 1
             else:

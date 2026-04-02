@@ -11,15 +11,16 @@ tracker:
   min_hits: 3
 
 rules:
-  h_ratio_thresh: 0.60        # 收紧：坐姿/弯腰约0.5，跌倒通常更低
-  n_ground_min: 2             # 收紧：2个点贴地才触发，减少单点误检
+  h_ratio_thresh: 0.60        # 坐姿/弯腰约0.5，跌倒通常更低
+  n_ground_min: 2             # 2个点贴地才触发，减少单点误检
   motion_window_seconds: 0.5   # 运动检测窗口（秒）
-  trigger_thresh: 0.75        # 收紧：至少3条规则触发才运行分类器
-  motion_thresh: 75.0         # px/s：运动期位移阈值（3px/frame @ 25fps）
+  trigger_thresh: 0.60        # 3条规则触发即可运行分类器（5*0.6=3）
+  motion_thresh: 50.0         # px/s：运动期位移阈值（2px/frame @ 25fps）
   static_thresh: 20.0         # px/s：静止期位移阈值（0.8px/frame @ 25fps）
-  fall_vy_thresh: 400.0       # px/s：垂直下降速度阈值
-  accel_thresh: 150.0         # px/s^2：加速度辅助阈值
-  visible_ratio_min: 0.60     # 关键点可见比例下限
+  fall_vy_thresh: 200.0       # px/s：垂直下降速度阈值（8px/frame @ 25fps）
+  accel_thresh: 100.0         # px/s^2：加速度辅助阈值
+  visible_ratio_min: 0.50     # 关键点可见比例下限（放宽）
+  ground_ratio: 0.40          # 贴地判定：bbox底部40%区域算贴地
   fps: 25                     # 规则引擎归一化帧率
 
 fusion:
