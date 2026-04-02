@@ -65,6 +65,13 @@ class FallDetectionPipeline:
         self.history_maxlen = max(1, int(self.history_seconds * self.fps))
         self.trigger_thresh = rules_cfg.get("trigger_thresh", 0.6)
 
+        # 根据分类器类型调整融合权重
+        if self.use_simple_classifier:
+            # 使用图像分类器时，提高分类器权重，降低规则权重
+            fusion_cfg["alpha"] = fusion_cfg.get("alpha", 0.5) * 0.3  # 规则分权重降低
+            fusion_cfg["beta"] = fusion_cfg.get("beta", 0.3) * 2.0    # 分类器权重提高
+            fusion_cfg["alarm_thresh"] = fusion_cfg.get("alarm_thresh", 0.5) * 0.8  # 降低告警阈值
+
         self._frame_counter = 0
         self._track_history: Dict[int, deque] = defaultdict(
             lambda: deque(maxlen=self.history_maxlen)
@@ -191,28 +198,26 @@ class FallDetectionPipeline:
             history = {"centers": list(self._track_history[tid])}
             s_rule, flags, rule_debug = self.rule_engine.evaluate(kpts, bbox, history)
 
-            if s_rule >= self.trigger_thresh:
-                # 提取 ROI
-                x1, y1, x2, y2 = map(int, bbox)
-                h, w = frame.shape[:2]
-                x1, y1 = max(0, x1), max(0, y1)
-                x2, y2 = min(w, x2), min(h, y2)
-                roi = cv2.resize(frame[y1:y2, x1:x2], (96, 96))
-                roi = cv2.cvtColor(roi, cv2.COLOR_BGR2RGB).transpose(2, 0, 1).astype(np.float32) / 255.0
+            # 始终运行分类器（不再受规则触发阈值限制）
+            # 提取 ROI
+            x1, y1, x2, y2 = map(int, bbox)
+            h, w = frame.shape[:2]
+            x1, y1 = max(0, x1), max(0, y1)
+            x2, y2 = min(w, x2), min(h, y2)
+            roi = cv2.resize(frame[y1:y2, x1:x2], (96, 96))
+            roi = cv2.cvtColor(roi, cv2.COLOR_BGR2RGB).transpose(2, 0, 1).astype(np.float32) / 255.0
 
-                # 根据分类器类型调用不同接口
-                if self.use_simple_classifier:
-                    import torch.nn.functional as F
-                    logits = self.classifier(roi)
-                    # 输出是2分类logits，用softmax转概率，取类别1(跌倒)的概率
-                    probs = F.softmax(logits, dim=1)
-                    s_cls = probs[:, 1].item() if probs.shape[0] == 1 else probs[:, 1].cpu().numpy()
-                else:
-                    # motion 特征
-                    motion = self._extract_motion(tid, kpts, bbox, history)
-                    s_cls = self.classifier(roi, kpts, motion)
+            # 根据分类器类型调用不同接口
+            if self.use_simple_classifier:
+                import torch.nn.functional as F
+                logits = self.classifier(roi)
+                # 输出是2分类logits，用softmax转概率，取类别1(跌倒)的概率
+                probs = F.softmax(logits, dim=1)
+                s_cls = probs[:, 1].item() if probs.shape[0] == 1 else probs[:, 1].cpu().numpy()
             else:
-                s_cls = 0.0
+                # motion 特征
+                motion = self._extract_motion(tid, kpts, bbox, history)
+                s_cls = self.classifier(roi, kpts, motion)
 
             if tid not in self.fusion:
                 self.fusion[tid] = FusionDecision(self.cfg.get("fusion", {}), fps=self.fps)
