@@ -142,7 +142,8 @@ class FusionDecision:
         return has_upright and has_fall and current_is_fall
 
     def decide(self) -> bool:
-        return self._state in (FallState.FALLING, FallState.ALARM_SENT, FallState.RECOVERING)
+        # 只在FALLING和ALARM_SENT返回True，RECOVERING是恢复期不应算跌倒
+        return self._state in (FallState.FALLING, FallState.ALARM_SENT)
 
     def should_alarm(self) -> bool:
         return self._should_alarm

@@ -210,6 +210,7 @@ def main():
                 results["track_kpts"],
                 results["track_scores"],
                 results["track_falling"],
+                results.get("fusion_histories", {}),
             )
             if not args.headless:
                 cv2.imshow("Pipeline Demo", frame)
@@ -270,10 +271,11 @@ def main():
                     results["track_kpts"],
                     results["track_scores"],
                     results["track_falling"],
+                    results.get("fusion_histories", {}),
                 )
 
-                # 添加帧信息
-                cv2.putText(frame, f"Frame: {frame_idx}", (10, h - 20),
+                # 添加帧信息（移到底部右侧避免遮挡）
+                cv2.putText(frame, f"Frame: {frame_idx}", (w - 150, h - 20),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
 
                 # 统计跌倒帧和新告警事件

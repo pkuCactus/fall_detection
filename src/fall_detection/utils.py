@@ -18,6 +18,7 @@ def draw_results(
     track_kpts: Dict[int, np.ndarray],
     track_scores: Dict[int, dict],
     track_falling: Dict[int, bool],
+    fusion_histories: Dict[int, list] = None,
 ) -> np.ndarray:
     """在帧上绘制 bbox、track_id、关键点骨架和得分信息."""
     h, w = frame.shape[:2]
@@ -77,32 +78,42 @@ def draw_results(
                     if is_falling:
                         cv2.circle(frame, (int(x), int(y)), radius + 2, (255, 255, 255), 1)
 
-    # 底部信息栏 - 显示所有跟踪目标得分
-    bar_height = 25 * len(track_scores) + 15 if track_scores else 40
+    # 左上角信息栏 - 显示所有跟踪目标得分和时序信息
+    bar_height = 25 * len(track_scores) + 25 if track_scores else 40
     overlay = frame.copy()
-    cv2.rectangle(overlay, (5, h - bar_height - 5), (400, h - 5), (0, 0, 0), -1)
+    cv2.rectangle(overlay, (5, 5), (450, bar_height + 10), (0, 0, 0), -1)
     cv2.addWeighted(overlay, 0.6, frame, 0.4, 0, frame)
 
-    y_offset = h - bar_height + 15
-    cv2.putText(frame, "Track Scores:", (10, y_offset),
+    y_offset = 25
+    cv2.putText(frame, "Track Scores (Rule/Cls/Final | State):", (10, y_offset),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
     y_offset += 20
 
     for tid in sorted(track_scores.keys()):
         scores = track_scores[tid]
         is_fall = track_falling.get(tid, False)
+        state_str = scores.get('state', 'unknown')
+
+        # 构建时序信息字符串
+        temporal_info = ""
+        if fusion_histories and tid in fusion_histories:
+            history = fusion_histories[tid]
+            if len(history) >= 3:
+                # 显示最近3帧的融合分数
+                recent_scores = history[-3:]
+                temporal_info = f" H:[{recent_scores[0]:.2f},{recent_scores[1]:.2f},{recent_scores[2]:.2f}]"
 
         if is_fall:
-            text = f"T{tid}: FALL! R={scores.get('rule', 0):.2f} C={scores.get('cls', 0):.2f} F={scores.get('final', 0):.2f}"
+            text = f"T{tid}: R={scores.get('rule', 0):.2f} C={scores.get('cls', 0):.2f} F={scores.get('final', 0):.2f} | {state_str}{temporal_info}"
             text_color = (0, 0, 255)  # 红色
             thickness = 2
         else:
-            text = f"T{tid}: OK   R={scores.get('rule', 0):.2f} C={scores.get('cls', 0):.2f} F={scores.get('final', 0):.2f}"
+            text = f"T{tid}: R={scores.get('rule', 0):.2f} C={scores.get('cls', 0):.2f} F={scores.get('final', 0):.2f} | {state_str}{temporal_info}"
             text_color = (0, 255, 0)  # 绿色
             thickness = 1
 
         cv2.putText(frame, text, (10, y_offset),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, text_color, thickness)
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.45, text_color, thickness)
         y_offset += 22
 
     # 如果没有跟踪目标，显示提示

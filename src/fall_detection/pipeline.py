@@ -83,6 +83,8 @@ class FallDetectionPipeline:
         self._last_track_kpts: Dict[int, np.ndarray] = {}
         # 缓存分类器分数，抽帧时复用
         self._last_cls_scores: Dict[int, float] = {}
+        # 维护每个track的融合分数历史（用于可视化时序）
+        self._fusion_score_history: Dict[int, deque] = defaultdict(lambda: deque(maxlen=30))
 
     def process_frame(self, frame: np.ndarray) -> Dict[str, Any]:
         run_detection = (self._frame_counter % (self.skip_frames + 1)) == 0
@@ -136,6 +138,9 @@ class FallDetectionPipeline:
                 should_alarm = self.fusion[tid].should_alarm()
                 state = self.fusion[tid].get_state()
 
+                # 记录融合分数历史（用于可视化时序）
+                self._fusion_score_history[tid].append(state["S_final"])
+
                 track_scores[tid] = {
                     "rule": s_rule,
                     "cls": s_cls,
@@ -158,6 +163,7 @@ class FallDetectionPipeline:
                 "new_alarms": new_alarms,
                 "is_detection_frame": False,
                 "detections": [],
+                "fusion_histories": dict(self._fusion_score_history),
             }
 
         # ---- 3. 关键点估计 ----
@@ -248,6 +254,9 @@ class FallDetectionPipeline:
             should_alarm = self.fusion[tid].should_alarm()
             state = self.fusion[tid].get_state()
 
+            # 记录融合分数历史（用于可视化时序）
+            self._fusion_score_history[tid].append(state["S_final"])
+
             track_scores[tid] = {
                 "rule": s_rule,
                 "cls": s_cls,
@@ -273,6 +282,7 @@ class FallDetectionPipeline:
             "new_alarms": new_alarms,
             "is_detection_frame": run_detection,
             "detections": raw_detections if run_detection else [],
+            "fusion_histories": dict(self._fusion_score_history),
         }
 
     def _extract_motion(

@@ -32,9 +32,9 @@ fusion:
   alarm_thresh: 0.50  # 提高告警阈值，减少日常动作误报
   alarm_min_frames: 3
   sequence_check_frames: 8    # 姿态转换序列检查窗口（帧）
-  reset_seconds: 1.5       # 1.5秒无检测后进入恢复期
+  reset_seconds: 0.5       # 0.5秒无检测后进入恢复期（快速恢复）
   cooldown_seconds: 3.0    # 3秒冷却期，防止频繁上报
-  recovery_seconds: 1.0    # 1秒恢复确认期，防止状态抖动
+  recovery_seconds: 0.5    # 0.5秒恢复确认期，快速恢复正常
 
 pipeline:
   skip_frames: 2

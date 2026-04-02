@@ -102,9 +102,10 @@ class RuleEngine:
                 for p in lowest3
             )
 
-        # ---- C: 由动到静 (fps归一化：px/s) ----
+        # ---- C: 由动到静 或 持续静止 (fps归一化：px/s) ----
         centers = history.get("centers", []) if isinstance(history, dict) else []
         min_history_frames = max(4, int(self.motion_window_seconds * self.fps))
+        avg_early = avg_late = 0.0
         if len(centers) >= min_history_frames:
             displacements = []
             for i in range(1, len(centers)):
@@ -116,7 +117,15 @@ class RuleEngine:
             if mid > 0:
                 avg_early = np.mean(displacements[:mid])
                 avg_late = np.mean(displacements[mid:])
+                # 由动到静
                 flags["C"] = (avg_early > self.motion_thresh) and (avg_late < self.static_thresh)
+                # 或者：已经倒地且持续静止（躺着不动也算符合）
+                if not flags["C"] and posture == "lying":
+                    # 检查整段时间都是静止状态
+                    total_avg = np.mean(displacements)
+                    flags["C"] = total_avg < self.static_thresh
+            else:
+                avg_early = avg_late = 0.0
         else:
             avg_early = avg_late = 0.0
 
