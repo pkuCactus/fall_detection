@@ -9,6 +9,7 @@ from fall_detection.tracker import ByteTrackLite, Detection
 from fall_detection.pose_estimator import PoseEstimator
 from fall_detection.rules import RuleEngine
 from fall_detection.classifier import FallClassifier
+from fall_detection.simple_classifier import SimpleFallClassifier
 from fall_detection.fusion import FusionDecision
 
 
@@ -43,9 +44,21 @@ class FallDetectionPipeline:
 
         self.pose_estimator = PoseEstimator(model_name="yolov8n-pose")
         self.rule_engine = RuleEngine(rules_cfg, fps=self.fps)
-        # 加载分类器模型，支持从配置指定路径
-        cls_model_path = cls_cfg.get("model_path", "train/classifier/best.pt")
-        self.classifier = FallClassifier(model_path=cls_model_path)
+        # 加载分类器模型，支持从配置指定类型和路径
+        cls_type = cls_cfg.get("type", "fusion")  # "fusion" 或 "simple"
+        cls_model_path = cls_cfg.get("model_path")
+        if cls_type == "simple":
+            # 使用简单的单分支分类器（仅图像输入）
+            if cls_model_path is None:
+                cls_model_path = "train/simple_classifier/best.pt"
+            self.classifier = SimpleFallClassifier(model_path=cls_model_path)
+            self.use_simple_classifier = True
+        else:
+            # 使用融合分类器（图像+关键点+运动）
+            if cls_model_path is None:
+                cls_model_path = "train/classifier/best.pt"
+            self.classifier = FallClassifier(model_path=cls_model_path)
+            self.use_simple_classifier = False
         self.fusion = {}  # track_id -> FusionDecision
         self.motion_window_frames = max(1, int(0.5 * self.fps))
         self.history_seconds = 1.5
@@ -187,9 +200,17 @@ class FallDetectionPipeline:
                 roi = cv2.resize(frame[y1:y2, x1:x2], (96, 96))
                 roi = cv2.cvtColor(roi, cv2.COLOR_BGR2RGB).transpose(2, 0, 1).astype(np.float32) / 255.0
 
-                # motion 特征
-                motion = self._extract_motion(tid, kpts, bbox, history)
-                s_cls = self.classifier(roi, kpts, motion)
+                # 根据分类器类型调用不同接口
+                if self.use_simple_classifier:
+                    import torch.nn.functional as F
+                    logits = self.classifier(roi)
+                    # 输出是2分类logits，用softmax转概率，取类别1(跌倒)的概率
+                    probs = F.softmax(logits, dim=1)
+                    s_cls = probs[:, 1].item() if probs.shape[0] == 1 else probs[:, 1].cpu().numpy()
+                else:
+                    # motion 特征
+                    motion = self._extract_motion(tid, kpts, bbox, history)
+                    s_cls = self.classifier(roi, kpts, motion)
             else:
                 s_cls = 0.0
 
