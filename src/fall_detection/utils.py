@@ -99,8 +99,9 @@ def draw_results(
         if fusion_histories and tid in fusion_histories:
             history = fusion_histories[tid]
             if len(history) >= 3:
-                # 显示最近3帧的融合分数
-                recent_scores = history[-3:]
+                # 显示最近3帧的融合分数 (转换为list以兼容deque)
+                history_list = list(history)
+                recent_scores = history_list[-3:]
                 temporal_info = f" H:[{recent_scores[0]:.2f},{recent_scores[1]:.2f},{recent_scores[2]:.2f}]"
 
         if is_fall:
