@@ -1,8 +1,9 @@
 from typing import Dict, List, Any
 from collections import defaultdict, deque
+import cv2
 import yaml
 import numpy as np
-import cv2
+import torch
 
 from fall_detection.detector import PersonDetector
 from fall_detection.tracker import ByteTrackLite, Detection
@@ -199,20 +200,32 @@ class FallDetectionPipeline:
             s_rule, flags, rule_debug = self.rule_engine.evaluate(kpts, bbox, history)
 
             # 始终运行分类器（不再受规则触发阈值限制）
-            # 提取 ROI
+            # 提取 ROI (保持长宽比resize + padding)
             x1, y1, x2, y2 = map(int, bbox)
             h, w = frame.shape[:2]
             x1, y1 = max(0, x1), max(0, y1)
             x2, y2 = min(w, x2), min(h, y2)
-            roi = cv2.resize(frame[y1:y2, x1:x2], (96, 96))
+            roi_crop = frame[y1:y2, x1:x2]
+
+            # 保持长宽比resize到96x96，短边padding
+            roi_h, roi_w = roi_crop.shape[:2]
+            scale = 96.0 / max(roi_h, roi_w)
+            new_h, new_w = int(roi_h * scale), int(roi_w * scale)
+            roi_resized = cv2.resize(roi_crop, (new_w, new_h))
+
+            # 创建96x96的padding图像(黑色背景)
+            roi = np.zeros((96, 96, 3), dtype=np.uint8)
+            # 将resize后的图像放在左上角
+            roi[:new_h, :new_w] = roi_resized
+
             roi = cv2.cvtColor(roi, cv2.COLOR_BGR2RGB).transpose(2, 0, 1).astype(np.float32) / 255.0
 
             # 根据分类器类型调用不同接口
             if self.use_simple_classifier:
-                import torch.nn.functional as F
-                logits = self.classifier(roi)
+                roi_tensor = torch.from_numpy(roi).unsqueeze(0)  # (1, 3, 96, 96)
+                logits = self.classifier(roi_tensor)
                 # 输出是2分类logits，用softmax转概率，取类别1(跌倒)的概率
-                probs = F.softmax(logits, dim=1)
+                probs = torch.softmax(logits, dim=1)
                 s_cls = probs[:, 1].item() if probs.shape[0] == 1 else probs[:, 1].cpu().numpy()
             else:
                 # motion 特征

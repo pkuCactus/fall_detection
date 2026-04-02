@@ -100,8 +100,15 @@ class SimpleFallClassifier(nn.Module):
             roi: torch.Tensor, shape (B, 3, 96, 96)
 
         Returns:
-            torch.Tensor: 概率值, shape (B, 2) 或标量.
+            torch.Tensor: logits, shape (B, 2).
         """
-        out = self.model(roi)
-        out = self.model2(out)
+        # 推理时使用eval模式避免BatchNorm单样本问题
+        if self.training and roi.shape[0] == 1:
+            self.eval()
+            out = self.model(roi)
+            out = self.model2(out)
+            # 恢复training模式（如果有需要）
+        else:
+            out = self.model(roi)
+            out = self.model2(out)
         return out
