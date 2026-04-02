@@ -8,18 +8,22 @@ tracker:
   min_hits: 3
 
 rules:
-  h_ratio_thresh: 0.6
+  h_ratio_thresh: 0.65
   n_ground_min: 2
-  motion_window_seconds: 1.5
-  trigger_thresh: 0.4
+  motion_window_seconds: 1.0
+  trigger_thresh: 0.35
+  motion_thresh: 0.8
+  static_thresh: 0.6
 
 fusion:
-  alpha: 0.35
-  beta: 0.45
+  alpha: 0.50
+  beta: 0.30
   gamma: 0.20
-  alarm_thresh: 0.60
-  alarm_min_frames: 3
-  reset_seconds: 3.0
+  alarm_thresh: 0.55
+  alarm_min_frames: 2
+  reset_seconds: 1.0       # 1秒无检测后进入恢复期
+  cooldown_seconds: 3.0    # 3秒冷却期，防止频繁上报
+  recovery_seconds: 1.0    # 1秒恢复确认期，防止状态抖动
 
 pipeline:
   skip_frames: 2

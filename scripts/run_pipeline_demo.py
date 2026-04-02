@@ -47,30 +47,50 @@ def log_frame_details(logger, pipeline, frame_idx, results):
     logger.info(f"FRAME {frame_idx}")
     logger.info(f"{'='*60}")
 
-    # 是否运行检测
-    run_detection = (pipeline._frame_counter % (pipeline.skip_frames + 1)) == 0
-    logger.info(f"[1] Detection phase: {'YES' if run_detection else 'SKIP (use cached)'}")
+    # 是否运行检测（使用pipeline返回的结果，避免counter已递增的问题）
+    run_detection = results.get("is_detection_frame", True)
+    phase_label = "DETECTION" if run_detection else "TRACKING (skip frame)"
+    logger.info(f"[1] Phase: {phase_label}")
 
-    # 跟踪结果
-    tracks = results.get("tracks", [])
-    logger.info(f"[2] Tracking: {len(tracks)} active tracks")
+    # 检测帧：分开打印检测框和跟踪框
+    if run_detection:
+        # 原始检测框（YOLO输出）
+        detections = results.get("detections", [])
+        logger.info(f"[2] Detections (YOLO): {len(detections)} found")
+        for i, bbox in enumerate(detections):
+            logger.info(f"    [Det {i+1}] BBox=[{bbox[0]:.1f}, {bbox[1]:.1f}, {bbox[2]:.1f}, {bbox[3]:.1f}]")
 
-    for track in tracks:
-        tid = track.track_id
-        bbox = track.to_tlbr()
-        state = getattr(track, 'state', 'unknown')
-        hits = getattr(track, 'hits', 0)
-        logger.info(f"    Track {tid}:")
-        logger.info(f"      - BBox: [{bbox[0]:.1f}, {bbox[1]:.1f}, {bbox[2]:.1f}, {bbox[3]:.1f}]")
-        logger.info(f"      - State: {state}, Hits: {hits}")
-        logger.info(f"      - Center: ({bbox[0]+(bbox[2]-bbox[0])/2:.1f}, {bbox[1]+(bbox[3]-bbox[1])/2:.1f})")
+        # 跟踪框（关联后的轨迹）
+        tracks = results.get("tracks", [])
+        logger.info(f"[3] Tracks (after matching): {len(tracks)} active")
+        for track in tracks:
+            tid = track.track_id
+            bbox = track.to_tlbr()
+            state = getattr(track, 'state', 'unknown')
+            hits = getattr(track, 'hits', 0)
+            time_since = getattr(track, 'time_since_update', 0)
+            status = "matched" if time_since == 0 else f"predicted({time_since}f)"
+            logger.info(f"    [Track {tid}] BBox=[{bbox[0]:.1f}, {bbox[1]:.1f}, {bbox[2]:.1f}, {bbox[3]:.1f}], State={state}, Hits={hits}, Status={status}")
+    else:
+        # 跳帧：只打印跟踪预测的框
+        tracks = results.get("tracks", [])
+        logger.info(f"[2] Tracks (predicted): {len(tracks)} active")
+        for track in tracks:
+            tid = track.track_id
+            bbox = track.to_tlbr()
+            state = getattr(track, 'state', 'unknown')
+            time_since = getattr(track, 'time_since_update', 0)
+            logger.info(f"    [Track {tid}] BBox=[{bbox[0]:.1f}, {bbox[1]:.1f}, {bbox[2]:.1f}, {bbox[3]:.1f}], State={state}, Predicted={time_since}f")
 
     # 关键点检测
     track_kpts = results.get("track_kpts", {})
-    logger.info(f"[3] Pose estimation:")
+    pose_idx = "[4]" if run_detection else "[3]"
+    pose_label = "Pose (detected)" if run_detection else "Pose (cached)"
+    logger.info(f"{pose_idx} {pose_label}:")
     for tid, kpts in track_kpts.items():
         visible = sum(1 for k in kpts if k[2] > 0.1)
-        logger.info(f"    Track {tid}: {visible}/17 keypoints visible")
+        tag = "[Detection]" if run_detection else "[Cached]"
+        logger.info(f"    {tag} Track {tid}: {visible}/17 keypoints visible")
 
         names = ['nose', 'leye', 'reye', 'lear', 'rear', 'lsho', 'rsho',
                 'lelb', 'relb', 'lwri', 'rwri', 'lhip', 'rhip', 'lkne', 'rkne', 'lank', 'rank']
@@ -80,7 +100,8 @@ def log_frame_details(logger, pipeline, frame_idx, results):
 
     # 规则判定
     track_scores = results.get("track_scores", {})
-    logger.info(f"[4] Rule engine evaluation:")
+    rule_idx = "[5]" if run_detection else "[4]"
+    logger.info(f"{rule_idx} Rule engine evaluation:")
     for tid, scores in track_scores.items():
         rule_score = scores.get('rule', 0)
         triggered = rule_score >= pipeline.trigger_thresh
@@ -89,20 +110,28 @@ def log_frame_details(logger, pipeline, frame_idx, results):
         logger.info(f"      - Trigger classifier: {'YES' if triggered else 'NO'}")
 
     # 分类器结果
-    logger.info(f"[5] Classifier evaluation:")
+    cls_idx = "[6]" if run_detection else "[5]"
+    logger.info(f"{cls_idx} Classifier evaluation:")
     for tid, scores in track_scores.items():
         cls_score = scores.get('cls', 0)
         logger.info(f"    Track {tid}: cls_score={cls_score:.3f}")
 
     # 融合决策
     track_falling = results.get("track_falling", {})
-    logger.info(f"[6] Fusion decision:")
+    new_alarms = results.get("new_alarms", [])
+    fusion_idx = "[7]" if run_detection else "[6]"
+    logger.info(f"{fusion_idx} Fusion decision:")
     for tid, scores in track_scores.items():
         final_score = scores.get('final', 0)
         is_falling = track_falling.get(tid, False)
+        state = scores.get('state', 'unknown')
+        is_new_alarm = tid in new_alarms
         logger.info(f"    Track {tid}:")
         logger.info(f"      - Final score: {final_score:.3f}")
+        logger.info(f"      - State: {state}")
         logger.info(f"      - Is falling: {is_falling}")
+        if is_new_alarm:
+            logger.info(f"      - *** NEW ALARM TRIGGERED ***")
 
 
 def main():
@@ -200,6 +229,8 @@ def main():
     paused = False
     frame_idx = 0
     fall_detected_count = 0
+    new_alarm_count = 0
+    active_alarms = set()
 
     try:
         while True:
@@ -224,9 +255,22 @@ def main():
                 cv2.putText(frame, f"Frame: {frame_idx}", (10, h - 20),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
 
-                # 统计跌倒帧
+                # 统计跌倒帧和新告警事件
                 if any(results.get("track_falling", {}).values()):
                     fall_detected_count += 1
+
+                # 检测新的告警事件
+                for tid in results.get("new_alarms", []):
+                    if tid not in active_alarms:
+                        new_alarm_count += 1
+                        active_alarms.add(tid)
+                        print(f"*** ALARM: New fall detected for Track {tid} at frame {frame_idx} ***")
+                        if logger:
+                            logger.warning(f"NEW FALL ALARM: Track {tid} at frame {frame_idx}")
+
+                # 清理已恢复的告警
+                current_falling = set(tid for tid, falling in results.get("track_falling", {}).items() if falling)
+                active_alarms &= current_falling
 
                 # 调试日志
                 if logger:
@@ -284,11 +328,13 @@ def main():
             logger.info(f"Session complete")
             logger.info(f"Total frames processed: {frame_idx}")
             logger.info(f"Fall detected in {fall_detected_count} frames")
+            logger.info(f"New alarm events: {new_alarm_count}")
             logger.info(f"Log saved to: {args.log}")
             logger.info("=" * 80)
 
     print(f"\nDone. Processed {frame_idx} frames.")
     print(f"Fall detected in {fall_detected_count} frames.")
+    print(f"New alarm events: {new_alarm_count} (each fall event only reported once)")
 
 
 if __name__ == "__main__":

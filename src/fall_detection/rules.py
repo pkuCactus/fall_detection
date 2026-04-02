@@ -88,7 +88,10 @@ class RuleEngine:
 
         # ---- C: 由动到静 + 持续静止 ----
         centers = history.get("centers", []) if isinstance(history, dict) else []
-        if len(centers) >= 4:
+        # 需要至少 motion_window_seconds * fps 帧的历史数据（约1.5秒）
+        min_history_frames = max(8, int(self.motion_window_seconds * 25))  # 假设25fps
+        if len(centers) >= min_history_frames:
+            # 使用前半段vs后半段对比
             mid = len(centers) // 2
             early = np.array(centers[:mid], dtype=np.float32)
             late = np.array(centers[mid:], dtype=np.float32)

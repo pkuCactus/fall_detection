@@ -59,8 +59,10 @@ class FallDetectionPipeline:
         run_detection = (self._frame_counter % (self.skip_frames + 1)) == 0
         self._frame_counter += 1
 
+        raw_detections = []  # 保存原始检测框用于日志
         if run_detection:
             det_results = self.detector(frame, conf_thresh=self.detector_conf_thresh)
+            raw_detections = [d["bbox"] for d in det_results]  # 记录检测框
             detections = [
                 Detection(d["bbox"], d["conf"]) for d in det_results
             ]
@@ -70,19 +72,60 @@ class FallDetectionPipeline:
             for track in self.tracker.tracks:
                 track.predict()
             active_tracks = self.tracker.tracks
-            # 非检测帧复用上一次的 kpts
-            out = {
-                "tracks": active_tracks,
-                "track_kpts": self._last_track_kpts,
-                "track_scores": {},
-                "track_falling": {},
-            }
-            for t in active_tracks:
-                tid = t.track_id
+
+            # 更新跟踪历史（抽帧时也要更新）
+            for track in active_tracks:
+                tid = track.track_id
+                tlwh = track.to_tlwh()
+                cx = tlwh[0] + tlwh[2] / 2.0
+                cy = tlwh[1] + tlwh[3] / 2.0
+                self._track_history[tid].append((cx, cy))
+
+            # 抽帧时也要进行规则判定和融合决策（复用上一次的kpts）
+            # 抽帧时也要进行规则判定和融合决策（复用上一次的kpts）
+            track_scores: Dict[int, dict] = {}
+            track_falling: Dict[int, bool] = {}
+            new_alarms: List[int] = []
+
+            for track in active_tracks:
+                tid = track.track_id
+                kpts = self._last_track_kpts.get(tid, np.zeros((17, 3), dtype=np.float32))
+                bbox = track.to_tlbr().tolist()
+                history = {"centers": list(self._track_history[tid])}
+                s_rule, flags = self.rule_engine.evaluate(kpts, bbox, history)
+
+                # 抽帧时不运行分类器（节省计算），复用上一次的分类器分数
+                s_cls = 0.0  # 抽帧时不触发分类器，使用0分
+
                 if tid not in self.fusion:
                     self.fusion[tid] = FusionDecision(self.cfg.get("fusion", {}), fps=self.fps)
+
+                self.fusion[tid].update(rule_score=s_rule, cls_score=s_cls)
+                is_falling = self.fusion[tid].decide()
+                should_alarm = self.fusion[tid].should_alarm()
+                state = self.fusion[tid].get_state()
+
+                track_scores[tid] = {
+                    "rule": s_rule,
+                    "cls": s_cls,
+                    "final": state["S_final"],
+                    "state": state["state"],
+                }
+                track_falling[tid] = is_falling
+                if should_alarm:
+                    new_alarms.append(tid)
+
             self._last_active_tracks = active_tracks
-            return out
+
+            return {
+                "tracks": active_tracks,
+                "track_kpts": self._last_track_kpts,
+                "track_scores": track_scores,
+                "track_falling": track_falling,
+                "new_alarms": new_alarms,
+                "is_detection_frame": False,
+                "detections": [],
+            }
 
         # ---- 3. 关键点估计 ----
         bboxes = []
@@ -115,6 +158,7 @@ class FallDetectionPipeline:
         # ---- 4. 规则引擎 + 5. 分类器 + 6. 融合决策 ----
         track_scores: Dict[int, dict] = {}
         track_falling: Dict[int, bool] = {}
+        new_alarms: List[int] = []
 
         for track in active_tracks:
             tid = track.track_id
@@ -143,14 +187,18 @@ class FallDetectionPipeline:
 
             self.fusion[tid].update(rule_score=s_rule, cls_score=s_cls)
             is_falling = self.fusion[tid].decide()
+            should_alarm = self.fusion[tid].should_alarm()
             state = self.fusion[tid].get_state()
 
             track_scores[tid] = {
                 "rule": s_rule,
                 "cls": s_cls,
                 "final": state["S_final"],
+                "state": state["state"],
             }
             track_falling[tid] = is_falling
+            if should_alarm:
+                new_alarms.append(tid)
 
         self._last_active_tracks = active_tracks
 
@@ -159,6 +207,9 @@ class FallDetectionPipeline:
             "track_kpts": track_kpts,
             "track_scores": track_scores,
             "track_falling": track_falling,
+            "new_alarms": new_alarms,
+            "is_detection_frame": run_detection,
+            "detections": raw_detections if run_detection else [],
         }
 
     def _extract_motion(
