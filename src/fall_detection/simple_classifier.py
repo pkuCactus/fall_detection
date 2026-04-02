@@ -56,8 +56,10 @@ class SimpleFallClassifier(nn.Module):
     - 分类头: Linear + BN + Dropout + ReLU + Linear
     """
 
-    def __init__(self, model_path: str = None, dropout: float = 0.1):
+    def __init__(self, model_path: str = None, dropout: float = 0.1, fall_class_idx: int = 1):
         super().__init__()
+
+        self.fall_class_idx = fall_class_idx  # 跌倒类别索引（0或1）
 
         self.model = nn.Sequential(
             nn.Conv2d(3, 64, kernel_size=3, stride=2, padding=1, bias=False),
@@ -102,13 +104,6 @@ class SimpleFallClassifier(nn.Module):
         Returns:
             torch.Tensor: logits, shape (B, 2).
         """
-        # 推理时使用eval模式避免BatchNorm单样本问题
-        if self.training and roi.shape[0] == 1:
-            self.eval()
-            out = self.model(roi)
-            out = self.model2(out)
-            # 恢复training模式（如果有需要）
-        else:
-            out = self.model(roi)
-            out = self.model2(out)
+        out = self.model(roi)
+        out = self.model2(out)
         return out

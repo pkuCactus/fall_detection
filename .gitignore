@@ -21,3 +21,4 @@ __pycache__/
 
 data/*.mp4
 .fuse_*
+logs/

@@ -48,11 +48,12 @@ class FallDetectionPipeline:
         # 加载分类器模型，支持从配置指定类型和路径
         cls_type = cls_cfg.get("type", "fusion")  # "fusion" 或 "simple"
         cls_model_path = cls_cfg.get("model_path")
+        fall_class_idx = cls_cfg.get("fall_class_idx", 1)  # 跌倒类别索引（默认1）
         if cls_type == "simple":
             # 使用简单的单分支分类器（仅图像输入）
             if cls_model_path is None:
                 cls_model_path = "train/simple_classifier/best.pt"
-            self.classifier = SimpleFallClassifier(model_path=cls_model_path)
+            self.classifier = SimpleFallClassifier(model_path=cls_model_path, fall_class_idx=fall_class_idx)
             self.use_simple_classifier = True
         else:
             # 使用融合分类器（图像+关键点+运动）
@@ -222,11 +223,17 @@ class FallDetectionPipeline:
 
             # 根据分类器类型调用不同接口
             if self.use_simple_classifier:
+                import torch.nn.functional as F
                 roi_tensor = torch.from_numpy(roi).unsqueeze(0)  # (1, 3, 96, 96)
-                logits = self.classifier(roi_tensor)
-                # 输出是2分类logits，用softmax转概率，取类别1(跌倒)的概率
-                probs = torch.softmax(logits, dim=1)
-                s_cls = probs[:, 1].item() if probs.shape[0] == 1 else probs[:, 1].cpu().numpy()
+                # 使用eval模式避免BatchNorm单样本问题
+                self.classifier.eval()
+                with torch.no_grad():
+                    logits = self.classifier(roi_tensor)
+                    # 输出是2分类logits，用softmax转概率
+                    probs = F.softmax(logits, dim=1)
+                # 使用配置的fall_class_idx获取跌倒概率
+                fall_class_idx = getattr(self.classifier, 'fall_class_idx', 1)
+                s_cls = float(probs[0, fall_class_idx])
             else:
                 # motion 特征
                 motion = self._extract_motion(tid, kpts, bbox, history)
