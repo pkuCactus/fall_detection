@@ -1,6 +1,9 @@
 detector:
   conf_thresh: 0.3
 
+classifier:
+  model_path: "train/classifier/best.pt"  # 分类器模型路径
+
 tracker:
   track_thresh: 0.5
   match_thresh: 0.8

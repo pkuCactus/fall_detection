@@ -21,9 +21,12 @@ class FallDetectionPipeline:
 
         det_cfg = self.cfg.get("detector", {})
         track_cfg = self.cfg.get("tracker", {})
+        det_cfg = self.cfg.get("detector", {})
+        track_cfg = self.cfg.get("tracker", {})
         rules_cfg = self.cfg.get("rules", {})
         fusion_cfg = self.cfg.get("fusion", {})
         pipe_cfg = self.cfg.get("pipeline", {})
+        cls_cfg = self.cfg.get("classifier", {})
 
         self.detector = PersonDetector(model_name="yolov8n")
         self.detector_conf_thresh = det_cfg.get("conf_thresh", 0.3)
@@ -37,7 +40,9 @@ class FallDetectionPipeline:
 
         self.pose_estimator = PoseEstimator(model_name="yolov8n-pose")
         self.rule_engine = RuleEngine(rules_cfg)
-        self.classifier = FallClassifier()
+        # 加载分类器模型，支持从配置指定路径
+        cls_model_path = cls_cfg.get("model_path", "train/classifier/best.pt")
+        self.classifier = FallClassifier(model_path=cls_model_path)
         self.fusion = {}  # track_id -> FusionDecision
 
         self.skip_frames = pipe_cfg.get("skip_frames", 2)
