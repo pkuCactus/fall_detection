@@ -11,21 +11,25 @@ tracker:
   min_hits: 3
 
 rules:
-  h_ratio_thresh: 0.50        # 降低：人体高度比阈值，跌倒时更容易触发
-  n_ground_min: 1             # 放宽：1个点贴地即可触发
-  motion_window_seconds: 0.5   # 缩短窗口，更快响应
-  trigger_thresh: 0.25        # 保持：只要1个规则触发就运行分类器
-  motion_thresh: 2.0          # 降低：运动期平均位移阈值（像素/帧）
-  static_thresh: 1.0          # 降低：静止期平均位移阈值（像素/帧）
-  fall_vy_thresh: 15          # 降低：垂直下降速度阈值（像素/帧）
+  h_ratio_thresh: 0.60        # 收紧：坐姿/弯腰约0.5，跌倒通常更低
+  n_ground_min: 2             # 收紧：2个点贴地才触发，减少单点误检
+  motion_window_seconds: 0.5   # 运动检测窗口（秒）
+  trigger_thresh: 0.75        # 收紧：至少3条规则触发才运行分类器
+  motion_thresh: 75.0         # px/s：运动期位移阈值（3px/frame @ 25fps）
+  static_thresh: 20.0         # px/s：静止期位移阈值（0.8px/frame @ 25fps）
+  fall_vy_thresh: 400.0       # px/s：垂直下降速度阈值
+  accel_thresh: 150.0         # px/s^2：加速度辅助阈值
+  visible_ratio_min: 0.60     # 关键点可见比例下限
+  fps: 25                     # 规则引擎归一化帧率
 
 fusion:
-  alpha: 0.8      # 纯规则检测：规则分权重高
-  beta: 0.0       # 分类器关闭（无训练模型）
-  gamma: 0.2      # 时序平滑权重
-  alarm_thresh: 0.35  # 降低告警阈值，纯规则时更容易触发
-  alarm_min_frames: 2
-  reset_seconds: 1.0       # 1秒无检测后进入恢复期
+  alpha: 0.5      # 降低规则权重，避免纯规则主导
+  beta: 0.3       # 启用分类器过滤（模型已存在）
+  gamma: 0.2      # 保持时序平滑权重
+  alarm_thresh: 0.50  # 提高告警阈值，减少日常动作误报
+  alarm_min_frames: 3
+  sequence_check_frames: 8    # 姿态转换序列检查窗口（帧）
+  reset_seconds: 1.5       # 1.5秒无检测后进入恢复期
   cooldown_seconds: 3.0    # 3秒冷却期，防止频繁上报
   recovery_seconds: 1.0    # 1秒恢复确认期，防止状态抖动
 

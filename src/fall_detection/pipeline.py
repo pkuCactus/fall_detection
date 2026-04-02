@@ -38,15 +38,15 @@ class FallDetectionPipeline:
             min_hits=track_cfg.get("min_hits", 3),
         )
 
+        self.skip_frames = pipe_cfg.get("skip_frames", 2)
+        self.fps = pipe_cfg.get("fps", 25)
+
         self.pose_estimator = PoseEstimator(model_name="yolov8n-pose")
-        self.rule_engine = RuleEngine(rules_cfg)
+        self.rule_engine = RuleEngine(rules_cfg, fps=self.fps)
         # 加载分类器模型，支持从配置指定路径
         cls_model_path = cls_cfg.get("model_path", "train/classifier/best.pt")
         self.classifier = FallClassifier(model_path=cls_model_path)
         self.fusion = {}  # track_id -> FusionDecision
-
-        self.skip_frames = pipe_cfg.get("skip_frames", 2)
-        self.fps = pipe_cfg.get("fps", 25)
         self.motion_window_frames = max(1, int(0.5 * self.fps))
         self.history_seconds = 1.5
         self.history_maxlen = max(1, int(self.history_seconds * self.fps))
@@ -78,7 +78,8 @@ class FallDetectionPipeline:
             # 只预测已有轨迹，不跑检测和 pose
             for track in self.tracker.tracks:
                 track.predict()
-            active_tracks = self.tracker.tracks
+            # 抽帧时：包含刚刚预测过的轨迹（time_since_update <= skip_frames）
+            active_tracks = [t for t in self.tracker.tracks if t.time_since_update <= self.skip_frames]
 
             # 更新跟踪历史（抽帧时也要更新）
             for track in active_tracks:
@@ -107,7 +108,8 @@ class FallDetectionPipeline:
                 if tid not in self.fusion:
                     self.fusion[tid] = FusionDecision(self.cfg.get("fusion", {}), fps=self.fps)
 
-                self.fusion[tid].update(rule_score=s_rule, cls_score=s_cls)
+                posture = rule_debug.get("posture", "unknown")
+                self.fusion[tid].update(rule_score=s_rule, cls_score=s_cls, posture=posture)
                 is_falling = self.fusion[tid].decide()
                 should_alarm = self.fusion[tid].should_alarm()
                 state = self.fusion[tid].get_state()
@@ -194,7 +196,8 @@ class FallDetectionPipeline:
             if tid not in self.fusion:
                 self.fusion[tid] = FusionDecision(self.cfg.get("fusion", {}), fps=self.fps)
 
-            self.fusion[tid].update(rule_score=s_rule, cls_score=s_cls)
+            posture = rule_debug.get("posture", "unknown")
+            self.fusion[tid].update(rule_score=s_rule, cls_score=s_cls, posture=posture)
             is_falling = self.fusion[tid].decide()
             should_alarm = self.fusion[tid].should_alarm()
             state = self.fusion[tid].get_state()
@@ -245,9 +248,11 @@ class FallDetectionPipeline:
         else:
             vx = vy = ax = ay = 0.0
 
-        # H_ratio
-        head_y = np.mean([kpts[i, 1] for i in [0, 1, 2] if kpts[i, 2] > 0.1])
-        ankle_y = np.mean([kpts[i, 1] for i in [15, 16] if kpts[i, 2] > 0.1])
+        # H_ratio (防止关键点全不可见导致 NaN)
+        head_vals = [kpts[i, 1] for i in [0, 1, 2] if kpts[i, 2] > 0.1]
+        ankle_vals = [kpts[i, 1] for i in [15, 16] if kpts[i, 2] > 0.1]
+        head_y = np.mean(head_vals) if head_vals else bbox[1] + h * 0.1
+        ankle_y = np.mean(ankle_vals) if ankle_vals else bbox[3] - h * 0.1
         h_ratio = abs(head_y - ankle_y) / max(1.0, h)
 
         # N_ground
