@@ -110,6 +110,7 @@ class FallDetectionPipeline:
                     "cls": s_cls,
                     "final": state["S_final"],
                     "state": state["state"],
+                    "flags": flags,
                 }
                 track_falling[tid] = is_falling
                 if should_alarm:
@@ -195,6 +196,7 @@ class FallDetectionPipeline:
                 "cls": s_cls,
                 "final": state["S_final"],
                 "state": state["state"],
+                "flags": flags,
             }
             track_falling[tid] = is_falling
             if should_alarm:

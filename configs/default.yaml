@@ -8,12 +8,13 @@ tracker:
   min_hits: 3
 
 rules:
-  h_ratio_thresh: 0.65
-  n_ground_min: 2
+  h_ratio_thresh: 0.55        # 降低：要求更低的高度比（更严格，排除坐着）
+  n_ground_min: 3             # 增加：要求更多点贴地
   motion_window_seconds: 1.0
-  trigger_thresh: 0.35
-  motion_thresh: 0.8
-  static_thresh: 0.6
+  trigger_thresh: 0.40        # 提高：需要至少2个规则（4*0.4=1.6）
+  motion_thresh: 0.5          # 降低：更容易触发规则C
+  static_thresh: 0.8          # 提高：静止判定更宽松
+  fall_vy_thresh: 30          # 规则D：垂直下降速度阈值（像素/帧）
 
 fusion:
   alpha: 0.50

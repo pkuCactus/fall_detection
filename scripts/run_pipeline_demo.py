@@ -105,8 +105,11 @@ def log_frame_details(logger, pipeline, frame_idx, results):
     for tid, scores in track_scores.items():
         rule_score = scores.get('rule', 0)
         triggered = rule_score >= pipeline.trigger_thresh
+        flags = scores.get('flags', {})
         logger.info(f"    Track {tid}:")
         logger.info(f"      - Rule score: {rule_score:.3f} (threshold: {pipeline.trigger_thresh})")
+        logger.info(f"      - Rules: A={flags.get('A', False)}, B={flags.get('B', False)}, "
+                    f"C={flags.get('C', False)}, D={flags.get('D', False)}")
         logger.info(f"      - Trigger classifier: {'YES' if triggered else 'NO'}")
 
     # 分类器结果

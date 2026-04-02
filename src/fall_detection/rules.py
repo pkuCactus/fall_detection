@@ -16,6 +16,7 @@ class RuleEngine:
         self.motion_thresh = cfg.get("motion_thresh", 1.0)
         self.static_thresh = cfg.get("static_thresh", 0.5)
         self.ground_ratio = cfg.get("ground_ratio", 0.15)
+        self.fall_vy_thresh = cfg.get("fall_vy_thresh", 30.0)  # 规则D：垂直下降阈值
 
     def evaluate(
         self,
@@ -32,9 +33,9 @@ class RuleEngine:
             history: dict 包含 'centers': List[(cx, cy), ...].
 
         Returns:
-            (S_rule, {"A": bool, "B": bool, "C": bool})
+            (S_rule, {"A": bool, "B": bool, "C": bool, "D": bool})
         """
-        flags = {"A": False, "B": False, "C": False}
+        flags = {"A": False, "B": False, "C": False, "D": False}
 
         # ---- A: 高度压缩 + 多点贴地 ----
         head_idxs = [0, 1, 2]   # nose, left eye, right eye
@@ -86,21 +87,40 @@ class RuleEngine:
                 for p in lowest3
             )
 
-        # ---- C: 由动到静 + 持续静止 ----
+        # ---- C: 由动到静 + 持续静止 (改进版：使用位移而不是方差) ----
         centers = history.get("centers", []) if isinstance(history, dict) else []
-        # 需要至少 motion_window_seconds * fps 帧的历史数据（约1.5秒）
-        min_history_frames = max(8, int(self.motion_window_seconds * 25))  # 假设25fps
+        # 需要至少 motion_window_seconds * fps 帧的历史数据
+        min_history_frames = max(8, int(self.motion_window_seconds * 25))
         if len(centers) >= min_history_frames:
-            # 使用前半段vs后半段对比
-            mid = len(centers) // 2
-            early = np.array(centers[:mid], dtype=np.float32)
-            late = np.array(centers[mid:], dtype=np.float32)
-            std_early = np.sqrt(np.var(early[:, 0]) + np.var(early[:, 1]))
-            std_late = np.sqrt(np.var(late[:, 0]) + np.var(late[:, 1]))
-            flags["C"] = (std_early > self.motion_thresh) and (std_late < self.static_thresh)
+            # 计算每帧位移
+            displacements = []
+            for i in range(1, len(centers)):
+                dx = centers[i][0] - centers[i-1][0]
+                dy = centers[i][1] - centers[i-1][1]
+                displacements.append(np.sqrt(dx**2 + dy**2))
 
-        # S_rule: 三个规则按等权平均
-        score = sum(flags.values()) / 3.0
+            # 分割前后半段
+            mid = len(displacements) // 2
+            if mid > 0:
+                avg_early = np.mean(displacements[:mid])
+                avg_late = np.mean(displacements[mid:])
+                # 由动到静：前半段有位移，后半段静止
+                flags["C"] = (avg_early > self.motion_thresh) and (avg_late < self.static_thresh)
+
+        # ---- D: 垂直方向快速下降 (检测坐着→跌倒的快速高度变化) ----
+        # 使用历史中的高度变化来检测快速下降
+        if len(centers) >= 4:
+            # 计算最近几帧的垂直速度
+            recent_y = [c[1] for c in centers[-4:]]
+            vy = recent_y[-1] - recent_y[0]  # 正值表示向下移动
+
+            # 快速下降：垂直速度大且当前高度比低
+            # 坐着跌倒时，人会向前/向下快速移动
+            if vy > self.fall_vy_thresh and h_ratio < self.h_ratio_thresh:
+                flags["D"] = True
+
+        # S_rule: 四个规则按等权平均 (A,B,C,D)
+        score = sum(flags.values()) / 4.0
         # 转成 Python 原生 bool 方便断言
         return float(score), {k: bool(v) for k, v in flags.items()}
 
