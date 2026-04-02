@@ -1,0 +1,33 @@
+# 跟踪器参数调优配置
+# 使用: bash scripts/shell/run_tune_tracker.sh --video-dir data/videos
+
+# 输入数据
+video_dir: "data/videos"  # 视频目录
+output: "train/tracker/tune_result.json"  # 调优结果输出路径
+
+# ByteTrack参数搜索空间
+track_thresh:
+  min: 0.3
+  max: 0.6
+  step: 0.05
+
+match_thresh:
+  min: 0.7
+  max: 0.9
+  step: 0.05
+
+max_age:
+  values: [15, 20, 25, 30, 35]
+
+min_hits:
+  values: [1, 2, 3, 4, 5]
+
+# 评估配置
+gt_dir: "data/tracker_gt"  # 跟踪真值目录 (如果有)
+sample_videos: 5  # 用于调优的样本视频数量 (null=全部)
+
+# 评估指标权重 (多目标优化)
+weights:
+  mota: 0.4    # 多目标跟踪准确率
+  idf1: 0.4    # ID F1分数
+  fps: 0.2     # 推理速度 (鼓励快速跟踪)

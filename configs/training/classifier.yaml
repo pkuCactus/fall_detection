@@ -1,0 +1,60 @@
+# 跌倒分类器训练配置
+# 使用: bash scripts/shell/run_train_classifier.sh --ngpus 2 --batch-size 16
+
+# 数据配置
+cache_dir: "train/cache"  # 特征缓存目录 (由extract_features.py生成)
+val_ratio: 0.2  # 验证集比例
+
+# 模型架构 (与FallClassifier保持一致)
+model:
+  img_channels: [3, 16, 32]  # 图像分支通道数
+  kpt_dim: 51  # 17 keypoints * 3 (x, y, conf)
+  kpt_hidden: 32
+  motion_dim: 8
+  motion_hidden: 8
+  fusion_hidden: 32
+  dropout: 0.3
+
+# 训练配置
+epochs: 100
+batch_size: 32
+
+# 优化器配置
+lr: 0.001
+weight_decay: 0.0001
+
+# 学习率调度
+lr_scheduler:
+  type: "cosine"  # cosine, step, plateau
+  T_max: 100  # cosine周期
+  eta_min: 0.00001  # 最小学习率
+
+# 早停配置
+early_stopping:
+  patience: 15
+  min_delta: 0.001
+  mode: "max"  # 监控验证准确率，最大化
+
+# 损失函数
+loss:
+  type: "bce"  # binary cross entropy
+  pos_weight: 2.0  # 正样本权重 (跌倒样本通常较少)
+
+# 数据增强 (在特征层面)
+augmentation:
+  enabled: true
+  noise_std: 0.01  # 高斯噪声
+  dropout_input: 0.1  # 输入特征随机丢弃
+
+# 输出配置
+output_dir: "train/classifier"
+save_best: true
+save_every: 20  # 每N轮保存检查点
+
+# DDP配置
+ddp:
+  backend: "nccl"  # nccl for GPU, gloo for CPU
+  find_unused_parameters: false
+
+# 日志
+log_interval: 10  # 每N轮打印日志
