@@ -159,9 +159,14 @@ def main():
                         help="Run without GUI display (for server)")
     parser.add_argument("--debug", action="store_true",
                         help="Enable detailed debug logging")
-    parser.add_argument("--log", default="logs/pipeline_debug.log",
-                        help="Log file path (used with --debug)")
+    parser.add_argument("--log", default=None,
+                        help="Log file path (used with --debug). Defaults to logs/{video_name}.log")
     args = parser.parse_args()
+
+    # 如果没有指定log路径，使用视频文件名作为默认日志名
+    if args.log is None and args.debug:
+        video_name = os.path.splitext(os.path.basename(args.video))[0]
+        args.log = f"logs/{video_name}.log"
 
     # 设置调试日志
     logger = None
