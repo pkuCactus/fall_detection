@@ -1,0 +1,21 @@
+# YOLOv8 人体检测数据集配置
+# 用于训练/微调 YOLOv8n 检测器
+
+# 数据集根目录 (可以使用绝对路径或相对于此配置文件的路径)
+path: ./datasets/fall_detection
+
+# 训练/验证/测试图像路径
+# 可以是目录 (如: images/train) 或包含图像路径的 txt 文件
+train: images/train
+val: images/val
+test: images/test  # 可选
+
+# 类别定义
+names:
+  0: person
+
+# 可选: 类别数量 (YOLO会自动从names推断)
+nc: 1
+
+# 可选: 下载链接 (如果需要自动下载数据集)
+# download: https://example.com/fall_detection_dataset.zip
