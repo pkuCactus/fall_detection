@@ -172,7 +172,6 @@ def main():
     print(f"  Detector input size: {detector_input_size}x{detector_input_size}")
 
     if logger:
-        logger.info((f" - Detector input size: {detector_input_size}x{detector_input_size}"))
         logger.info(f"  - Trigger threshold: {pipeline.trigger_thresh}")
         logger.info(f"  - Skip frames: {pipeline.skip_frames}")
         logger.info(f"  - FPS: {pipeline.fps}")
