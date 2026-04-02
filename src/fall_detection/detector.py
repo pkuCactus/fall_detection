@@ -8,6 +8,12 @@ class PersonDetector:
 
     def __init__(self, model_name: str = "yolov8n"):
         self.model = YOLO(f"{model_name}.pt")
+        self.imgsz = getattr(self.model, "args", {}).get("imgsz", 640)
+
+    @property
+    def input_size(self) -> int:
+        """返回模型输入分辨率."""
+        return self.imgsz
 
     def __call__(self, img: np.ndarray, conf_thresh: float = 0.3) -> List[Dict]:
         """
