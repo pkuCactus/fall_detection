@@ -60,16 +60,18 @@ class VLMDetector:
         system_prompt = """You are a computer vision expert. Analyze the image and detect all persons.
 
 For each person, provide:
-1. State: one of [fall, fallen, falling, stand, sit, squat, bend, kneel, crawl, half_up]
+1. State: one of [fall_down, kneel, half_up, crawl, stand, sit, squat, bend]
+   - fall_down, kneel, half_up, crawl -> person in abnormal/dangerous state
+   - stand, sit, squat, bend -> person in normal state
 2. Bounding box coordinates [x1, y1, x2, y2] in pixel values
 3. Confidence score (0-1)
 
-Focus on fall detection - identify anyone who has fallen or is in the process of falling.
+Focus on detecting people in abnormal states (fall_down, kneel, half_up, crawl).
 
 Respond in JSON format:
 {
   "detections": [
-    {"class": "fall", "bbox": [100, 200, 300, 400], "confidence": 0.95}
+    {"class": "fall_down", "bbox": [100, 200, 300, 400], "confidence": 0.95}
   ]
 }
 
@@ -302,17 +304,18 @@ class Visualizer:
     """Visualize detection results on images."""
 
     # Color map for different classes
+    # Red for fall classes (label=1), Green for normal classes (label=0)
     COLORS = {
-        "fall": (0, 0, 255),      # Red
-        "fallen": (0, 0, 255),    # Red
-        "falling": (0, 0, 255),   # Red
-        "stand": (0, 255, 0),     # Green
-        "sit": (255, 0, 0),       # Blue
-        "squat": (255, 255, 0),   # Cyan
-        "bend": (255, 0, 255),    # Magenta
-        "kneel": (0, 255, 255),   # Yellow
-        "crawl": (128, 0, 128),   # Purple
-        "half_up": (0, 128, 255), # Orange
+        # Fall classes (abnormal/dangerous) - Red
+        "fall_down": (0, 0, 255),   # Red
+        "kneel": (0, 0, 255),       # Red
+        "half_up": (0, 0, 255),     # Red
+        "crawl": (0, 0, 255),       # Red
+        # Normal classes - Green
+        "stand": (0, 255, 0),       # Green
+        "sit": (0, 255, 0),         # Green
+        "squat": (0, 255, 0),       # Green
+        "bend": (0, 255, 0),        # Green
     }
 
     def __init__(self, font_size: int = 20):

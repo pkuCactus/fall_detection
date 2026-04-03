@@ -151,18 +151,23 @@ bash scripts/shell/run_train_simple_classifier.sh \
 
 VLM会检测以下人物状态:
 
+### 跌倒/异常类别 (label=1)
+
 | 类别 | 说明 | 颜色 |
 |------|------|------|
-| fall | 跌倒 | 红色 |
-| fallen | 已跌倒 | 红色 |
-| falling | 正在跌倒 | 红色 |
+| fall_down | 跌倒/摔倒 | 红色 |
+| kneel | 跪下 | 红色 |
+| half_up | 半起身 | 红色 |
+| crawl | 爬行 | 红色 |
+
+### 正常类别 (label=0)
+
+| 类别 | 说明 | 颜色 |
+|------|------|------|
 | stand | 站立 | 绿色 |
-| sit | 坐下 | 蓝色 |
-| squat | 蹲下 | 青色 |
-| bend | 弯腰 | 紫色 |
-| kneel | 跪下 | 黄色 |
-| crawl | 爬行 | 紫色 |
-| half_up | 半起身 | 橙色 |
+| sit | 坐下 | 绿色 |
+| squat | 蹲下 | 绿色 |
+| bend | 弯腰 | 绿色 |
 
 ## 配置文件示例
 
@@ -178,18 +183,16 @@ voc:
     - "data/VLM_fall"
   
   fall_classes:
-    - "fall"
-    - "fallen"
-    - "falling"
+    - "fall_down"
+    - "kneel"
+    - "half_up"
+    - "crawl"
   
   normal_classes:
     - "stand"
     - "sit"
     - "squat"
     - "bend"
-    - "kneel"
-    - "crawl"
-    - "half_up"
 
 # 其他配置...
 ```
