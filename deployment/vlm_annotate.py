@@ -59,25 +59,33 @@ class VLMDetector:
         img_h, img_w = img.shape[:2]
 
         # Prepare prompt for VLM
-        system_prompt = """You are a computer vision expert. Analyze the image and detect all persons.
+        system_prompt = f"""You are a computer vision expert. Analyze the image and detect all persons.
+
+Image dimensions: {img_w} x {img_h} pixels.
 
 For each person, provide:
 1. State: one of [fall_down, kneel, half_up, crawl, stand, sit, squat, bend]
    - fall_down, kneel, half_up, crawl -> person in abnormal/dangerous state
    - stand, sit, squat, bend -> person in normal state
-2. Bounding box coordinates [x1, y1, x2, y2] in pixel values
+2. Bounding box coordinates [x1, y1, x2, y2] as ABSOLUTE PIXEL VALUES (not normalized)
+   - x1, y2: top-left corner pixel coordinates
+   - x2, y2: bottom-right corner pixel coordinates
+   - Range: x in [0, {img_w}], y in [0, {img_h}]
+   - Example: if person is at top-left corner, 100px wide, 200px tall: [0, 0, 100, 200]
 3. Confidence score (0-1)
+
+IMPORTANT: Return coordinates as integers in PIXEL VALUES, NOT normalized (0-1) values.
 
 Focus on detecting people in abnormal states (fall_down, kneel, half_up, crawl).
 
 Respond in JSON format:
-{
+{{
   "detections": [
-    {"class": "fall_down", "bbox": [100, 200, 300, 400], "confidence": 0.95}
+    {{"class": "fall_down", "bbox": [100, 200, 300, 400], "confidence": 0.95}}
   ]
-}
+}}
 
-If no persons detected, return {"detections": []}."""
+If no persons detected, return {{"detections": []}}."""
 
         # Call VLM API
         if self.model == "claude":
@@ -464,6 +472,37 @@ class Visualizer:
         return output_path
 
 
+def normalize_bbox(bbox: List[float], img_w: int, img_h: int) -> List[int]:
+    """Convert bbox to absolute pixel coordinates.
+
+    Handles:
+    - Normalized coordinates (0-1 range)
+    - Already absolute coordinates (pass through)
+    """
+    x1, y1, x2, y2 = bbox
+
+    # Detect if coordinates are normalized (0-1 range)
+    # Normalized coords are typically 0-1, but could be slightly outside due to model output
+    if all(0 <= v <= 1.0 for v in [x1, y1, x2, y2]):
+        # These are likely normalized coordinates
+        print(f"    Detected normalized coords, converting to absolute (img: {img_w}x{img_h})")
+        x1 = int(x1 * img_w)
+        y1 = int(y1 * img_h)
+        x2 = int(x2 * img_w)
+        y2 = int(y2 * img_h)
+    else:
+        # Already absolute coordinates
+        x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
+
+    # Clamp to image bounds
+    x1 = max(0, min(x1, img_w - 1))
+    y1 = max(0, min(y1, img_h - 1))
+    x2 = max(0, min(x2, img_w - 1))
+    y2 = max(0, min(y2, img_h - 1))
+
+    return [x1, y1, x2, y2]
+
+
 def process_image(
     image_path: str,
     detector: VLMDetector,
@@ -479,20 +518,25 @@ def process_image(
     """
     print(f"Processing: {image_path}")
 
-    # Detect
-    detections = detector.detect(image_path)
-    print(f"  Found {len(detections)} persons")
-
-    for det in detections:
-        print(f"    - {det['class']}: {det['bbox']} (conf: {det.get('confidence', 1.0):.2f})")
-
-    # Get image size
+    # Get image size first for coordinate conversion
     img = cv2.imread(image_path)
     if img is None:
         print(f"  Warning: Failed to load image")
         return []
 
     h, w, c = img.shape
+    print(f"  Image size: {w}x{h}")
+
+    # Detect
+    detections = detector.detect(image_path)
+    print(f"  Found {len(detections)} persons")
+
+    # Normalize bbox coordinates
+    for det in detections:
+        bbox = det["bbox"]
+        print(f"    Raw bbox: {bbox}")
+        det["bbox"] = normalize_bbox(bbox, w, h)
+        print(f"    - {det['class']}: {det['bbox']} (conf: {det.get('confidence', 1.0):.2f})")
 
     # Write VOC annotation
     xml_path = voc_writer.write(image_path, detections, (w, h, c))
