@@ -30,26 +30,46 @@ export ANTHROPIC_API_KEY="your-api-key"
 
 # 或使用 GPT-4V
 export OPENAI_API_KEY="your-api-key"
+
+# 或使用 阿里百炼 (Bailian) - 国内访问友好
+export DASHSCOPE_API_KEY="your-api-key"
+# API Key 从 https://bailian.console.aliyun.com/ 获取
 ```
 
 ### 2. 使用VLM标注图像
 
 #### 单张图像
 ```bash
+# 使用 Claude
 python deployment/vlm_annotate.py \
     --input data/my_image.jpg \
     --output-dir outputs/Annotations \
     --vis-dir outputs/Visualizations \
     --model claude
+
+# 使用 阿里百炼 (Bailian)
+python deployment/vlm_annotate.py \
+    --input data/my_image.jpg \
+    --output-dir outputs/Annotations \
+    --vis-dir outputs/Visualizations \
+    --model bailian
 ```
 
 #### 批量处理目录
 ```bash
+# 使用 Claude
 python deployment/vlm_annotate.py \
     --input data/images/ \
     --output-dir outputs/Annotations \
     --vis-dir outputs/Visualizations \
     --model claude
+
+# 使用 阿里百炼 (国内推荐)
+python deployment/vlm_annotate.py \
+    --input data/images/ \
+    --output-dir outputs/Annotations \
+    --vis-dir outputs/Visualizations \
+    --model bailian
 ```
 
 **输出结构**:
@@ -200,7 +220,11 @@ voc:
 ## 常见问题
 
 ### Q: API调用费用?
-A: Claude 3.5 Sonnet 约 $0.003/图像 (取决于图像大小)。批量处理前建议小样本测试。
+A: 
+- Claude 3.5 Sonnet: 约 $0.003/图像 (取决于图像大小)
+- 阿里百炼 (qwen-vl-max): 约 ¥0.003-0.008/图像，国内访问更快
+
+批量处理前建议小样本测试。
 
 ### Q: 标注准确率低怎么办?
 A: 
