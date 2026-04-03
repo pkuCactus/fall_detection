@@ -82,6 +82,8 @@ If no persons detected, return {"detections": []}."""
             return self._call_claude(image_path, system_prompt)
         elif self.model == "gpt4v":
             return self._call_gpt4v(image_path, system_prompt)
+        elif self.model == "bailian":
+            return self._call_bailian(image_path, system_prompt)
         else:
             return self._call_generic(image_path, system_prompt)
 
@@ -186,6 +188,79 @@ If no persons detected, return {"detections": []}."""
             return []
         except (json.JSONDecodeError, IndexError) as e:
             print(f"Failed to parse VLM response: {e}")
+            return []
+
+    def _call_bailian(self, image_path: str, prompt: str) -> List[Dict]:
+        """Call Alibaba Bailian (百炼) API.
+
+        百炼平台使用 OpenAI 兼容格式，支持 Qwen-VL 等模型。
+        API Key 从 https://bailian.console.aliyun.com/ 获取
+        """
+        import requests
+
+        # 百炼平台默认使用 OpenAI 兼容格式
+        api_url = self.api_url or "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
+
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}"
+        }
+
+        # 编码图像
+        image_base64 = self._encode_image(image_path)
+
+        # 构建请求体 - 百炼/Qwen-VL 格式
+        payload = {
+            "model": self.api_url or "qwen-vl-max",  # 默认使用 qwen-vl-max
+            "messages": [
+                {
+                    "role": "system",
+                    "content": [{"type": "text", "text": prompt}]
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{image_base64}"
+                            }
+                        },
+                        {
+                            "type": "text",
+                            "text": "请分析这张图片，检测图中的人物状态并提供边界框坐标。"
+                        }
+                    ]
+                }
+            ],
+            "max_tokens": 2048,
+            "temperature": 0.7
+        }
+
+        try:
+            response = requests.post(api_url, headers=headers, json=payload, timeout=60)
+            response.raise_for_status()
+            result = response.json()
+
+            # 解析响应
+            response_text = result["choices"][0]["message"]["content"]
+
+            # 提取 JSON
+            json_start = response_text.find("{")
+            json_end = response_text.rfind("}") + 1
+            if json_start >= 0 and json_end > json_start:
+                data = json.loads(response_text[json_start:json_end])
+                return data.get("detections", [])
+
+            # 如果没有找到 JSON，尝试直接返回解析的内容
+            print(f"Warning: No JSON found in response: {response_text[:200]}")
+            return []
+
+        except requests.exceptions.RequestException as e:
+            print(f"Bailian API request failed: {e}")
+            return []
+        except (json.JSONDecodeError, KeyError) as e:
+            print(f"Failed to parse Bailian response: {e}")
             return []
 
     def _call_generic(self, image_path: str, prompt: str) -> List[Dict]:
@@ -435,15 +510,22 @@ def main():
     parser.add_argument("--input", "-i", required=True, help="Input image or directory")
     parser.add_argument("--output-dir", "-o", default="outputs/vlm_annotations", help="VOC output directory")
     parser.add_argument("--vis-dir", "-v", default="outputs/vlm_visualizations", help="Visualization output directory")
-    parser.add_argument("--api-key", "-k", help="VLM API key (or set ANTHROPIC_API_KEY env var)")
-    parser.add_argument("--model", "-m", default="claude", choices=["claude", "gpt4v"], help="VLM model")
+    parser.add_argument("--api-key", "-k", help="VLM API key (or set ANTHROPIC_API_KEY / DASHSCOPE_API_KEY env var)")
+    parser.add_argument("--model", "-m", default="claude", choices=["claude", "gpt4v", "bailian"], help="VLM model")
     parser.add_argument("--extensions", "-e", default="jpg,jpeg,png,bmp", help="Image extensions to process")
     args = parser.parse_args()
 
     # Get API key
-    api_key = args.api_key or os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("OPENAI_API_KEY")
+    # Get API key based on model type
+    if args.model == "bailian":
+        api_key = args.api_key or os.environ.get("DASHSCOPE_API_KEY")
+    else:
+        api_key = args.api_key or os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("OPENAI_API_KEY")
     if not api_key:
-        print("Error: API key required. Provide --api-key or set ANTHROPIC_API_KEY / OPENAI_API_KEY env var")
+        if args.model == "bailian":
+            print("Error: API key required. Provide --api-key or set DASHSCOPE_API_KEY env var")
+        else:
+            print("Error: API key required. Provide --api-key or set ANTHROPIC_API_KEY / OPENAI_API_KEY env var")
         sys.exit(1)
 
     # Initialize components
