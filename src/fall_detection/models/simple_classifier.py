@@ -90,17 +90,17 @@ class SimpleFallClassifier(nn.Module):
         # 加载预训练权重 (使用try/except避免TOCTOU问题)
         if model_path:
             try:
-                self.load_state_dict(torch.load(model_path, map_location='cpu'))
+                self.load_state_dict(torch.load(model_path, map_location='cpu'), strict=True)
                 self.eval()
-            except (FileNotFoundError, RuntimeError) as e:
+            except FileNotFoundError as e:
                 print(f"Warning: Failed to load model from {model_path}: {e}")
         else:
             # 尝试加载默认路径
             try:
-                self.load_state_dict(torch.load("outputs/simple_classifier/best.pt", map_location='cpu'))
+                self.load_state_dict(torch.load("outputs/simple_classifier/best.pt", map_location='cpu'), strict=True)
                 self.eval()
             except FileNotFoundError:
-                pass  # 默认路径不存在，使用随机初始化
+                print("Warning: Default model path not found, using random initialization.")  # 默认路径不存在，使用随机初始化
 
     def forward(self, roi):
         """
