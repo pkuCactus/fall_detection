@@ -20,6 +20,15 @@ from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 
 sys.path.insert(0, "src")
+
+
+def worker_init_fn(worker_id):
+    """Initialize worker process with correct path."""
+    import sys
+    if "src" not in sys.path:
+        sys.path.insert(0, "src")
+
+
 from fall_detection.data import CocoFallDataset, VOCFallDataset, TrainingAugmentation
 from fall_detection.models.simple_classifier import SimpleFallClassifier
 from fall_detection.training import WarmupScheduler
@@ -567,6 +576,7 @@ def main():
         num_workers=cfg.get("num_workers", 4),
         pin_memory=True,
         drop_last=True,
+        worker_init_fn=worker_init_fn if cfg.get("num_workers", 4) > 0 else None,
     )
 
     val_loader = None
