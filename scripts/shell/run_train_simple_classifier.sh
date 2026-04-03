@@ -48,12 +48,12 @@ if [ "${NGPUS}" -gt 1 ]; then
   torchrun --nproc_per_node="${NGPUS}" \
     training/scripts/train_simple_classifier.py \
     --config "${CONFIG}" \
-    ${OVERRIDE_ARG}
+    ${OVERRIDE_ARG} 2>&1 | tee outputs/simple_classifier/ddp_train.log
 else
   echo "Starting single-GPU training..."
   python training/scripts/train_simple_classifier.py \
     --config "${CONFIG}" \
-    ${OVERRIDE_ARG}
+    ${OVERRIDE_ARG} 2>&1 | tee outputs/simple_classifier/single_gpu_train.log
 fi
 
 echo "Training completed."
