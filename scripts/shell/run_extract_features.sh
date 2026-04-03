@@ -4,12 +4,12 @@ set -e
 # 特征提取脚本（单进程，无需DDP）
 # 使用方式:
 #   bash scripts/shell/run_extract_features.sh
-#   bash scripts/shell/run_extract_features.sh --video-dir /path/to/videos --out-dir train/cache
+#   bash scripts/shell/run_extract_features.sh --video-dir /path/to/videos --out-dir outputs/cache
 
 VIDEO_DIR="data/videos"
 LABEL_FILE="data/labels.json"
 CONFIG="configs/default.yaml"
-OUT_DIR="train/cache"
+OUT_DIR="outputs/cache"
 SAMPLE_FPS=5
 
 while [[ $# -gt 0 ]]; do
@@ -23,7 +23,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-python scripts/extract_features.py \
+python training/scripts/extract_features.py \
   --video-dir "${VIDEO_DIR}" \
   --label-file "${LABEL_FILE}" \
   --config "${CONFIG}" \

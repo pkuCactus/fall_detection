@@ -7,6 +7,12 @@ detector:
   config: "configs/training/detector.yaml"
   ngpus: 1
 
+# 阶段1b: YOLOWorld检测器训练 (可选)
+yolo_world:
+  enabled: false
+  config: "configs/training/yolo_world.yaml"
+  ngpus: 1
+
 # 阶段2: 姿态估计器训练
 pose:
   enabled: true

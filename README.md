@@ -76,40 +76,93 @@
 
 ```
 fall_detection/
-├── configs/
-│   └── default.yaml          # 系统配置（阈值、参数）
-├── src/fall_detection/       # 核心推理模块
-│   ├── detector.py           # YOLOv8 人体检测器
-│   ├── tracker.py            # ByteTrack-lite 跟踪器
-│   ├── pose_estimator.py     # YOLOv8-pose 姿态估计
-│   ├── rules.py              # 规则引擎
-│   ├── classifier.py         # 轻量融合分类器
-│   ├── fusion.py             # 融合决策器
-│   ├── pipeline.py           # 端到端 Pipeline
-│   ├── export.py             # ONNX 导出工具
-│   └── utils.py              # 可视化工具
-├── scripts/                  # 训练与评估脚本
-│   ├── train_detector.py     # 检测器训练
-│   ├── train_pose.py         # 姿态估计器微调
-│   ├── train_classifier.py   # 分类器训练（支持DDP）
-│   ├── extract_features.py   # 特征提取
-│   ├── tune_tracker.py       # 跟踪器参数调优
-│   ├── evaluate_pipeline.py  # 端到端评估
-│   ├── benchmark_speed.py    # 速度基准测试
-│   ├── run_pipeline_demo.py  # 演示脚本
-│   └── shell/                # Shell 脚本集合
-│       ├── run_train_detector.sh
-│       ├── run_train_pose.sh
-│       ├── run_train_classifier.sh
-│       ├── run_extract_features.sh
-│       ├── run_tune_tracker.sh
-│       ├── run_evaluate_pipeline.sh
-│       ├── run_tests.sh
-│       ├── run_all_training.sh
-│       └── run_superpowers_server.sh
-├── tests/                    # 测试用例
-├── docs/                     # 文档
-└── train/                    # 训练输出目录（.gitignore）
+├── configs/                          # 配置文件
+│   ├── default.yaml                  # 系统默认配置
+│   └── training/                     # 训练配置
+│       ├── detector.yaml
+│       ├── pose.yaml
+│       ├── tracker.yaml
+│       ├── classifier.yaml
+│       └── simple_classifier.yaml
+│
+├── src/fall_detection/               # 核心推理模块
+│   ├── core/                         # 核心推理组件
+│   │   ├── detector.py               # YOLOv8 人体检测器
+│   │   ├── tracker.py                # ByteTrack-lite 跟踪器
+│   │   ├── pose_estimator.py         # YOLOv8-pose 姿态估计
+│   │   ├── rules.py                  # 规则引擎
+│   │   └── fusion.py                 # 融合决策器
+│   ├── models/                       # 模型定义
+│   │   ├── classifier.py             # 融合分类器（3分支）
+│   │   └── simple_classifier.py      # 简单图像分类器
+│   ├── pipeline/                     # Pipeline
+│   │   └── pipeline.py               # 端到端 Pipeline
+│   └── utils/                        # 工具函数
+│       ├── visualization.py          # 可视化
+│       ├── export.py                 # 模型导出
+│       └── common.py                 # 通用工具
+│
+├── training/                         # 训练相关
+│   ├── scripts/                      # 训练脚本
+│   │   ├── train_detector.py
+│   │   ├── train_pose.py
+│   │   ├── train_classifier.py
+│   │   ├── train_simple_classifier.py
+│   │   └── extract_features.py
+│   └── trainers/                     # 训练器（预留）
+│       └── __init__.py
+│
+├── evaluation/                       # 评估相关
+│   ├── eval_pipeline.py              # pipeline评估
+│   ├── benchmark_speed.py            # 性能基准测试
+│   └── tune_tracker.py               # 跟踪器参数调优
+│
+├── deployment/                       # 部署与演示
+│   ├── run_pipeline_demo.py          # pipeline演示
+│   └── demo_tracker.py               # 跟踪器演示
+│
+├── scripts/shell/                    # Shell脚本
+│   ├── run_train_detector.sh
+│   ├── run_train_pose.sh
+│   ├── run_train_classifier.sh
+│   ├── run_train_simple_classifier.sh
+│   ├── run_extract_features.sh
+│   ├── run_evaluate_pipeline.sh
+│   ├── run_tune_tracker.sh
+│   └── run_tests.sh
+│
+├── tests/                            # 测试用例
+│   ├── unit/                         # 单元测试
+│   │   ├── test_detector.py
+│   │   ├── test_tracker.py
+│   │   ├── test_pose_estimator.py
+│   │   ├── test_rules.py
+│   │   ├── test_classifier.py
+│   │   ├── test_fusion.py
+│   │   └── test_pipeline.py
+│   ├── integration/                  # 集成测试
+│   │   └── test_training_scripts.py
+│   └── test_export.py
+│
+├── data/                             # 数据目录
+│   ├── videos/                       # 视频文件
+│   └── annotations/                  # 标注文件
+│
+├── outputs/                          # 训练输出目录
+│   ├── detector/
+│   ├── pose/
+│   ├── classifier/
+│   ├── simple_classifier/
+│   ├── tracker/
+│   └── cache/
+│
+├── docs/                             # 文档
+│   └── api/
+│
+├── requirements.txt                  # 依赖
+├── README.md                         # 项目说明
+├── CLAUDE.md                         # AI助手指引
+└── LICENSE
 ```
 
 ## 快速开始
@@ -139,10 +192,10 @@ python -c "from ultralytics import YOLO; YOLO('yolov8n.pt'); YOLO('yolov8n-pose.
 
 ```bash
 # 单视频演示
-python scripts/run_pipeline_demo.py --video data/videos/test.mp4 --output output.mp4
+python deployment/run_pipeline_demo.py --video data/videos/test.mp4 --output output.mp4
 
 # 摄像头实时演示
-python scripts/run_pipeline_demo.py --video 0
+python deployment/run_pipeline_demo.py --video 0
 ```
 
 ### 4. 运行测试
@@ -152,7 +205,7 @@ python scripts/run_pipeline_demo.py --video 0
 bash scripts/shell/run_tests.sh
 
 # 或指定测试文件
-PYTHONPATH=src pytest tests/test_pipeline.py -v
+PYTHONPATH=src pytest tests/unit/test_pipeline.py -v
 ```
 
 ## 分阶段训练流程
@@ -203,7 +256,7 @@ bash scripts/shell/run_tune_tracker.sh --video-dir data/videos
 - `max_age`: [20, 30, 40]
 - `min_hits`: [2, 3]
 
-结果保存在 `train/tracker/tune_result.json`
+结果保存在 `outputs/tracker/tune_result.json`
 
 ### 阶段4: 特征提取（分类器训练数据准备）
 
@@ -211,16 +264,16 @@ bash scripts/shell/run_tune_tracker.sh --video-dir data/videos
 bash scripts/shell/run_extract_features.sh \
   --video-dir data/videos \
   --label-file data/labels.json \
-  --out-dir train/cache
+  --out-dir outputs/cache
 ```
 
 特征缓存格式（.npz）：
 - `roi`: 裁剪ROI图像 (96x96x3, uint8)
 - `kpts`: 17点关键点 (17x3, float32)
-- `motion`: 8维运动特征 (8,), float32
+- `motion`: 8维运动特征 (8,), float32)
 - `label`: 跌倒标签 (0/1, int64)
 
-### 阶段5: 分类器训练
+### 阶段5: 融合分类器训练
 
 ```bash
 # 单卡训练
@@ -231,13 +284,31 @@ bash scripts/shell/run_train_classifier.sh --ngpus 2 --batch-size 16
 ```
 
 参数说明：
-- `--cache-dir`: 特征缓存目录 (默认: train/cache)
+- `--cache-dir`: 特征缓存目录 (默认: outputs/cache)
 - `--epochs`: 训练轮数 (默认: 100)
 - `--batch-size`: 批次大小 (默认: 32)
 - `--lr`: 学习率 (默认: 0.001)
 - `--val-ratio`: 验证集比例 (默认: 0.2)
 
-最佳权重保存为 `train/classifier/best.pt`
+最佳权重保存为 `outputs/classifier/best.pt`
+
+### 阶段5b: 简单图像分类器训练
+
+```bash
+# 使用配置文件训练
+bash scripts/shell/run_train_simple_classifier.sh \
+  --config configs/training/simple_classifier.yaml
+
+# DDP多GPU训练
+bash scripts/shell/run_train_simple_classifier.sh \
+  --config configs/training/simple_classifier.yaml \
+  --ngpus 2
+
+# 覆盖配置参数
+bash scripts/shell/run_train_simple_classifier.sh \
+  --config configs/training/simple_classifier.yaml \
+  --override "lr=0.01,batch_size=128"
+```
 
 ### 阶段6: 端到端评估与阈值搜索
 
@@ -254,7 +325,7 @@ bash scripts/shell/run_evaluate_pipeline.sh --mock-detector
 - `trigger_thresh`: [0.5, 0.6, 0.7] (规则触发阈值)
 - `alarm_thresh`: [0.6, 0.7, 0.8] (融合告警阈值)
 
-结果保存在 `train/eval/eval_result.json`
+结果保存在 `outputs/eval/eval_result.json`
 
 ### 一键运行完整训练流程
 
@@ -268,12 +339,18 @@ NGPUS=2 bash scripts/shell/run_all_training.sh
 ### ONNX 导出
 
 ```python
-from src.fall_detection.classifier import FallClassifier
-from src.fall_detection.export import export_classifier_onnx
+from fall_detection.models import FallClassifier, SimpleFallClassifier
+from fall_detection.utils.export import export_classifier_onnx, export_simple_classifier_onnx
 
+# 导出融合分类器
 model = FallClassifier()
-model.load_state_dict(torch.load('train/classifier/best.pt'))
+model.load_state_dict(torch.load('outputs/classifier/best.pt'))
 export_classifier_onnx(model, 'fall_classifier.onnx')
+
+# 导出简单分类器
+model = SimpleFallClassifier()
+model.load_state_dict(torch.load('outputs/simple_classifier/best.pt'))
+export_simple_classifier_onnx(model, 'simple_fall_classifier.onnx')
 ```
 
 ### 部署检查清单
@@ -301,7 +378,7 @@ export_classifier_onnx(model, 'fall_classifier.onnx')
 
 运行基准测试：
 ```bash
-python scripts/benchmark_speed.py --video data/videos/test.mp4 --num-frames 100
+python evaluation/benchmark_speed.py --video data/videos/test.mp4 --num-frames 100
 ```
 
 ## 配置说明
@@ -333,6 +410,11 @@ fusion:
 pipeline:
   skip_frames: 2            # 检测间隔帧数 (每3帧检测1次)
   fps: 25                   # 输入视频帧率
+
+classifier:
+  type: "fusion"            # 分类器类型: "fusion" 或 "simple"
+  model_path: null          # 模型路径 (null使用默认)
+  fall_class_idx: 1         # 跌倒类别索引
 ```
 
 ## 数据集格式
@@ -340,6 +422,18 @@ pipeline:
 ### 检测/姿态训练数据
 
 使用 Ultralytics YOLO 格式，参见 [Ultralytics 文档](https://docs.ultralytics.com/datasets/)
+
+### 简单分类器训练数据 (COCO格式)
+
+```json
+{
+  "images": [{"id": 1, "file_name": "img1.jpg", "height": 1080, "width": 1920}],
+  "annotations": [
+    {"image_id": 1, "bbox": [100, 200, 50, 100], "category_id": 1}
+  ],
+  "categories": [{"id": 1, "name": "fall"}]
+}
+```
 
 ### 分类器标签文件 (labels.json)
 
@@ -368,16 +462,26 @@ pipeline:
 
 ## 开发文档
 
-### 预览 Superpowers HTML 文档
+### 模块导入示例
 
-```bash
-bash scripts/shell/run_superpowers_server.sh 8080
-# 浏览器打开 http://localhost:8080
+```python
+# 导入核心组件
+from fall_detection.core import PersonDetector, ByteTrackLite, PoseEstimator, RuleEngine, FusionDecision
+
+# 导入模型
+from fall_detection.models import FallClassifier, SimpleFallClassifier
+
+# 导入Pipeline
+from fall_detection.pipeline import FallDetectionPipeline
+
+# 导入工具函数
+from fall_detection.utils import draw_results, load_config
+from fall_detection.utils.export import export_classifier_onnx
 ```
 
 ### 添加新的规则
 
-编辑 `src/fall_detection/rules.py`：
+编辑 `src/fall_detection/core/rules.py`：
 
 ```python
 def evaluate(self, kpts, bbox, history):
@@ -388,7 +492,7 @@ def evaluate(self, kpts, bbox, history):
 
 ### 自定义分类器网络
 
-编辑 `src/fall_detection/classifier.py`：
+编辑 `src/fall_detection/models/classifier.py`：
 
 ```python
 class FallClassifier(nn.Module):

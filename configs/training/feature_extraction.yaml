@@ -30,7 +30,7 @@ augmentation:
   temporal_jitter: 0.1  # 时间抖动 (±10%)
 
 # 输出配置
-output_dir: "train/cache"
+output_dir: "outputs/cache"
 format: "npz"  # 存储格式
 compress: true  # 是否压缩
 

@@ -1,0 +1,92 @@
+# 简单图像分类器训练配置
+# 使用: bash scripts/shell/run_train_simple_classifier.sh --config configs/training/simple_classifier.yaml
+
+# 数据配置
+data:
+  image_dir: "data/images"  # 图像根目录
+  train_coco_json: "data/annotations/train.json"  # 训练集COCO标注
+  val_coco_json: "data/annotations/val.json"  # 验证集COCO标注 (可选，null表示无验证集)
+
+# 模型配置
+model:
+  type: "simple"  # simple: 简单图像分类器
+  dropout: 0.3
+  num_classes: 2  # 类别数量
+
+# 训练配置
+epochs: 100
+batch_size: 64
+num_workers: 4
+
+# 优化器配置
+lr: 0.001
+weight_decay: 0.0001
+
+# 学习率调度
+lr_scheduler:
+  type: "plateau"  # plateau, cosine, step
+  factor: 0.5
+  patience: 10
+  min_lr: 0.00001
+
+# 早停配置
+early_stopping:
+  enabled: true
+  patience: 20
+  min_delta: 0.001
+  mode: "max"
+
+# 输入配置
+input:
+  target_size: 96  # 输入尺寸
+  use_letterbox: true  # 是否使用letterbox保持长宽比
+  fill_value: 114  # letterbox填充值
+
+# 数据增强
+data_augmentation:
+  enabled: true
+  color_jitter:
+    enabled: true
+    brightness: 0.3  # [1-brightness, 1+brightness]
+    contrast: 0.3
+    saturation: 0.3
+  random_gray:
+    enabled: true
+    p: 0.2
+  random_rotation:
+    enabled: true
+    angle_range: [-5, 5]  # 度
+    p: 0.3
+  random_mask:
+    enabled: true
+    mask_ratio: 0.2  # mask区域占图像的比例
+    p: 0.3
+  horizontal_flip:
+    enabled: true
+    p: 0.5
+
+# 随机Crop配置
+crop:
+  shrink_max: 3  # 最大内缩像素
+  expand_max: 25  # 最大外扩像素
+
+# COCO标注配置
+coco:
+  fall_category_id: 1  # 跌倒类别的category_id
+  person_category_id: 1  # 人物类别的category_id
+
+# 输出配置
+output:
+  dir: "outputs/simple_classifier"
+  save_best: true
+  save_every: 10  # 每N轮保存检查点 (仅无验证集时有效)
+
+# DDP配置
+ddp:
+  backend: "nccl"
+  find_unused_parameters: false
+
+# 日志
+log:
+  interval: 1  # 每N轮打印日志
+  verbose: true

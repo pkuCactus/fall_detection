@@ -7,7 +7,7 @@ set -e
 #   bash scripts/shell/run_tune_tracker.sh --video-dir /path/to/videos
 
 VIDEO_DIR="data/videos"
-OUTPUT="train/tracker/tune_result.json"
+OUTPUT="outputs/tracker/tune_result.json"
 
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -17,6 +17,6 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-python scripts/tune_tracker.py \
+python evaluation/tune_tracker.py \
   --video-dir "${VIDEO_DIR}" \
   --output "${OUTPUT}"

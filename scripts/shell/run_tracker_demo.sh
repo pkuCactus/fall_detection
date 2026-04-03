@@ -10,7 +10,7 @@ echo "Running Tracker Demo..."
 echo "Video: $VIDEO"
 
 if [ -n "$OUTPUT" ]; then
-    python scripts/demo_tracker.py --video "$VIDEO" --output "$OUTPUT"
+    python deployment/demo_tracker.py --video "$VIDEO" --output "$OUTPUT"
 else
-    python scripts/demo_tracker.py --video "$VIDEO"
+    python deployment/demo_tracker.py --video "$VIDEO"
 fi

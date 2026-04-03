@@ -2,7 +2,7 @@
 # 使用: bash scripts/shell/run_train_classifier.sh --ngpus 2 --batch-size 16
 
 # 数据配置
-cache_dir: "train/cache"  # 特征缓存目录 (由extract_features.py生成)
+cache_dir: "outputs/cache"  # 特征缓存目录 (由extract_features.py生成)
 val_ratio: 0.2  # 验证集比例
 
 # 模型架构 (与FallClassifier保持一致)
@@ -47,7 +47,7 @@ augmentation:
   dropout_input: 0.1  # 输入特征随机丢弃
 
 # 输出配置
-output_dir: "train/classifier"
+output_dir: "outputs/classifier"
 save_best: true
 save_every: 20  # 每N轮保存检查点
 

@@ -1,5 +1,10 @@
 detector:
   conf_thresh: 0.3
+  model_path: null  # 检测器模型路径，null则使用默认yolov8n.pt
+  classes: null      # 开放词汇检测器文本提示，如 ["person"]
+
+pose_estimator:
+  model_path: null  # 姿态估计器模型路径，null则使用默认yolov8n-pose.pt
 
 classifier:
   type: "simple"              # 分类器类型: "fusion" (3分支) 或 "simple" (仅图像)

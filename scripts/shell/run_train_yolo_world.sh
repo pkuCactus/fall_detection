@@ -1,17 +1,17 @@
 #!/bin/bash
 set -e
 
-# 检测器训练脚本（支持DDP）
+# YOLOWorld训练脚本（支持DDP）
 # 使用方式:
-#   bash scripts/shell/run_train_detector.sh
-#   bash scripts/shell/run_train_detector.sh --ngpus 2 --batch 8
+#   bash scripts/shell/run_train_yolo_world.sh
+#   bash scripts/shell/run_train_yolo_world.sh --ngpus 2 --batch 8
 
 DATA="data/fall_detection.yaml"
 EPOCHS=50
-IMGSZ=832
+IMGSZ=640
 BATCH=16
-MODEL="yolov8n.pt"
-PROJECT="outputs/detector"
+MODEL="yolov8l-worldv2.pt"
+PROJECT="outputs/yolo_world"
 NAME="exp"
 NGPUS=1
 
@@ -30,9 +30,9 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [ "${NGPUS}" -gt 1 ]; then
-  echo "Starting DDP detector training on ${NGPUS} GPUs..."
+  echo "Starting DDP YOLOWorld training on ${NGPUS} GPUs..."
   torchrun --nproc_per_node="${NGPUS}" \
-    training/scripts/train_detector.py \
+    training/scripts/train_yolo_world.py \
     --data "${DATA}" \
     --epochs "${EPOCHS}" \
     --imgsz "${IMGSZ}" \
@@ -41,8 +41,8 @@ if [ "${NGPUS}" -gt 1 ]; then
     --project "${PROJECT}" \
     --name "${NAME}"
 else
-  echo "Starting single-GPU detector training..."
-  python training/scripts/train_detector.py \
+  echo "Starting single-GPU YOLOWorld training..."
+  python training/scripts/train_yolo_world.py \
     --data "${DATA}" \
     --epochs "${EPOCHS}" \
     --imgsz "${IMGSZ}" \

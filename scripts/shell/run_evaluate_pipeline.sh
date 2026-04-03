@@ -9,7 +9,7 @@ set -e
 VIDEO_DIR="data/videos"
 GT_FILE="data/event_gt.json"
 CONFIG="configs/default.yaml"
-OUTPUT="train/eval/eval_result.json"
+OUTPUT="outputs/eval/eval_result.json"
 MOCK_DETECTOR=""
 
 while [[ $# -gt 0 ]]; do
@@ -23,7 +23,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-python scripts/evaluate_pipeline.py \
+python evaluation/evaluate_pipeline.py \
   --video-dir "${VIDEO_DIR}" \
   --gt-file "${GT_FILE}" \
   --config "${CONFIG}" \

@@ -11,7 +11,7 @@ EPOCHS=100
 IMGSZ=128
 BATCH=64
 MODEL="yolov8n-pose.pt"
-PROJECT="train/pose"
+PROJECT="outputs/pose"
 NAME="exp"
 NGPUS=1
 
@@ -32,7 +32,7 @@ done
 if [ "${NGPUS}" -gt 1 ]; then
   echo "Starting DDP pose training on ${NGPUS} GPUs..."
   torchrun --nproc_per_node="${NGPUS}" \
-    scripts/train_pose.py \
+    training/scripts/train_pose.py \
     --data "${DATA}" \
     --epochs "${EPOCHS}" \
     --imgsz "${IMGSZ}" \
@@ -42,7 +42,7 @@ if [ "${NGPUS}" -gt 1 ]; then
     --name "${NAME}"
 else
   echo "Starting single-GPU pose training..."
-  python scripts/train_pose.py \
+  python training/scripts/train_pose.py \
     --data "${DATA}" \
     --epochs "${EPOCHS}" \
     --imgsz "${IMGSZ}" \
