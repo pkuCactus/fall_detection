@@ -34,6 +34,7 @@ class RandomMask:
         img = img.copy()
         img[y1:y2, x1:x2] = np.random.randint(0, 256, img[y1:y2, x1:x2].shape, dtype=img.dtype)
 
+        return img
 
 
 
@@ -59,7 +60,7 @@ class RandomCropWithPadding:
         if x2_new <= x1_new or y2_new <= y1_new:
             return img[int(y1):int(y2), int(x1):int(x2)]
 
-
+        return img[y1_new:y2_new, x1_new:x2_new]
 
 
 class LetterBoxResize:
@@ -87,6 +88,7 @@ class LetterBoxResize:
             x_offset = (self.target_size - new_w) // 2
             result[y_offset:y_offset + new_h, x_offset:x_offset + new_w] = resized
 
+        return result
 
 
 class TrainingAugmentation:
