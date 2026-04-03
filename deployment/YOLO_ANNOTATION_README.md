@@ -23,6 +23,12 @@ pip install -r requirements.txt
 ### 单张图像
 
 ```bash
+# 仅生成标注（默认）
+python deployment/yolo_annotate.py \
+    --input data/my_image.jpg \
+    --output-dir outputs/Annotations
+
+# 生成标注 + 可视化
 python deployment/yolo_annotate.py \
     --input data/my_image.jpg \
     --output-dir outputs/Annotations \
@@ -32,6 +38,12 @@ python deployment/yolo_annotate.py \
 ### 批量处理目录
 
 ```bash
+# 仅生成标注（默认）
+python deployment/yolo_annotate.py \
+    --input data/images/ \
+    --output-dir outputs/Annotations
+
+# 生成标注 + 可视化
 python deployment/yolo_annotate.py \
     --input data/images/ \
     --output-dir outputs/Annotations \
@@ -81,7 +93,7 @@ outputs/
 ├── Annotations/           # VOC格式XML标注
 │   ├── image001.xml
 │   └── image002.xml
-└── Visualizations/        # 可视化结果
+└── Visualizations/        # 可视化结果（仅当指定 --vis-dir 时生成）
     ├── image001.jpg
     └── image002.jpg
 ```
@@ -95,11 +107,10 @@ python deployment/video_to_frames.py \
     --output frames/ \
     --fps 1
 
-# 2. YOLO自动标注 (无需API密钥)
+# 2. YOLO自动标注 (无需API密钥，默认不生成可视化)
 python deployment/yolo_annotate.py \
     --input frames/ \
     --output-dir outputs/Annotations \
-    --vis-dir outputs/Visualizations \
     --model yolov8n.pt \
     --conf-threshold 0.3
 

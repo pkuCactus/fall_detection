@@ -326,8 +326,8 @@ def main():
     parser.add_argument(
         "--vis-dir",
         "-v",
-        default="outputs/yolo_visualizations",
-        help="Visualization output directory",
+        default=None,
+        help="Visualization output directory (default: no visualization)",
     )
     parser.add_argument(
         "--model",
@@ -405,7 +405,8 @@ def main():
         sys.exit(1)
 
     print(f"\nDone! Annotations saved to: {args.output_dir}")
-    print(f"Visualizations saved to: {args.vis_dir}")
+    if args.vis_dir:
+        print(f"Visualizations saved to: {args.vis_dir}")
 
 
 if __name__ == "__main__":
