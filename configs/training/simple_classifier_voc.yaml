@@ -2,6 +2,9 @@
 # 支持多目录、多类别映射
 # 使用: bash scripts/shell/run_train_simple_classifier.sh --config configs/training/simple_classifier_voc.yaml
 
+# 随机种子 (可选) - 设置后训练结果可复现
+seed: 666
+
 # 数据配置 - Pascal VOC 格式
 data:
   format: "voc"  # 使用 Pascal VOC 格式
@@ -64,7 +67,7 @@ model:
 
 # 训练配置
 epochs: 100
-batch_size: 64
+batch_size: 512
 num_workers: 4
 
 # 优化器配置
@@ -77,6 +80,13 @@ lr_scheduler:
   factor: 0.5
   patience: 10
   min_lr: 0.00001
+
+  # Warmup 配置 (可选)
+  warmup:
+    enabled: false  # 是否启用 warmup
+    epochs: 5       # warmup 持续的 epoch 数
+    strategy: "linear"  # warmup 策略: "linear" (线性增加) 或 "constant" (保持不变)
+    init_lr: 0.00001    # warmup 初始学习率
 
 # 早停配置
 early_stopping:

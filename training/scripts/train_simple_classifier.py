@@ -495,7 +495,69 @@ class TrainingAugmentation:
         return img
 
 
-def train_epoch(model, loader, optimizer, criterion, device, epoch: int = 0, rank: int = 0, log_interval: int = 50):
+class WarmupScheduler:
+    """支持 warmup 的学习率调度器包装器.
+
+    warmup 基于总 batch step 计算，每个 step 更新学习率。
+    支持两种 warmup 策略:
+    - linear: 从 warmup_init_lr 线性增加到初始学习率
+    - constant: 保持 warmup_init_lr 不变，warmup 结束后跳到初始学习率
+    """
+
+    def __init__(self, optimizer, scheduler, warmup_steps: int = 0,
+                 warmup_strategy: str = 'linear', warmup_init_lr: float = 1e-5):
+        self.optimizer = optimizer
+        self.scheduler = scheduler
+        self.warmup_steps = warmup_steps
+        self.warmup_strategy = warmup_strategy
+        self.warmup_init_lr = warmup_init_lr
+        self.current_step = 0
+        self.base_lrs = [group['lr'] for group in optimizer.param_groups]
+        self.warmup_finished = False
+
+    def step(self, metrics=None):
+        """Step the scheduler (每个 epoch 结束时调用)."""
+        # Warmup 在 step_batch 中处理，这里只处理主 scheduler
+        if self.warmup_finished and self.scheduler is not None:
+            if metrics is not None and hasattr(self.scheduler, 'step'):
+                self.scheduler.step(metrics)
+            elif hasattr(self.scheduler, 'step'):
+                self.scheduler.step()
+
+    def step_batch(self):
+        """每个 batch/step 调用，用于 warmup."""
+        if self.current_step < self.warmup_steps:
+            # Warmup 阶段
+            if self.warmup_strategy == 'linear':
+                # 线性增加学习率: lr = init_lr + (base_lr - init_lr) * (step / total_steps)
+                alpha = self.current_step / self.warmup_steps
+                for i, group in enumerate(self.optimizer.param_groups):
+                    group['lr'] = self.warmup_init_lr + alpha * (self.base_lrs[i] - self.warmup_init_lr)
+            elif self.warmup_strategy == 'constant':
+                # 保持 warmup_init_lr 不变
+                for group in self.optimizer.param_groups:
+                    group['lr'] = self.warmup_init_lr
+            self.current_step += 1
+        elif not self.warmup_finished:
+            # Warmup 刚结束，设置为基础学习率
+            for i, group in enumerate(self.optimizer.param_groups):
+                group['lr'] = self.base_lrs[i]
+            self.warmup_finished = True
+            self.current_step += 1
+        else:
+            self.current_step += 1
+
+    def get_last_lr(self):
+        """获取当前学习率."""
+        return [group['lr'] for group in self.optimizer.param_groups]
+
+    @property
+    def is_warmup(self):
+        """是否还在 warmup 阶段."""
+        return self.current_step < self.warmup_steps
+
+
+def train_epoch(model, loader, optimizer, criterion, device, epoch: int = 0, rank: int = 0, log_interval: int = 50, scheduler=None):
     model.train()
     total_loss = 0.0
     total_correct = 0
@@ -512,6 +574,10 @@ def train_epoch(model, loader, optimizer, criterion, device, epoch: int = 0, ran
         loss.backward()
         optimizer.step()
 
+        # 更新 warmup scheduler (每个 step)
+        if scheduler is not None and isinstance(scheduler, WarmupScheduler):
+            scheduler.step_batch()
+
         _, predicted = torch.max(outputs, 1)
         batch_correct = (predicted == labels).sum().item()
         batch_size = labels.size(0)
@@ -520,14 +586,15 @@ def train_epoch(model, loader, optimizer, criterion, device, epoch: int = 0, ran
         total_samples += batch_size
         total_loss += loss.item() * batch_size
 
-        # 打印训练进度
+        # 打印训练进度 (使用当前实际学习率)
         if rank == 0 and log_interval > 0 and (batch_idx + 1) % log_interval == 0:
             batch_acc = batch_correct / batch_size
             avg_loss = total_loss / total_samples
             avg_acc = total_correct / total_samples
+            current_lr = optimizer.param_groups[0]['lr']
             print(f"  Epoch[{epoch}] Batch[{batch_idx + 1}/{num_batches}]  "
                   f"loss={loss.item():.4f} acc={batch_acc:.4f}  "
-                  f"avg_loss={avg_loss:.4f} avg_acc={avg_acc:.4f}")
+                  f"avg_loss={avg_loss:.4f} avg_acc={avg_acc:.4f}  lr={current_lr:.6f}")
 
     return total_loss, total_correct, total_samples
 
@@ -605,6 +672,20 @@ def main():
         world_size = 1
         rank = 0
         local_rank = 0
+
+    # 设置随机种子 (在DDP初始化之后设置，确保所有进程使用相同种子)
+    seed = cfg.get('seed', None)
+    if seed is not None:
+        import random
+        random.seed(seed)
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        # 为了完全可复现，但可能会降低性能
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+        if rank == 0:
+            print(f"Random seed set to {seed}")
 
     if rank == 0:
         output_dir = output_cfg.get('dir', 'outputs/simple_classifier')
@@ -819,18 +900,46 @@ def main():
     else:
         scheduler = None
 
+    # 包装 warmup scheduler
+    warmup_cfg = lr_cfg.get('warmup', {})
+    if warmup_cfg.get('enabled', False):
+        # 计算 warmup steps: warmup_epochs * len(train_loader)
+        warmup_epochs = warmup_cfg.get('epochs', 5)
+        warmup_steps = warmup_epochs * len(train_loader)
+        scheduler = WarmupScheduler(
+            optimizer,
+            scheduler,
+            warmup_steps=warmup_steps,
+            warmup_strategy=warmup_cfg.get('strategy', 'linear'),  # 'linear' 或 'constant'
+            warmup_init_lr=warmup_cfg.get('init_lr', 1e-5)
+        )
+        if rank == 0:
+            print(f"Warmup enabled: {warmup_epochs} epochs = {warmup_steps} steps, "
+                  f"strategy={warmup_cfg.get('strategy', 'linear')}, "
+                  f"init_lr={warmup_cfg.get('init_lr', 1e-5)}")
+
     # 训练循环
     epochs = cfg.get('epochs', 100)
     best_acc = 0.0
     patience_counter = 0
     log_interval = log_cfg.get('interval', 1)
 
+    # 导入时间模块用于计算剩余时间
+    import time
+    start_time = time.time()
+    epoch_times = []
+
     for epoch in range(1, epochs + 1):
         if train_sampler is not None:
             train_sampler.set_epoch(epoch)
 
+        epoch_start_time = time.time()
+
+        # 获取当前学习率
+        current_lr = optimizer.param_groups[0]["lr"]
+
         # 训练
-        t_loss, t_correct, t_samples = train_epoch(model, train_loader, optimizer, criterion, device, epoch=epoch, rank=rank, log_interval=log_cfg.get("batch_log_interval", 50))
+        t_loss, t_correct, t_samples = train_epoch(model, train_loader, optimizer, criterion, device, epoch=epoch, rank=rank, log_interval=log_cfg.get("batch_log_interval", 50), scheduler=scheduler)
 
         # 验证（如果有验证集）
         if val_loader:
@@ -859,23 +968,51 @@ def main():
             v_loss_avg = 0.0
             v_acc = t_acc
 
+        # 计算本epoch耗时和剩余时间估计
+        epoch_end_time = time.time()
+        epoch_duration = epoch_end_time - epoch_start_time
+        epoch_times.append(epoch_duration)
+        # 使用移动平均估计剩余时间
+        avg_epoch_time = sum(epoch_times[-10:]) / min(len(epoch_times), 10)  # 最近10个epoch的平均
+        remaining_epochs = epochs - epoch
+        remaining_time = avg_epoch_time * remaining_epochs
+        remaining_mins = int(remaining_time / 60)
+        remaining_secs = int(remaining_time % 60)
+
         if rank == 0:
             # 更新学习率
-            if scheduler_type == 'plateau' and val_loader:
-                scheduler.step(v_acc)
-            elif scheduler and scheduler_type != 'plateau':
-                scheduler.step()
+            if scheduler is not None:
+                if isinstance(scheduler, WarmupScheduler):
+                    # WarmupScheduler 处理 plateau 和普通 scheduler
+                    if val_loader and scheduler.scheduler is not None and hasattr(scheduler.scheduler, 'mode'):
+                        scheduler.step(v_acc)
+                    else:
+                        scheduler.step()
+                elif scheduler_type == 'plateau' and val_loader:
+                    scheduler.step(v_acc)
+                else:
+                    scheduler.step()
 
             current_lr = optimizer.param_groups[0]["lr"]
 
             if epoch % log_interval == 0 or epoch == epochs:
+                # 格式化剩余时间
+                if remaining_mins >= 60:
+                    remaining_hours = remaining_mins // 60
+                    remaining_mins_remainder = remaining_mins % 60
+                    remaining_str = f"{remaining_hours}h{remaining_mins_remainder}m"
+                else:
+                    remaining_str = f"{remaining_mins}m{remaining_secs}s"
+
                 if val_loader:
                     print(f"Epoch {epoch}/{epochs}  "
                           f"train_loss={t_loss_avg:.4f} train_acc={t_acc:.4f}  "
-                          f"val_loss={v_loss_avg:.4f} val_acc={v_acc:.4f}  lr={current_lr:.6f}")
+                          f"val_loss={v_loss_avg:.4f} val_acc={v_acc:.4f}  "
+                          f"lr={current_lr:.6f}  remain={remaining_str}")
                 else:
                     print(f"Epoch {epoch}/{epochs}  "
-                          f"train_loss={t_loss_avg:.4f} train_acc={t_acc:.4f}  lr={current_lr:.6f}")
+                          f"train_loss={t_loss_avg:.4f} train_acc={t_acc:.4f}  "
+                          f"lr={current_lr:.6f}  remain={remaining_str}")
 
             # 保存模型
             save_best = output_cfg.get('save_best', True)
