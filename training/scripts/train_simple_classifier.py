@@ -11,6 +11,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.distributed as dist
+import tqdm
 import yaml
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import Dataset, DataLoader
@@ -494,13 +495,15 @@ class TrainingAugmentation:
         return img
 
 
-def train_epoch(model, loader, optimizer, criterion, device):
+def train_epoch(model, loader, optimizer, criterion, device, epoch: int = 0, rank: int = 0, log_interval: int = 50):
     model.train()
     total_loss = 0.0
     total_correct = 0
     total_samples = 0
 
-    for images, labels in loader:
+    num_batches = len(loader)
+
+    for batch_idx, (images, labels) in enumerate(loader):
         images, labels = images.to(device), labels.to(device)
 
         optimizer.zero_grad()
@@ -510,9 +513,21 @@ def train_epoch(model, loader, optimizer, criterion, device):
         optimizer.step()
 
         _, predicted = torch.max(outputs, 1)
-        total_correct += (predicted == labels).sum().item()
-        total_samples += labels.size(0)
-        total_loss += loss.item() * labels.size(0)
+        batch_correct = (predicted == labels).sum().item()
+        batch_size = labels.size(0)
+
+        total_correct += batch_correct
+        total_samples += batch_size
+        total_loss += loss.item() * batch_size
+
+        # 打印训练进度
+        if rank == 0 and log_interval > 0 and (batch_idx + 1) % log_interval == 0:
+            batch_acc = batch_correct / batch_size
+            avg_loss = total_loss / total_samples
+            avg_acc = total_correct / total_samples
+            print(f"  Epoch[{epoch}] Batch[{batch_idx + 1}/{num_batches}]  "
+                  f"loss={loss.item():.4f} acc={batch_acc:.4f}  "
+                  f"avg_loss={avg_loss:.4f} avg_acc={avg_acc:.4f}")
 
     return total_loss, total_correct, total_samples
 
@@ -524,7 +539,7 @@ def eval_epoch(model, loader, criterion, device):
     total_samples = 0
 
     with torch.no_grad():
-        for images, labels in loader:
+        for images, labels in tqdm.tqdm(loader, desc="Evaluating"):
             images, labels = images.to(device), labels.to(device)
             outputs = model(images)
             loss = criterion(outputs, labels)
@@ -815,7 +830,7 @@ def main():
             train_sampler.set_epoch(epoch)
 
         # 训练
-        t_loss, t_correct, t_samples = train_epoch(model, train_loader, optimizer, criterion, device)
+        t_loss, t_correct, t_samples = train_epoch(model, train_loader, optimizer, criterion, device, epoch=epoch, rank=rank, log_interval=log_cfg.get("batch_log_interval", 50))
 
         # 验证（如果有验证集）
         if val_loader:
