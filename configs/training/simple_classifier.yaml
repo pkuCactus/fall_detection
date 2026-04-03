@@ -59,10 +59,10 @@ data_augmentation:
     p: 0.3
   random_mask:
     enabled: true
-    mask_ratio: 0.2  # mask区域占图像的比例
+    mask_ratio: 0.15  # mask区域占图像的比例
     p: 0.3
   horizontal_flip:
-    enabled: true
+    enabled: false
     p: 0.5
 
 # 随机Crop配置
@@ -84,7 +84,7 @@ output:
 # DDP配置
 ddp:
   backend: "nccl"
-  find_unused_parameters: false
+  find_unused_parameters: true
 
 # 日志
 log:
