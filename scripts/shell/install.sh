@@ -28,7 +28,7 @@ echo "Generating requirements.txt based on NVIDIA driver..."
 python3 scripts/generate_requirements.py "${VARIANT_ARGS[@]}" -o requirements.txt
 
 echo "Installing dependencies..."
-pip install -r requirements.txt
+pip install -r requirements.txt --trusted-host download.pytorch.org --trusted-host download-r2.pytorch.org
 
 echo ""
 echo "Installation complete. PyTorch version:"

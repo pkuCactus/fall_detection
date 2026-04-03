@@ -1,0 +1,136 @@
+# 简单图像分类器训练配置 - Pascal VOC 格式
+# 支持多目录、多类别映射
+# 使用: bash scripts/shell/run_train_simple_classifier.sh --config configs/training/simple_classifier_voc.yaml
+
+# 数据配置 - Pascal VOC 格式
+data:
+  format: "voc"  # 使用 Pascal VOC 格式
+
+  # 旧版单目录配置 (已废弃，请使用 voc.train_dirs)
+  # image_dir: "data/VOC/JPEGImages"
+
+# Pascal VOC 专用配置
+voc:
+  # === 数据目录配置 ===
+  # 支持单个目录或多个目录列表
+  # 每个目录结构应为:
+  #   data_dir/
+  #   ├── JPEGImages/      # 图像
+  #   ├── Annotations/     # XML标注
+  #   └── ImageSets/
+  #       └── Main/
+  #           ├── train.txt
+  #           ├── val.txt
+  #           └── test.txt
+
+  # 训练数据目录 (可指定多个)
+  train_dirs:
+    - "data/VOC2007"
+    - "data/VOC2012"
+    - "data/custom_fall"
+
+  # 验证数据目录 (可选，不指定则不使用验证集)
+  val_dirs:
+    - "data/VOC2007"
+  # 也可以单独指定不同的验证目录:
+  # val_dirs:
+  #   - "data/val_set"
+
+  # === 类别映射配置 ===
+  # 跌倒类别: 这些类别名称映射到 label=1
+  fall_classes:
+    - "fall_down"
+    - "kneel"
+    - "half_up"
+    - "crawl"
+
+  # 非跌倒类别: 这些类别名称映射到 label=0
+  # 如果为 null 或未指定，则所有非 fall_classes 都视为正常
+  normal_classes:
+    - "stand"
+    - "sit"
+    - "squat"
+    - "bend"
+  # 如果只想识别特定类别为正常，其他跳过，可以这样配置:
+  # normal_classes: ["person", "standing"]
+  # 如果想让所有其他类别都作为正常样本:
+  # normal_classes: null
+
+# 模型配置
+model:
+  type: "simple"
+  dropout: 0.1
+  num_classes: 2
+
+# 训练配置
+epochs: 100
+batch_size: 64
+num_workers: 4
+
+# 优化器配置
+lr: 0.001
+weight_decay: 0.0001
+
+# 学习率调度
+lr_scheduler:
+  type: "plateau"
+  factor: 0.5
+  patience: 10
+  min_lr: 0.00001
+
+# 早停配置
+early_stopping:
+  enabled: true
+  patience: 20
+  min_delta: 0.001
+  mode: "max"
+
+# 输入配置
+input:
+  target_size: 96
+  use_letterbox: true
+  fill_value: 114
+
+# 数据增强
+data_augmentation:
+  enabled: true
+  color_jitter:
+    enabled: true
+    brightness: 0.3
+    contrast: 0.3
+    saturation: 0.3
+  random_gray:
+    enabled: true
+    p: 0.2
+  random_rotation:
+    enabled: true
+    angle_range: [-5, 5]
+    p: 0.3
+  random_mask:
+    enabled: true
+    mask_ratio: 0.15
+    p: 0.3
+  horizontal_flip:
+    enabled: false
+    p: 0.5
+
+# 随机Crop配置
+crop:
+  shrink_max: 3
+  expand_max: 25
+
+# 输出配置
+output:
+  dir: "outputs/simple_classifier"
+  save_best: true
+  save_every: 10
+
+# DDP配置
+ddp:
+  backend: "nccl"
+  find_unused_parameters: true
+
+# 日志
+log:
+  interval: 1
+  verbose: true

@@ -3,6 +3,7 @@ import ast
 import json
 import os
 import sys
+import xml.etree.ElementTree as ET
 from typing import List, Dict, Any, Optional, Tuple
 
 import cv2
@@ -202,6 +203,211 @@ class CocoFallDataset(Dataset):
         return roi, torch.tensor(label, dtype=torch.long)
 
 
+class VOCFallDataset(Dataset):
+    """从Pascal VOC格式标注加载数据，支持动态crop和数据增强.
+
+    支持多目录结构，自动从 ImageSets/Main/{split}.txt 加载图像列表。
+    目录结构示例:
+        data_dir/
+        ├── JPEGImages/      # 图像文件
+        ├── Annotations/     # XML标注
+        └── ImageSets/
+            └── Main/
+                ├── train.txt
+                ├── val.txt
+                └── test.txt
+    """
+
+    def __init__(
+        self,
+        data_dirs: List[str],
+        split: str = "train",
+        transform: Optional[callable] = None,
+        target_size: int = 96,
+        use_letterbox: bool = True,
+        fill_value: int = 114,
+        fall_classes: Optional[List[str]] = None,
+        normal_classes: Optional[List[str]] = None,
+        shrink_max: int = 3,
+        expand_max: int = 25,
+    ):
+        """
+        Args:
+            data_dirs: 数据目录列表，每个目录应包含 JPEGImages/, Annotations/, ImageSets/Main/
+            split: 数据集划分 (train/val/test)，用于自动加载 ImageSets/Main/{split}.txt
+            transform: 数据增强变换
+            target_size: 目标输入尺寸
+            use_letterbox: 是否使用letterbox保持长宽比
+            fill_value: letterbox填充值
+            fall_classes: 跌倒类别名称列表 (这些类别映射到label=1)，默认["fall"]
+            normal_classes: 非跌倒类别名称列表 (这些类别映射到label=0)，默认None表示其他所有类别
+            shrink_max: 最大内缩像素
+            expand_max: 最大外扩像素
+        """
+        self.data_dirs = data_dirs if isinstance(data_dirs, list) else [data_dirs]
+        self.split = split
+        self.transform = transform
+        self.target_size = target_size
+        self.use_letterbox = use_letterbox
+
+        # 类别映射配置
+        self.fall_classes = set(c.lower() for c in (fall_classes or ["fall"]))
+        self.normal_classes = set(c.lower() for c in normal_classes) if normal_classes else None
+
+        self.cropper = RandomCropWithPadding(shrink_max=shrink_max, expand_max=expand_max)
+        self.letterbox = LetterBoxResize(target_size=target_size, fill_value=fill_value) if use_letterbox else None
+
+        # 构建样本列表: (image_path, bbox, label)
+        self.samples: List[Tuple[str, List[float], int]] = []
+
+        # 为每个数据目录加载样本
+        for data_dir in self.data_dirs:
+            self._load_from_dir(data_dir)
+
+        if len(self.samples) == 0:
+            raise ValueError(f"No valid samples found in VOC dataset. data_dirs={self.data_dirs}, split={split}")
+
+    def _load_from_dir(self, data_dir: str):
+        """从单个数据目录加载样本."""
+        image_dir = os.path.join(data_dir, "JPEGImages")
+        anno_dir = os.path.join(data_dir, "Annotations")
+        image_set_file = os.path.join(data_dir, "ImageSets", "Main", f"{self.split}.txt")
+
+        if not os.path.exists(anno_dir):
+            print(f"Warning: Annotations directory not found: {anno_dir}")
+            return
+
+        # 加载图像列表
+        if os.path.exists(image_set_file):
+            with open(image_set_file, 'r') as f:
+                image_ids = [line.strip().split()[0] for line in f if line.strip()]
+        else:
+            print(f"Warning: Image set file not found: {image_set_file}, scanning all XML files")
+            image_ids = [
+                os.path.splitext(f)[0]
+                for f in os.listdir(anno_dir)
+                if f.endswith('.xml')
+            ]
+
+        # 解析每个图像的标注
+        for img_id in image_ids:
+            anno_path = os.path.join(anno_dir, f"{img_id}.xml")
+            if not os.path.exists(anno_path):
+                continue
+
+            # 查找图像文件
+            image_path = self._find_image(image_dir, img_id)
+            if image_path is None:
+                print(f"Warning: Image not found for id: {img_id}")
+                continue
+
+            # 解析XML
+            samples = self._parse_xml(anno_path, image_path)
+            self.samples.extend(samples)
+
+    def _find_image(self, image_dir: str, img_id: str) -> Optional[str]:
+        """查找图像文件路径."""
+        for ext in ['.jpg', '.jpeg', '.png', '.bmp', '.JPG', '.JPEG', '.PNG']:
+            img_path = os.path.join(image_dir, f"{img_id}{ext}")
+            if os.path.exists(img_path):
+                return img_path
+        return None
+
+    def _parse_xml(self, anno_path: str, image_path: str) -> List[Tuple[str, List[float], int]]:
+        """解析单个XML文件，返回样本列表."""
+        samples = []
+
+        try:
+            tree = ET.parse(anno_path)
+            root = tree.getroot()
+
+            for obj in root.findall('object'):
+                # 获取类别名称
+                name_elem = obj.find('name')
+                if name_elem is None:
+                    continue
+                class_name = name_elem.text.strip().lower()
+
+                # 判断标签
+                label = self._class_to_label(class_name)
+                if label is None:
+                    # 未知类别，跳过
+                    continue
+
+                # 获取bbox
+                bndbox = obj.find('bndbox')
+                if bndbox is None:
+                    continue
+
+                try:
+                    xmin = float(bndbox.find('xmin').text)
+                    ymin = float(bndbox.find('ymin').text)
+                    xmax = float(bndbox.find('xmax').text)
+                    ymax = float(bndbox.find('ymax').text)
+                except (AttributeError, ValueError, TypeError):
+                    continue
+
+                # 验证bbox有效性
+                if xmax <= xmin or ymax <= ymin:
+                    continue
+
+                samples.append((image_path, [xmin, ymin, xmax, ymax], label))
+
+        except ET.ParseError as e:
+            print(f"Warning: Failed to parse {anno_path}: {e}")
+
+        return samples
+
+    def _class_to_label(self, class_name: str) -> Optional[int]:
+        """将类别名称转换为标签.
+        Returns:
+            0: 非跌倒
+            1: 跌倒
+            None: 未知类别（跳过）
+        """
+        if class_name in self.fall_classes:
+            return 1
+        if self.normal_classes is None:
+            # 未指定正常类别，其他所有类别都视为正常
+            return 0
+        if class_name in self.normal_classes:
+            return 0
+        # 未知类别
+        return None
+
+    def __len__(self):
+        return len(self.samples)
+
+    def __getitem__(self, idx):
+        image_path, bbox, label = self.samples[idx]
+
+        # 加载图像
+        img = cv2.imread(image_path)
+        if img is None:
+            raise ValueError(f"Failed to load image: {image_path}")
+
+        # 随机crop ROI
+        roi = self.cropper(img, bbox)
+
+        # 数据增强
+        if self.transform:
+            roi = self.transform(roi)
+
+        # Resize
+        if self.use_letterbox and self.letterbox:
+            roi = self.letterbox(roi)
+        else:
+            roi = cv2.resize(roi, (self.target_size, self.target_size), interpolation=cv2.INTER_LINEAR)
+
+        # BGR -> RGB
+        roi = cv2.cvtColor(roi, cv2.COLOR_BGR2RGB)
+
+        # To tensor: (H, W, C) -> (C, H, W), normalize to [0, 1]
+        roi = torch.from_numpy(roi).permute(2, 0, 1).float() / 255.0
+
+        return roi, torch.tensor(label, dtype=torch.long)
+
+
 class TrainingAugmentation:
     """训练时的数据增强."""
 
@@ -332,7 +538,7 @@ def eval_epoch(model, loader, criterion, device):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Train simple image classifier from COCO annotations")
+    parser = argparse.ArgumentParser(description="Train simple image classifier from COCO or Pascal VOC annotations")
     parser.add_argument("--config", required=True, help="Path to config YAML file")
     parser.add_argument("--local-rank", type=int, default=-1)
     parser.add_argument("--override", type=str, default=None, help="Override config values, e.g., 'lr=0.01,batch_size=128'")
@@ -392,7 +598,12 @@ def main():
         with open(os.path.join(output_dir, 'config_used.yaml'), 'w') as f:
             yaml.dump(cfg, f)
 
-        print(f"Training simple classifier from COCO annotations")
+        # 判断数据格式类型 (coco 或 voc)
+        data_format = data_cfg.get('format', 'coco').lower()
+        if data_format == 'voc':
+            print(f"Training simple classifier from Pascal VOC annotations")
+        else:
+            print(f"Training simple classifier from COCO annotations")
         print(f"  Config: {args.config}")
         print(f"  DDP: {ddp}, World size: {world_size}")
         print(f"  Use letterbox: {input_cfg.get('use_letterbox', True)}")
@@ -401,45 +612,84 @@ def main():
     if ddp:
         dist.barrier()
 
-    # 加载训练集
-    train_coco_json = data_cfg.get('train_coco_json')
-    val_coco_json = data_cfg.get('val_coco_json')
+    # 判断数据格式类型
+    data_format = data_cfg.get('format', 'coco').lower()
     image_dir = data_cfg.get('image_dir')
 
-    if not train_coco_json or not image_dir:
-        raise ValueError("train_coco_json and image_dir must be specified in config")
+    if data_format == 'voc':
+        # Pascal VOC 格式 - 支持多目录
+        voc_cfg = cfg.get('voc', {})
 
-    if rank == 0:
-        print(f"Loading training data from: {train_coco_json}")
+        # 支持单个目录或多个目录列表
+        train_dirs = voc_cfg.get('train_dirs', voc_cfg.get('data_dir'))
+        if train_dirs is None:
+            raise ValueError("voc.train_dirs or voc.data_dir must be specified in config for VOC format")
+        if isinstance(train_dirs, str):
+            train_dirs = [train_dirs]
 
-    train_dataset = CocoFallDataset(
-        image_dir=image_dir,
-        coco_json=train_coco_json,
-        transform=None,
-        target_size=input_cfg.get('target_size', 96),
-        use_letterbox=input_cfg.get('use_letterbox', True),
-        fill_value=input_cfg.get('fill_value', 114),
-        person_category_id=cfg.get('coco', {}).get('person_category_id', 1),
-        fall_category_id=cfg.get('coco', {}).get('fall_category_id', 1),
-        shrink_max=crop_cfg.get('shrink_max', 3),
-        expand_max=crop_cfg.get('expand_max', 25),
-    )
+        val_dirs = voc_cfg.get('val_dirs')
+        if isinstance(val_dirs, str):
+            val_dirs = [val_dirs]
 
-    if rank == 0:
-        print(f"Train samples: {len(train_dataset)}")
-        labels = [s[2] for s in train_dataset.samples]
-        n_fall = sum(labels)
-        n_normal = len(labels) - n_fall
-        print(f"  Fall: {n_fall}, Normal: {n_normal}")
+        # 类别映射配置
+        fall_classes = voc_cfg.get('fall_classes', ['fall'])
+        normal_classes = voc_cfg.get('normal_classes')  # None表示其他所有类别都是正常
 
-    # 加载验证集（如果提供了）
-    val_dataset = None
-    if val_coco_json and os.path.exists(val_coco_json):
         if rank == 0:
-            print(f"Loading validation data from: {val_coco_json}")
-        val_dataset = CocoFallDataset(
+            print(f"Loading training data from VOC directories: {train_dirs}")
+            print(f"  Fall classes: {fall_classes}")
+            if normal_classes:
+                print(f"  Normal classes: {normal_classes}")
+            else:
+                print(f"  Normal classes: <all others>")
+
+        train_dataset = VOCFallDataset(
+            data_dirs=train_dirs,
+            split='train',
+            transform=None,
+            target_size=input_cfg.get('target_size', 96),
+            use_letterbox=input_cfg.get('use_letterbox', True),
+            fill_value=input_cfg.get('fill_value', 114),
+            fall_classes=fall_classes,
+            normal_classes=normal_classes,
+            shrink_max=crop_cfg.get('shrink_max', 3),
+            expand_max=crop_cfg.get('expand_max', 25),
+        )
+
+        # 加载验证集（如果提供了）
+        val_dataset = None
+        if val_dirs:
+            if rank == 0:
+                print(f"Loading validation data from VOC directories: {val_dirs}")
+            val_dataset = VOCFallDataset(
+                data_dirs=val_dirs,
+                split='val',
+                transform=None,
+                target_size=input_cfg.get('target_size', 96),
+                use_letterbox=input_cfg.get('use_letterbox', True),
+                fill_value=input_cfg.get('fill_value', 114),
+                fall_classes=fall_classes,
+                normal_classes=normal_classes,
+                shrink_max=crop_cfg.get('shrink_max', 3),
+                expand_max=crop_cfg.get('expand_max', 25),
+            )
+        else:
+            if rank == 0:
+                print("No validation set provided, training without validation")
+    else:
+        # COCO 格式 (默认)
+        train_coco_json = data_cfg.get('train_coco_json')
+        val_coco_json = data_cfg.get('val_coco_json')
+
+        if not train_coco_json or not image_dir:
+            raise ValueError("train_coco_json and image_dir must be specified in config for COCO format")
+
+        if rank == 0:
+            print(f"Loading training data from: {train_coco_json}")
+
+        train_dataset = CocoFallDataset(
             image_dir=image_dir,
-            coco_json=val_coco_json,
+            coco_json=train_coco_json,
             transform=None,
             target_size=input_cfg.get('target_size', 96),
             use_letterbox=input_cfg.get('use_letterbox', True),
@@ -449,15 +699,41 @@ def main():
             shrink_max=crop_cfg.get('shrink_max', 3),
             expand_max=crop_cfg.get('expand_max', 25),
         )
-        if rank == 0:
+
+        # 加载验证集（如果提供了）
+        val_dataset = None
+        if val_coco_json and os.path.exists(val_coco_json):
+            if rank == 0:
+                print(f"Loading validation data from: {val_coco_json}")
+            val_dataset = CocoFallDataset(
+                image_dir=image_dir,
+                coco_json=val_coco_json,
+                transform=None,
+                target_size=input_cfg.get('target_size', 96),
+                use_letterbox=input_cfg.get('use_letterbox', True),
+                fill_value=input_cfg.get('fill_value', 114),
+                person_category_id=cfg.get('coco', {}).get('person_category_id', 1),
+                fall_category_id=cfg.get('coco', {}).get('fall_category_id', 1),
+                shrink_max=crop_cfg.get('shrink_max', 3),
+                expand_max=crop_cfg.get('expand_max', 25),
+            )
+        else:
+            if rank == 0:
+                print("No validation set provided, training without validation")
+
+    if rank == 0:
+        print(f"Train samples: {len(train_dataset)}")
+        labels = [s[2] for s in train_dataset.samples]
+        n_fall = sum(labels)
+        n_normal = len(labels) - n_fall
+        print(f"  Fall: {n_fall}, Normal: {n_normal}")
+
+        if val_dataset:
             print(f"Val samples: {len(val_dataset)}")
             labels = [s[2] for s in val_dataset.samples]
             n_fall = sum(labels)
             n_normal = len(labels) - n_fall
             print(f"  Fall: {n_fall}, Normal: {n_normal}")
-    else:
-        if rank == 0:
-            print("No validation set provided, training without validation")
 
     # 为训练集和验证集设置不同的数据增强
     train_dataset.transform = None if not aug_cfg.get('enabled', True) else TrainingAugmentation(aug_cfg)

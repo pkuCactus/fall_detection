@@ -2,16 +2,24 @@
 # 使用: bash scripts/shell/run_train_simple_classifier.sh --config configs/training/simple_classifier.yaml
 
 # 数据配置
+# 支持两种格式: COCO (format: coco) 或 Pascal VOC (format: voc)
 data:
+  format: "coco"  # 数据格式: "coco" 或 "voc"
   image_dir: "data/images"  # 图像根目录
+
+  # === COCO 格式配置 (当 format=coco 时使用) ===
   train_coco_json: "data/annotations/train.json"  # 训练集COCO标注
   val_coco_json: "data/annotations/val.json"  # 验证集COCO标注 (可选，null表示无验证集)
+
+  # === Pascal VOC 格式配置 (当 format=voc 时使用，详见 simple_classifier_voc.yaml) ===
+  # voc 配置项在下面的 voc: 段落中设置
 
 # 模型配置
 model:
   type: "simple"  # simple: 简单图像分类器
   dropout: 0.3
   num_classes: 2  # 类别数量
+  fall_category_id: 1  # 跌倒类别的category_id (COCO格式使用)
 
 # 训练配置
 epochs: 100
@@ -70,10 +78,26 @@ crop:
   shrink_max: 3  # 最大内缩像素
   expand_max: 25  # 最大外扩像素
 
-# COCO标注配置
+# COCO标注配置 (仅COCO格式使用)
 coco:
   fall_category_id: 1  # 跌倒类别的category_id
   person_category_id: 1  # 人物类别的category_id
+
+# Pascal VOC标注配置 (仅VOC格式使用，详见 simple_classifier_voc.yaml)
+voc:
+  # 数据目录 (支持多目录)
+  # train_dirs:
+  #   - "data/VOC2007"
+  #   - "data/VOC2012"
+  # val_dirs:
+  #   - "data/VOC2007"
+
+  # 类别映射
+  fall_classes:  # 映射到 label=1 的类别
+    - "fall"
+    # - "fallen"
+    # - "跌倒"
+  normal_classes: null  # 映射到 label=0 的类别，null表示其他所有类别
 
 # 输出配置
 output:
