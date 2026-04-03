@@ -1,0 +1,41 @@
+<?xml version='1.0' encoding='utf-8'?>
+<annotation>
+  <folder>JPEGImages</folder>
+  <filename>427642809-1-208_frame000870_t34.800.jpg</filename>
+  <path>data/mini/JPEGImages/427642809-1-208_frame000870_t34.800.jpg</path>
+  <source>
+    <database>YOLO Auto Generated</database>
+  </source>
+  <size>
+    <width>1920</width>
+    <height>1080</height>
+    <depth>3</depth>
+  </size>
+  <segmented>0</segmented>
+  <object>
+    <name>person</name>
+    <pose>Unspecified</pose>
+    <truncated>0</truncated>
+    <difficult>0</difficult>
+    <confidence>0.8245704174041748</confidence>
+    <bndbox>
+      <xmin>1754</xmin>
+      <ymin>334</ymin>
+      <xmax>1808</xmax>
+      <ymax>478</ymax>
+    </bndbox>
+  </object>
+  <object>
+    <name>person</name>
+    <pose>Unspecified</pose>
+    <truncated>0</truncated>
+    <difficult>0</difficult>
+    <confidence>0.7489936947822571</confidence>
+    <bndbox>
+      <xmin>826</xmin>
+      <ymin>726</ymin>
+      <xmax>1047</xmax>
+      <ymax>920</ymax>
+    </bndbox>
+  </object>
+</annotation>
