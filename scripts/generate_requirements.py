@@ -11,12 +11,12 @@ ROOT = Path(__file__).resolve().parent.parent
 REQUIREMENTS_DIR = ROOT / "requirements"
 
 # Driver major version -> PyTorch wheel variant
-# Thresholds chosen from NVIDIA driver/CUDA compatibility on Linux.
+# cu128 is deliberately excluded from auto-selection because its wheels require
+# very recent host libraries; it can still be forced with --variant cu128.
 DRIVER_MAP = [
-    (550, "cu128"),   # CUDA 12.8 / 12.4
-    (535, "cu124"),   # CUDA 12.4
-    (525, "cu121"),   # CUDA 12.1
-    (520, "cu118"),   # CUDA 11.8
+    (525, "cu124"),   # CUDA 12.4 (broad driver support, stable)
+    (520, "cu121"),   # CUDA 12.1
+    (450, "cu118"),   # CUDA 11.8
 ]
 
 
@@ -69,7 +69,7 @@ def generate(output_path: str, variant: str | None = None) -> None:
     if not base_file.exists():
         sys.exit(f"Missing {base_file}")
     if not torch_file.exists():
-        supported = ", ".join([v for _, v in DRIVER_MAP] + ["cpu"])
+        supported = ", ".join(sorted(set([v for _, v in DRIVER_MAP] + ["cpu", "cu128"])))
         sys.exit(f"Variant file not found: {torch_file}. Supported variants: {supported}")
 
     parts = [
