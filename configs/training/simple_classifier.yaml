@@ -122,5 +122,6 @@ ddp:
 
 # 日志
 log:
-  interval: 1  # 每N轮打印日志
+  epoch_log_interval: 1  # 每N轮打印epoch日志
+  batch_log_interval: 50  # 每N个batch打印batch日志
   verbose: true
