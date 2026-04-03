@@ -1,0 +1,78 @@
+batch_size: 512
+coco:
+  fall_category_id: 1
+  person_category_id: 1
+crop:
+  expand_max: 25
+  shrink_max: 3
+data:
+  format: coco
+  image_dir: data/images
+  train_coco_json: data/annotations/train.json
+  val_coco_json: data/annotations/val.json
+data_augmentation:
+  color_jitter:
+    brightness: 0.3
+    contrast: 0.3
+    enabled: true
+    saturation: 0.3
+  enabled: true
+  horizontal_flip:
+    enabled: false
+    p: 0.5
+  random_gray:
+    enabled: true
+    p: 0.2
+  random_mask:
+    enabled: true
+    mask_ratio: 0.15
+    p: 0.3
+  random_rotation:
+    angle_range:
+    - -5
+    - 5
+    enabled: true
+    p: 0.3
+ddp:
+  backend: nccl
+  find_unused_parameters: true
+early_stopping:
+  enabled: true
+  min_delta: 0.001
+  mode: max
+  patience: 20
+epochs: 100
+input:
+  fill_value: 114
+  target_size: 96
+  use_letterbox: true
+log:
+  interval: 1
+  verbose: true
+lr: 0.001
+lr_scheduler:
+  factor: 0.5
+  min_lr: 1.0e-05
+  patience: 10
+  type: plateau
+  warmup:
+    enabled: true
+    epochs: 5
+    init_lr: 1.0e-05
+    strategy: linear
+model:
+  dropout: 0.3
+  fall_category_id: 1
+  num_classes: 2
+  type: simple
+num_workers: 0
+output:
+  dir: outputs/simple_classifier
+  save_best: true
+  save_every: 10
+seed: 666
+voc:
+  fall_classes:
+  - fall
+  normal_classes: null
+weight_decay: 0.0001

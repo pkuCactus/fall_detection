@@ -560,9 +560,15 @@ def main():
         dist.barrier()
 
     # Create datasets
+    if rank == 0:
+        print("Creating datasets...")
     train_dataset, val_dataset = create_datasets(cfg, rank)
+    if rank == 0:
+        print(f"Datasets created: train={len(train_dataset)}, val={len(val_dataset) if val_dataset else 0}")
 
     # Create data loaders
+    if rank == 0:
+        print("Creating data loaders...")
     train_sampler = (
         DistributedSampler(train_dataset, num_replicas=world_size, rank=rank, shuffle=True)
         if ddp
@@ -596,14 +602,24 @@ def main():
         )
 
     # Create model
+    if rank == 0:
+        print("Creating model...")
     model = create_model(cfg, device, ddp, local_rank)
+    if rank == 0:
+        print("Model created.")
 
     # Create optimizer and scheduler
+    if rank == 0:
+        print("Creating optimizer and scheduler...")
     optimizer, scheduler = create_optimizer_scheduler(cfg, model, train_loader, rank)
+    if rank == 0:
+        print("Optimizer and scheduler created.")
+        print(f"Train loader has {len(train_loader)} batches")
 
     # Training loop
     if rank == 0:
         print(f"\nStarting training: {cfg.get('epochs', 100)} epochs")
+        print("="*50)
     final_acc = train_loop(
         cfg, model, train_loader, val_loader, optimizer, scheduler, device, ddp, rank
     )
