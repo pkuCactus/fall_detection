@@ -16,9 +16,7 @@ __pycache__/
 .vscode/
 .idea/
 
-# Claude / Superpowers「
-.superpowers/
-
 data/*.mp4
 .fuse_*
 logs/
+skills-lock.json
