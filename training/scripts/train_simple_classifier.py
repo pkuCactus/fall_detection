@@ -415,7 +415,7 @@ def train_loop(
     criterion = nn.CrossEntropyLoss()
     epochs = cfg.get("epochs", 100)
     log_cfg = cfg.get("log", {})
-    log_interval = log_cfg.get("interval", 1)
+    epoch_log_interval = log_cfg.get("epoch_log_interval", 1)
     early_cfg = cfg.get("early_stopping", {})
     output_cfg = cfg.get("output", {})
     lr_cfg = cfg.get("lr_scheduler", {})
@@ -487,7 +487,7 @@ def train_loop(
 
             current_lr = optimizer.param_groups[0]["lr"]
 
-            if epoch % log_interval == 0 or epoch == epochs:
+            if epoch % epoch_log_interval == 0 or epoch == epochs:
                 if val_loader:
                     print(
                         f"Epoch {epoch}/{epochs}  "
@@ -512,7 +512,7 @@ def train_loop(
                 torch.save(
                     model.module.state_dict() if ddp else model.state_dict(), save_path
                 )
-                if epoch % log_interval == 0:
+                if epoch % epoch_log_interval == 0:
                     print(f"  -> Saved best model (val_acc={v_acc:.4f})")
             elif not val_loader and epoch % output_cfg.get("save_every", 10) == 0:
                 save_path = os.path.join(

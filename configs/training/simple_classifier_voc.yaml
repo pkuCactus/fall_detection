@@ -65,8 +65,8 @@ model:
 
 # 训练配置
 epochs: 100
-batch_size: 32
-num_workers: 0  # 设置为0避免DataLoader死锁，生产环境可改为4
+batch_size: 16
+num_workers: 4  # 设置为0避免DataLoader死锁，生产环境可改为4
 
 # 优化器配置
 lr: 0.001
@@ -81,7 +81,7 @@ lr_scheduler:
 
   # Warmup 配置 (可选)
   warmup:
-    enabled: false  # 是否启用 warmup
+    enabled: true  # 是否启用 warmup
     epochs: 5       # warmup 持续的 epoch 数
     strategy: "linear"  # warmup 策略: "linear" (线性增加) 或 "constant" (保持不变)
     init_lr: 0.00001    # warmup 初始学习率
@@ -140,5 +140,6 @@ ddp:
 
 # 日志
 log:
-  interval: 1
+  epoch_log_interval: 1  # 每N轮打印epoch日志
+  batch_log_interval: 50  # 每N个batch打印batch日志
   verbose: true

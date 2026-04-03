@@ -20,3 +20,4 @@ data/*.mp4
 .fuse_*
 logs/
 skills-lock.json
+outputs
