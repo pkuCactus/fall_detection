@@ -94,11 +94,11 @@ class TrainingAugmentation:
 
     def __init__(self, aug_cfg: Dict[str, Any]):
         self.cfg = aug_cfg
-        self.color_jitter_cfg = aug_cfg.get('color_jitter', {})
-        self.random_gray_cfg = aug_cfg.get('random_gray', {})
-        self.random_rotation_cfg = aug_cfg.get('random_rotation', {})
-        self.random_mask_cfg = aug_cfg.get('random_mask', {})
-        self.horizontal_flip_cfg = aug_cfg.get('horizontal_flip', {})
+        self.color_jitter_cfg = aug_cfg.get('color_jitter') or {}
+        self.random_gray_cfg = aug_cfg.get('random_gray') or {}
+        self.random_rotation_cfg = aug_cfg.get('random_rotation') or {}
+        self.random_mask_cfg = aug_cfg.get('random_mask') or {}
+        self.horizontal_flip_cfg = aug_cfg.get('horizontal_flip') or {}
 
         # Random Mask
         if self.random_mask_cfg.get('enabled', False):
