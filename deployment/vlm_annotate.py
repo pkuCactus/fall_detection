@@ -68,15 +68,28 @@ For each person, provide:
    - fall_down, kneel, half_up, crawl -> person in abnormal/dangerous state
    - stand, sit, squat, bend -> person in normal state
 2. Bounding box coordinates [x1, y1, x2, y2] as ABSOLUTE PIXEL VALUES (not normalized)
-   - x1, y2: top-left corner pixel coordinates
-   - x2, y2: bottom-right corner pixel coordinates
+
+   CRITICAL INSTRUCTIONS for accurate bounding boxes:
+   - Imagine the image as a coordinate grid from (0,0) at top-left to ({img_w},{img_h}) at bottom-right
+   - x1: horizontal position of the person's LEFT edge (from left side of image)
+   - y1: vertical position of the person's TOP edge (from top of image)
+   - x2: horizontal position of the person's RIGHT edge (from left side of image)
+   - y2: vertical position of the person's BOTTOM edge (from top of image)
+   - The box should tightly enclose the entire person from head to toe
+   - Include some margin (10-20 pixels) around the person
    - Range: x in [0, {img_w}], y in [0, {img_h}]
-   - Example: if person is at top-left corner, 100px wide, 200px tall: [0, 0, 100, 200]
+
+   Example 1: Person at top-left, 100px wide, 200px tall: [10, 10, 110, 210]
+   Example 2: Person centered in {img_w}x{img_h} image, 300px wide, 500px tall:
+              x1 = {img_w//2 - 150}, y1 = {img_h//2 - 250}, x2 = {img_w//2 + 150}, y2 = {img_h//2 + 250}
+              Result: [{img_w//2 - 150}, {img_h//2 - 250}, {img_w//2 + 150}, {img_h//2 + 250}]
+
 3. Confidence score (0-1)
 
-IMPORTANT: Return coordinates as integers in PIXEL VALUES, NOT normalized (0-1) values.
-
-Focus on detecting people in abnormal states (fall_down, kneel, half_up, crawl).
+IMPORTANT:
+- Return coordinates as INTEGERS in PIXEL VALUES, NOT normalized (0-1) values
+- Double-check that x2 > x1 and y2 > y1
+- Ensure the box fully contains the person with some margin
 
 Respond in JSON format:
 {{
@@ -473,26 +486,45 @@ class Visualizer:
 
 
 def normalize_bbox(bbox: List[float], img_w: int, img_h: int) -> List[int]:
-    """Convert bbox to absolute pixel coordinates.
+    """Convert bbox to absolute pixel coordinates with validation.
 
     Handles:
     - Normalized coordinates (0-1 range)
     - Already absolute coordinates (pass through)
+    - Swapped coordinates (x1 > x2 or y1 > y2)
+    - Out-of-bounds coordinates
     """
     x1, y1, x2, y2 = bbox
+    original = [x1, y1, x2, y2]
 
     # Detect if coordinates are normalized (0-1 range)
-    # Normalized coords are typically 0-1, but could be slightly outside due to model output
-    if all(0 <= v <= 1.0 for v in [x1, y1, x2, y2]):
-        # These are likely normalized coordinates
-        print(f"    Detected normalized coords, converting to absolute (img: {img_w}x{img_h})")
-        x1 = int(x1 * img_w)
-        y1 = int(y1 * img_h)
-        x2 = int(x2 * img_w)
-        y2 = int(y2 * img_h)
-    else:
-        # Already absolute coordinates
-        x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
+    # Use more lenient check: most values in 0-1 range
+    normalized_count = sum(1 for v in [x1, y1, x2, y2] if 0 <= v <= 1.0)
+    if normalized_count >= 3:  # At least 3 values look normalized
+        print(f"    Detected normalized coords {original}, converting to absolute")
+        x1 = x1 * img_w
+        y1 = y1 * img_h
+        x2 = x2 * img_w
+        y2 = y2 * img_h
+
+    # Convert to integers
+    x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
+
+    # Fix swapped coordinates (model may return them in wrong order)
+    if x1 > x2:
+        x1, x2 = x2, x1
+    if y1 > y2:
+        y1, y2 = y2, y1
+
+    # Ensure minimum box size (10x10 pixels)
+    if x2 - x1 < 10:
+        center = (x1 + x2) // 2
+        x1 = max(0, center - 5)
+        x2 = min(img_w, center + 5)
+    if y2 - y1 < 10:
+        center = (y1 + y2) // 2
+        y1 = max(0, center - 5)
+        y2 = min(img_h, center + 5)
 
     # Clamp to image bounds
     x1 = max(0, min(x1, img_w - 1))
