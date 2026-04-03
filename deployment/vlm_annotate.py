@@ -24,16 +24,18 @@ sys.path.insert(0, "src")
 class VLMDetector:
     """VLM-based person detector and state classifier."""
 
-    def __init__(self, api_url: str, api_key: Optional[str] = None, model: str = "claude"):
+    def __init__(self, api_url: str, api_key: Optional[str] = None, model: str = "claude", model_name: Optional[str] = None):
         """
         Args:
             api_url: VLM API endpoint
             api_key: API authentication key
-            model: Model name (claude, gpt4v, etc.)
+            model: Model name (claude, gpt4v, bailian, etc.)
+            model_name: Specific model name on the platform (e.g., qwen-vl-max, qwen-vl-plus, etc.)
         """
         self.api_url = api_url
         self.api_key = api_key
         self.model = model
+        self.model_name = model_name
 
     def _encode_image(self, image_path: str) -> str:
         """Encode image to base64 for API."""
@@ -210,8 +212,10 @@ If no persons detected, return {"detections": []}."""
         image_base64 = self._encode_image(image_path)
 
         # 构建请求体 - 百炼/Qwen-VL 格式
+        # 模型名称优先级: --model-name 参数 > 环境变量 BAILIAN_MODEL > 默认值 qwen-vl-max
+        model_name = self.model_name or os.environ.get("BAILIAN_MODEL", "qwen-vl-max")
         payload = {
-            "model": self.api_url or "qwen-vl-max",  # 默认使用 qwen-vl-max
+            "model": model_name,
             "messages": [
                 {
                     "role": "system",
@@ -513,6 +517,7 @@ def main():
     parser.add_argument("--api-key", "-k", help="VLM API key (or set ANTHROPIC_API_KEY / DASHSCOPE_API_KEY env var)")
     parser.add_argument("--model", "-m", default="claude", choices=["claude", "gpt4v", "bailian"], help="VLM model")
     parser.add_argument("--extensions", "-e", default="jpg,jpeg,png,bmp", help="Image extensions to process")
+    parser.add_argument("--model-name", help="Specific model name (for bailian: qwen-vl-max, qwen-vl-plus, etc.)")
     args = parser.parse_args()
 
     # Get API key
@@ -529,7 +534,7 @@ def main():
         sys.exit(1)
 
     # Initialize components
-    detector = VLMDetector(api_url="", api_key=api_key, model=args.model)
+    detector = VLMDetector(api_url="", api_key=api_key, model=args.model, model_name=args.model_name)
     voc_writer = VOCAnnotationWriter(args.output_dir)
     visualizer = Visualizer()
 
