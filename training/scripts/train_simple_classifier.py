@@ -569,20 +569,39 @@ def main():
     # Create data loaders
     if rank == 0:
         print("Creating data loaders...")
+        print(f"  batch_size={cfg.get('batch_size', 64)}, num_workers={cfg.get('num_workers', 4)}")
     train_sampler = (
         DistributedSampler(train_dataset, num_replicas=world_size, rank=rank, shuffle=True)
         if ddp
         else None
     )
+
+    # Test single sample loading before creating DataLoader
+    if rank == 0:
+        print("  Testing dataset __getitem__...")
+        try:
+            sample_img, sample_label = train_dataset[0]
+            print(f"  Sample loaded: shape={sample_img.shape}, label={sample_label}")
+        except Exception as e:
+            print(f"  ERROR loading sample: {e}")
+            import traceback
+            traceback.print_exc()
+            raise
+
+    if rank == 0:
+        print("  Creating train DataLoader...")
+
+    num_workers = cfg.get("num_workers", 4)
     train_loader = DataLoader(
         train_dataset,
         batch_size=cfg.get("batch_size", 64),
         sampler=train_sampler,
         shuffle=(train_sampler is None),
-        num_workers=cfg.get("num_workers", 4),
+        num_workers=num_workers,
         pin_memory=True,
         drop_last=True,
-        worker_init_fn=worker_init_fn if cfg.get("num_workers", 4) > 0 else None,
+        worker_init_fn=worker_init_fn if num_workers > 0 else None,
+        persistent_workers=num_workers > 0,
     )
 
     val_loader = None
@@ -620,6 +639,16 @@ def main():
     if rank == 0:
         print(f"\nStarting training: {cfg.get('epochs', 100)} epochs")
         print("="*50)
+        print("Testing first batch loading...")
+        try:
+            first_batch = next(iter(train_loader))
+            print(f"First batch loaded: images={first_batch[0].shape}, labels={first_batch[1].shape}")
+        except Exception as e:
+            print(f"ERROR loading first batch: {e}")
+            import traceback
+            traceback.print_exc()
+            raise
+        print("Entering training loop...")
     final_acc = train_loop(
         cfg, model, train_loader, val_loader, optimizer, scheduler, device, ddp, rank
     )

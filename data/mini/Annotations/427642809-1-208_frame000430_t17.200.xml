@@ -1,0 +1,26 @@
+<annotation>
+	<folder>JPEGImages</folder>
+	<filename>427642809-1-208_frame000430_t17.200.jpg</filename>
+	<path>/data4/hjz/fall_detection/data/mini/JPEGImages/427642809-1-208_frame000430_t17.200.jpg</path>
+	<source>
+		<database>Unknown</database>
+	</source>
+	<size>
+		<width>1920</width>
+		<height>1080</height>
+		<depth>3</depth>
+	</size>
+	<segmented>0</segmented>
+	<object>
+		<name>half_up</name>
+		<pose>Unspecified</pose>
+		<truncated>0</truncated>
+		<difficult>0</difficult>
+		<bndbox>
+			<xmin>819</xmin>
+			<ymin>693</ymin>
+			<xmax>1042</xmax>
+			<ymax>875</ymax>
+		</bndbox>
+	</object>
+</annotation>

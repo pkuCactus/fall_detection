@@ -15,6 +15,7 @@ from typing import List, Dict, Tuple, Optional
 import cv2
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
+from tqdm import tqdm
 
 sys.path.insert(0, "src")
 
@@ -392,7 +393,7 @@ def main():
 
         print(f"Found {len(image_files)} images in {input_path}")
 
-        for img_path in sorted(image_files):
+        for img_path in tqdm(sorted(image_files)):
             try:
                 process_image(
                     str(img_path), detector, voc_writer, visualizer, args.vis_dir

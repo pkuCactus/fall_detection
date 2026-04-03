@@ -28,13 +28,11 @@ voc:
 
   # 训练数据目录 (可指定多个)
   train_dirs:
-    - "data/VOC2007"
-    - "data/VOC2012"
-    - "data/custom_fall"
+    - "data/mini"
 
   # 验证数据目录 (可选，不指定则不使用验证集)
   val_dirs:
-    - "data/VOC2007"
+    - "data/mini"
   # 也可以单独指定不同的验证目录:
   # val_dirs:
   #   - "data/val_set"
@@ -67,8 +65,8 @@ model:
 
 # 训练配置
 epochs: 100
-batch_size: 512
-num_workers: 4
+batch_size: 32
+num_workers: 0  # 设置为0避免DataLoader死锁，生产环境可改为4
 
 # 优化器配置
 lr: 0.001

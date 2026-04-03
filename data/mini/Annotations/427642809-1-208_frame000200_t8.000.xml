@@ -1,0 +1,26 @@
+<annotation>
+	<folder>JPEGImages</folder>
+	<filename>427642809-1-208_frame000200_t8.000.jpg</filename>
+	<path>/data4/hjz/fall_detection/data/mini/JPEGImages/427642809-1-208_frame000200_t8.000.jpg</path>
+	<source>
+		<database>Unknown</database>
+	</source>
+	<size>
+		<width>1920</width>
+		<height>1080</height>
+		<depth>3</depth>
+	</size>
+	<segmented>0</segmented>
+	<object>
+		<name>fall_down</name>
+		<pose>Unspecified</pose>
+		<truncated>0</truncated>
+		<difficult>0</difficult>
+		<bndbox>
+			<xmin>850</xmin>
+			<ymin>725</ymin>
+			<xmax>1083</xmax>
+			<ymax>874</ymax>
+		</bndbox>
+	</object>
+</annotation>
