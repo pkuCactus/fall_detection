@@ -5,6 +5,7 @@
 
 VIDEO="${1:-data/sample.mp4}"
 OUTPUT="${2:-outputs/demo_output.mp4}"
+shift 2
 
 echo "Running Fall Detection Pipeline Demo..."
 echo "Video: $VIDEO"
