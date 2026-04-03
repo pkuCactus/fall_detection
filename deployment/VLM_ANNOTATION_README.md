@@ -34,7 +34,17 @@ export OPENAI_API_KEY="your-api-key"
 # 或使用 阿里百炼 (Bailian) - 国内访问友好
 export DASHSCOPE_API_KEY="your-api-key"
 # API Key 从 https://bailian.console.aliyun.com/ 获取
+
+# 可选: 设置默认模型 (不设置则默认使用 qwen-vl-max)
+export BAILIAN_MODEL="qwen-vl-max"
 ```
+
+**百炼模型选择**:
+- `qwen-vl-max` - 通义千问VL最强模型，效果最好 (默认)
+- `qwen-vl-plus` - 通义千问VL增强版，性价比均衡
+- `qwen-vl-chat` - 通义千问VL基础版，速度最快
+
+更多模型参考: https://help.aliyun.com/zh/model-studio/getting-started/models
 
 ### 2. 使用VLM标注图像
 
@@ -64,12 +74,20 @@ python deployment/vlm_annotate.py \
     --vis-dir outputs/Visualizations \
     --model claude
 
-# 使用 阿里百炼 (国内推荐)
+# 使用 阿里百炼 (国内推荐) - 默认 qwen-vl-max
 python deployment/vlm_annotate.py \
     --input data/images/ \
     --output-dir outputs/Annotations \
     --vis-dir outputs/Visualizations \
     --model bailian
+
+# 使用百炼其他模型 (如 qwen-vl-plus)
+python deployment/vlm_annotate.py \
+    --input data/images/ \
+    --output-dir outputs/Annotations \
+    --vis-dir outputs/Visualizations \
+    --model bailian \
+    --model-name qwen-vl-plus
 ```
 
 **输出结构**:
