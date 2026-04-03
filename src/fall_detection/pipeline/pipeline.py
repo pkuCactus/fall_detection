@@ -150,8 +150,8 @@ class FallDetectionPipeline:
         """提取并预处理 ROI：保持长宽比 resize + padding 到 96x96."""
         x1, y1, x2, y2 = map(int, bbox)
         h, w = frame.shape[:2]
-        x1, y1 = max(0, x1 - 10), max(0, y1 + 10)
-        x2, y2 = min(w, x2 + 10), min(h, y2 - 10)
+        x1, y1 = max(0, x1 - 10), max(0, y1 - 10)
+        x2, y2 = min(w, x2 + 10), min(h, y2 + 10)
         roi_crop = frame[y1:y2, x1:x2]
 
         roi_h, roi_w = roi_crop.shape[:2]
