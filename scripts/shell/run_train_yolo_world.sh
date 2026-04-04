@@ -8,8 +8,8 @@ set -e
 
 DATA="data/fall_detection.yaml"
 EPOCHS=50
-IMGSZ_W=640
-IMGSZ_H=640
+IMGSZ_W=832
+IMGSZ_H=448
 BATCH=16
 MODEL="yolov8l-worldv2.pt"
 PROJECT="outputs/yolo_world"

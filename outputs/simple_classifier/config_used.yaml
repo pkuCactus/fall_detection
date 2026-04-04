@@ -1,15 +1,9 @@
-batch_size: 512
-coco:
-  fall_category_id: 1
-  person_category_id: 1
+batch_size: 16
 crop:
   expand_max: 25
   shrink_max: 3
 data:
-  format: coco
-  image_dir: data/images
-  train_coco_json: data/annotations/train.json
-  val_coco_json: data/annotations/val.json
+  format: voc
 data_augmentation:
   color_jitter:
     brightness: 0.3
@@ -47,7 +41,8 @@ input:
   target_size: 96
   use_letterbox: true
 log:
-  interval: 1
+  batch_log_interval: 50
+  epoch_log_interval: 1
   verbose: true
 lr: 0.001
 lr_scheduler:
@@ -61,11 +56,10 @@ lr_scheduler:
     init_lr: 1.0e-05
     strategy: linear
 model:
-  dropout: 0.3
-  fall_category_id: 1
+  dropout: 0.1
   num_classes: 2
   type: simple
-num_workers: 0
+num_workers: 4
 output:
   dir: outputs/simple_classifier
   save_best: true
@@ -73,6 +67,17 @@ output:
 seed: 666
 voc:
   fall_classes:
-  - fall
-  normal_classes: null
+  - fall_down
+  - kneel
+  - half_up
+  - crawl
+  normal_classes:
+  - stand
+  - sit
+  - squat
+  - bend
+  train_dirs:
+  - data/mini
+  val_dirs:
+  - data/mini
 weight_decay: 0.0001
