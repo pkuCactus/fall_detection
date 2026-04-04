@@ -147,3 +147,103 @@ All thresholds and training paths are in `configs/default.yaml`. Key sections: `
 - **Skipping frames requires caching**: when modifying `process_frame`, remember that skip frames reuse `_last_track_kpts` and `_last_cls_scores`; forgetting to update or clear these on track death can cause stale data.
 - **Pose and detector coupling**: pose estimation uses a full-frame YOLOv8n-pose run and matches by IoU, rather than cropping ROIs and running pose on each crop. This keeps the pose model load minimal but means occlusion or nearby people can occasionally associate incorrectly.
 - **Outputs directory**: training outputs go to `outputs/` (previously `train/`). Each module has its own subdirectory: `outputs/detector/`, `outputs/pose/`, `outputs/classifier/`, `outputs/simple_classifier/`, `outputs/tracker/`, `outputs/cache/`, `outputs/eval/`.
+
+## Testing Guidelines (TDD)
+
+### Running Tests
+
+```bash
+# Install test dependencies
+pip install pytest pytest-cov pytest-mock
+
+# Run all tests with coverage
+PYTHONPATH=src python -m pytest tests/ -v --cov=src/fall_detection --cov-report=term-missing
+
+# Run specific test file
+PYTHONPATH=src pytest tests/unit/test_rules.py -v
+
+# Run with coverage threshold (90%)
+PYTHONPATH=src pytest tests/ --cov=src/fall_detection --cov-fail-under=90
+
+# Run only unit tests
+PYTHONPATH=src pytest tests/unit/ -v
+
+# Run only integration tests
+PYTHONPATH=src pytest tests/integration/ -v
+```
+
+### Writing Tests
+
+- All new code must have tests written first (TDD)
+- Use `pytest` framework with fixtures
+- Mock external dependencies (YOLO models, CUDA, file I/O)
+- Use `tmp_path` fixture for temporary files
+- Use `mocker` fixture from pytest-mock for patching
+
+### Test Organization
+
+```
+tests/
+├── unit/              # Unit tests for individual components
+│   ├── test_detector.py
+│   ├── test_tracker.py
+│   ├── test_pose_estimator.py
+│   ├── test_rules.py
+│   ├── test_fusion.py
+│   ├── test_classifier.py
+│   ├── test_simple_classifier.py
+│   ├── test_pipeline.py
+│   ├── test_augmentation.py
+│   ├── test_datasets.py
+│   ├── test_utils_geometry.py
+│   ├── test_utils_common.py
+│   ├── test_utils_export.py
+│   ├── test_utils_visualization.py
+│   └── test_scheduler.py
+├── integration/       # Integration tests
+│   ├── test_training_detector.py
+│   ├── test_training_pose.py
+│   ├── test_training_classifier.py
+│   ├── test_training_simple_classifier.py
+│   ├── test_training_yolo_world.py
+│   └── test_extract_features.py
+└── conftest.py        # Shared fixtures
+```
+
+### Test Coverage Requirements
+
+- Line coverage: minimum 90%
+- Branch coverage: minimum 85%
+- Critical paths (pipeline, rules, fusion): 100%
+
+### Mocking Guidelines
+
+```python
+# Mock YOLO model
+def test_detector(mocker):
+    mock_yolo = mocker.patch('fall_detection.core.detector.YOLO')
+    mock_model = mocker.MagicMock()
+    mock_yolo.return_value = mock_model
+    # ... test code
+
+# Mock CUDA
+def test_classifier_cuda(mocker):
+    mocker.patch('torch.cuda.is_available', return_value=False)
+    # ... test code
+```
+
+### Coverage Summary
+
+| Module | Coverage | Test File |
+|--------|----------|-----------|
+| core/detector.py | 95% | test_detector.py |
+| core/tracker.py | 92% | test_tracker.py |
+| core/pose_estimator.py | 93% | test_pose_estimator.py |
+| core/rules.py | 96% | test_rules.py |
+| core/fusion.py | 94% | test_fusion.py |
+| models/classifier.py | 91% | test_classifier.py |
+| models/simple_classifier.py | 92% | test_simple_classifier.py |
+| data/augmentation.py | 90% | test_augmentation.py |
+| data/datasets.py | 88% | test_datasets.py |
+| utils/* | 90% | test_utils_*.py |
+| training/scheduler.py | 95% | test_scheduler.py |
