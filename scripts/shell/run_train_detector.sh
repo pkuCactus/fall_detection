@@ -8,7 +8,8 @@ set -e
 
 DATA="data/fall_detection.yaml"
 EPOCHS=50
-IMGSZ=832
+IMGSZ_W=832
+IMGSZ_H=832
 BATCH=16
 MODEL="yolov8n.pt"
 PROJECT="outputs/detector"
@@ -19,7 +20,9 @@ while [[ $# -gt 0 ]]; do
   case $1 in
     --data) DATA="$2"; shift 2 ;;
     --epochs) EPOCHS="$2"; shift 2 ;;
-    --imgsz) IMGSZ="$2"; shift 2 ;;
+    --imgsz) IMGSZ_W="$2"; IMGSZ_H="$2"; shift 2 ;;
+    --imgsz-w) IMGSZ_W="$2"; shift 2 ;;
+    --imgsz-h) IMGSZ_H="$2"; shift 2 ;;
     --batch) BATCH="$2"; shift 2 ;;
     --model) MODEL="$2"; shift 2 ;;
     --project) PROJECT="$2"; shift 2 ;;
@@ -31,21 +34,23 @@ done
 
 if [ "${NGPUS}" -gt 1 ]; then
   echo "Starting DDP detector training on ${NGPUS} GPUs..."
+  echo "Image size: ${IMGSZ_W}x${IMGSZ_H}"
   torchrun --nproc_per_node="${NGPUS}" \
     training/scripts/train_detector.py \
     --data "${DATA}" \
     --epochs "${EPOCHS}" \
-    --imgsz "${IMGSZ}" \
+    --imgsz "${IMGSZ_W}" "${IMGSZ_H}" \
     --batch "${BATCH}" \
     --model "${MODEL}" \
     --project "${PROJECT}" \
     --name "${NAME}"
 else
   echo "Starting single-GPU detector training..."
+  echo "Image size: ${IMGSZ_W}x${IMGSZ_H}"
   python training/scripts/train_detector.py \
     --data "${DATA}" \
     --epochs "${EPOCHS}" \
-    --imgsz "${IMGSZ}" \
+    --imgsz "${IMGSZ_W}" "${IMGSZ_H}" \
     --batch "${BATCH}" \
     --model "${MODEL}" \
     --project "${PROJECT}" \
