@@ -46,14 +46,44 @@ def parse_voc_xml(xml_path):
 
 
 def get_class_mapping():
-    """Map PASCAL VOC class names to YOLO class IDs."""
-    # For person detection: map all person-related classes to 'person' (0)
-    person_classes = {
-        'person', 'stand', 'sit', 'squat', 'bend',
-        'fall', 'fall_down', 'falldown', 'fallen',
-        'kneel', 'half_up', 'crawl'
+    """Map PASCAL VOC class names to YOLO class IDs.
+
+    Returns:
+        dict: {class_name: class_id}
+    """
+    # 8-class mapping for pose/state detection
+    class_map = {
+        # Standing
+        'stand': 0,
+
+        # Sitting
+        'sit': 1,
+
+        # Squatting
+        'squat': 2,
+
+        # Bending
+        'bend': 3,
+
+        # Half-up (crouching, between stand and fall)
+        'half_up': 4,
+
+        # Kneeling
+        'kneel': 5,
+
+        # Crawling
+        'crawl': 6,
+
+        # Fallen
+        'fall_down': 7,
+        'fall': 7,
+        'falldown': 7,
+        'fallen': 7,
+
+        # Default person class (map to stand)
+        'person': 0,
     }
-    return person_classes
+    return class_map
 
 
 def convert_dataset(data_dir, split_files, split_name):
@@ -64,7 +94,7 @@ def convert_dataset(data_dir, split_files, split_name):
     labels_dir = data_dir / 'labels' / split_name
     labels_dir.mkdir(parents=True, exist_ok=True)
 
-    person_classes = get_class_mapping()
+    class_map = get_class_mapping()
     converted = 0
     skipped = 0
 
@@ -72,19 +102,24 @@ def convert_dataset(data_dir, split_files, split_name):
         try:
             boxes = parse_voc_xml(xml_file)
 
-            # Filter only person-related boxes
-            person_boxes = [b for b in boxes if b['class'] in person_classes]
+            # Map boxes to YOLO class IDs
+            valid_boxes = []
+            for box in boxes:
+                class_name = box['class']
+                if class_name in class_map:
+                    box['class_id'] = class_map[class_name]
+                    valid_boxes.append(box)
 
-            if not person_boxes:
+            if not valid_boxes:
                 skipped += 1
                 continue
 
             # Create label file
             label_file = labels_dir / f"{xml_file.stem}.txt"
             with open(label_file, 'w') as f:
-                for box in person_boxes:
-                    # Class 0 is 'person'
-                    f.write(f"0 {box['x_center']:.6f} {box['y_center']:.6f} "
+                for box in valid_boxes:
+                    class_id = box['class_id']
+                    f.write(f"{class_id} {box['x_center']:.6f} {box['y_center']:.6f} "
                            f"{box['width']:.6f} {box['height']:.6f}\n")
 
             converted += 1
@@ -123,8 +158,22 @@ def split_dataset(data_dir, train_ratio=0.8, val_ratio=0.1):
 
 def create_data_yaml(data_dir):
     """Create YOLO data.yaml configuration file."""
-    yaml_content = f"""# YOLOv8 人体检测数据集配置
+    class_names = {
+        0: 'stand',
+        1: 'sit',
+        2: 'squat',
+        3: 'bend',
+        4: 'half_up',
+        5: 'kneel',
+        6: 'crawl',
+        7: 'fall_down'
+    }
+
+    names_str = '\n'.join([f"  {k}: {v}" for k, v in class_names.items()])
+
+    yaml_content = f"""# YOLOv8 人体姿态检测数据集配置
 # 自动生成于 VOC 格式转换
+# 支持8类别姿态检测
 
 path: {os.path.abspath(data_dir)}  # 数据集根目录
 
@@ -132,11 +181,11 @@ train: images
 val: images
 test: images
 
-# 类别定义
+# 类别定义 (8种姿态类别)
 names:
-  0: person
+{names_str}
 
-nc: 1
+nc: 8
 """
 
     yaml_path = Path('data') / 'fall_detection.yaml'
@@ -144,6 +193,7 @@ nc: 1
         f.write(yaml_content)
 
     print(f"Created: {yaml_path}")
+    print(f"Classes: {class_names}")
 
 
 def main():
