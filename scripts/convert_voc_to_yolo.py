@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Convert PASCAL VOC annotations to YOLO format."""
+"""Convert PASCAL VOC annotations to YOLO format in-place."""
 
 import argparse
 import os
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from tqdm import tqdm
+import shutil
 
 
 def parse_voc_xml(xml_path):
@@ -52,30 +53,22 @@ def get_class_mapping():
         'fall', 'fall_down', 'falldown', 'fallen',
         'kneel', 'half_up', 'crawl'
     }
-
     return person_classes
 
 
-def convert_dataset(data_dir, output_dir, split='train'):
+def convert_dataset(data_dir, split_files, split_name):
     """Convert VOC dataset to YOLO format."""
     data_dir = Path(data_dir)
-    output_dir = Path(output_dir)
 
-    # Create output directories
-    images_output = output_dir / 'images' / split
-    labels_output = output_dir / 'labels' / split
-    images_output.mkdir(parents=True, exist_ok=True)
-    labels_output.mkdir(parents=True, exist_ok=True)
-
-    # Find all XML files
-    ann_dir = data_dir / 'Annotations'
-    xml_files = list(ann_dir.glob('*.xml'))
+    # Create labels directory
+    labels_dir = data_dir / 'labels' / split_name
+    labels_dir.mkdir(parents=True, exist_ok=True)
 
     person_classes = get_class_mapping()
     converted = 0
     skipped = 0
 
-    for xml_file in tqdm(xml_files, desc=f'Converting {split}'):
+    for xml_file in tqdm(split_files, desc=f'Converting {split_name}'):
         try:
             boxes = parse_voc_xml(xml_file)
 
@@ -87,21 +80,12 @@ def convert_dataset(data_dir, output_dir, split='train'):
                 continue
 
             # Create label file
-            label_file = labels_output / f"{xml_file.stem}.txt"
+            label_file = labels_dir / f"{xml_file.stem}.txt"
             with open(label_file, 'w') as f:
                 for box in person_boxes:
                     # Class 0 is 'person'
                     f.write(f"0 {box['x_center']:.6f} {box['y_center']:.6f} "
                            f"{box['width']:.6f} {box['height']:.6f}\n")
-
-            # Copy/symlink image
-            img_file = data_dir / 'JPEGImages' / f"{xml_file.stem}.jpg"
-            if img_file.exists():
-                img_output = images_output / img_file.name
-                if not img_output.exists():
-                    if img_output.is_symlink():
-                        img_output.unlink()
-                    os.symlink(os.path.abspath(img_file), img_output)
 
             converted += 1
 
@@ -109,33 +93,7 @@ def convert_dataset(data_dir, output_dir, split='train'):
             print(f"Error processing {xml_file}: {e}")
             skipped += 1
 
-    print(f"Converted: {converted}, Skipped: {skipped}")
-    return converted
-
-
-def create_data_yaml(output_dir, data_dir):
-    """Create YOLO data.yaml configuration file."""
-    yaml_content = f"""# YOLOv8 人体检测数据集配置
-# 自动生成于 VOC 格式转换
-
-path: {os.path.abspath(output_dir)}  # 数据集根目录
-
-train: images/train
-val: images/val
-test: images/test
-
-# 类别定义
-names:
-  0: person
-
-nc: 1
-"""
-
-    yaml_path = Path(data_dir) / 'fall_detection.yaml'
-    with open(yaml_path, 'w') as f:
-        f.write(yaml_content)
-
-    print(f"Created: {yaml_path}")
+    return converted, skipped
 
 
 def split_dataset(data_dir, train_ratio=0.8, val_ratio=0.1):
@@ -163,12 +121,35 @@ def split_dataset(data_dir, train_ratio=0.8, val_ratio=0.1):
     return splits
 
 
+def create_data_yaml(data_dir):
+    """Create YOLO data.yaml configuration file."""
+    yaml_content = f"""# YOLOv8 人体检测数据集配置
+# 自动生成于 VOC 格式转换
+
+path: {os.path.abspath(data_dir)}  # 数据集根目录
+
+train: images
+val: images
+test: images
+
+# 类别定义
+names:
+  0: person
+
+nc: 1
+"""
+
+    yaml_path = Path('data') / 'fall_detection.yaml'
+    with open(yaml_path, 'w') as f:
+        f.write(yaml_content)
+
+    print(f"Created: {yaml_path}")
+
+
 def main():
-    parser = argparse.ArgumentParser(description='Convert PASCAL VOC to YOLO format')
+    parser = argparse.ArgumentParser(description='Convert PASCAL VOC to YOLO format in-place')
     parser.add_argument('--data-dir', default='data/mini',
                        help='Input VOC dataset directory')
-    parser.add_argument('--output-dir', default='data/mini_yolo',
-                       help='Output YOLO dataset directory')
     parser.add_argument('--train-ratio', type=float, default=0.8,
                        help='Training set ratio')
     parser.add_argument('--val-ratio', type=float, default=0.1,
@@ -177,47 +158,41 @@ def main():
 
     print(f"Converting {args.data_dir} to YOLO format...")
 
+    # Create images symlink if not exists
+    data_dir = Path(args.data_dir)
+    images_link = data_dir / 'images'
+    if not images_link.exists():
+        jpeg_dir = data_dir / 'JPEGImages'
+        if jpeg_dir.exists():
+            os.symlink('JPEGImages', images_link)
+            print(f"Created symlink: images -> JPEGImages")
+
+    # Clean old labels
+    labels_dir = data_dir / 'labels'
+    if labels_dir.exists():
+        shutil.rmtree(labels_dir)
+        print(f"Cleaned old labels directory")
+
     # Split dataset
     splits = split_dataset(args.data_dir, args.train_ratio, args.val_ratio)
 
     # Convert each split
+    total_converted = 0
     for split_name, xml_files in splits.items():
         if not xml_files:
             continue
         print(f"\nProcessing {split_name}: {len(xml_files)} files")
-
-        # Create temporary directory with only this split's files
-        split_dir = Path(args.output_dir) / f'_{split_name}'
-        split_dir.mkdir(parents=True, exist_ok=True)
-
-        # Create symlinks for this split
-        (split_dir / 'Annotations').mkdir(exist_ok=True)
-        (split_dir / 'JPEGImages').mkdir(exist_ok=True)
-
-        for xml_file in xml_files:
-            src_ann = os.path.abspath(xml_file)
-            dst_ann = split_dir / 'Annotations' / xml_file.name
-            if not dst_ann.exists():
-                os.symlink(src_ann, dst_ann)
-
-            img_name = xml_file.stem + '.jpg'
-            src_img = os.path.abspath(Path(args.data_dir) / 'JPEGImages' / img_name)
-            dst_img = split_dir / 'JPEGImages' / img_name
-            if not dst_img.exists():
-                os.symlink(src_img, dst_img)
-
-        # Convert this split
-        convert_dataset(split_dir, args.output_dir, split_name)
-
-        # Cleanup
-        import shutil
-        shutil.rmtree(split_dir)
+        converted, skipped = convert_dataset(args.data_dir, xml_files, split_name)
+        total_converted += converted
+        print(f"  Converted: {converted}, Skipped: {skipped}")
 
     # Create data.yaml
-    create_data_yaml(args.output_dir, 'data')
+    create_data_yaml(args.data_dir)
 
-    print("\nConversion complete!")
-    print(f"YOLO dataset: {args.output_dir}")
+    print(f"\nConversion complete!")
+    print(f"Total converted: {total_converted}")
+    print(f"YOLO labels: {args.data_dir}/labels/")
+    print(f"Images: {args.data_dir}/images/ -> JPEGImages/")
     print(f"Data config: data/fall_detection.yaml")
 
 

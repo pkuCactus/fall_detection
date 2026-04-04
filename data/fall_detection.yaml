@@ -1,11 +1,11 @@
 # YOLOv8 人体检测数据集配置
 # 自动生成于 VOC 格式转换
 
-path: /data4/hjz/fall_detection/data/mini_yolo  # 数据集根目录
+path: /data4/hjz/fall_detection/data/mini  # 数据集根目录
 
-train: images/train
-val: images/val
-test: images/test
+train: images
+val: images
+test: images
 
 # 类别定义
 names:

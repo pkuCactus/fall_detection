@@ -17,7 +17,8 @@ __pycache__/
 .idea/
 
 data/*.mp4
-data/mini_yolo/
+data/mini/labels/
+data/mini/images
 .fuse_*
 logs/
 skills-lock.json
