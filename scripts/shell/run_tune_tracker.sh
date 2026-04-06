@@ -17,6 +17,6 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-python evaluation/tune_tracker.py \
+python scripts/eval/tune_tracker.py \
   --video-dir "${VIDEO_DIR}" \
   --output "${OUTPUT}"

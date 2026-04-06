@@ -129,7 +129,7 @@ crop:
 
 # 输出配置
 output:
-  dir: "outputs/simple_classifier"
+  dir: "runs/simple_classifier"
   save_best: true
   save_every: 10
 

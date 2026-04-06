@@ -9,6 +9,7 @@ from unittest import mock
 
 import pytest
 import yaml
+import importlib.util
 
 # Ensure src is in path
 sys.path.insert(0, "src")
@@ -16,9 +17,8 @@ sys.path.insert(0, "src")
 
 def load_train_yolo_world_module():
     """Helper to load the train_yolo_world module."""
-    import importlib.util
     spec = importlib.util.spec_from_file_location(
-        "train_yolo_world", "scripts/train_yolo_world.py"
+        "train_yolo_world", "scripts/train/train_yolo_world.py"
     )
     module = importlib.util.module_from_spec(spec)
     sys.modules["train_yolo_world"] = module
@@ -102,7 +102,7 @@ class TestTrainYOLOWorldArgumentParsing:
 class TestTrainYOLOWorldClassLoading:
     """Test class loading from data configuration."""
 
-    @mock.patch("ultralytics.YOLO")
+    @mock.patch("ultralytics.YOLOWorld")
     def test_class_loading_dict_format(self, mock_yolo_class, tmp_path):
         """Test loading classes when names is a dict."""
         mock_model = mock.MagicMock()
@@ -147,7 +147,7 @@ class TestTrainYOLOWorldClassLoading:
         classes_passed = mock_model.set_classes.call_args[0][0]
         assert classes_passed == ["person", "fall", "lying_person", "sitting_person"]
 
-    @mock.patch("ultralytics.YOLO")
+    @mock.patch("ultralytics.YOLOWorld")
     def test_class_loading_list_format(self, mock_yolo_class, tmp_path):
         """Test loading classes when names is a list."""
         mock_model = mock.MagicMock()
@@ -180,7 +180,7 @@ class TestTrainYOLOWorldClassLoading:
         classes_passed = mock_model.set_classes.call_args[0][0]
         assert classes_passed == ["person", "fall", "lying"]
 
-    @mock.patch("ultralytics.YOLO")
+    @mock.patch("ultralytics.YOLOWorld")
     def test_class_loading_fallback(self, mock_yolo_class, tmp_path):
         """Test fallback to default classes when names is missing or invalid."""
         mock_model = mock.MagicMock()
@@ -213,7 +213,7 @@ class TestTrainYOLOWorldClassLoading:
         classes_passed = mock_model.set_classes.call_args[0][0]
         assert classes_passed == []
 
-    @mock.patch("ultralytics.YOLO")
+    @mock.patch("ultralytics.YOLOWorld")
     def test_class_loading_string_names(self, mock_yolo_class, tmp_path):
         """Test handling when names is a string (unexpected type)."""
         mock_model = mock.MagicMock()
@@ -251,7 +251,7 @@ class TestTrainYOLOWorldClassLoading:
 class TestTrainYOLOWorldEndToEnd:
     """Test end-to-end training workflow with mocked YOLO."""
 
-    @mock.patch("ultralytics.YOLO")
+    @mock.patch("ultralytics.YOLOWorld")
     def test_end_to_end_training(self, mock_yolo_class, tmp_path):
         """Test complete YOLO-World training workflow."""
         mock_model = mock.MagicMock()
@@ -306,7 +306,7 @@ class TestTrainYOLOWorldEndToEnd:
         assert call_kwargs["project"] == str(project_dir)
         assert call_kwargs["name"] == "exp"
 
-    @mock.patch("ultralytics.YOLO")
+    @mock.patch("ultralytics.YOLOWorld")
     def test_set_classes_called_before_train(self, mock_yolo_class, tmp_path):
         """Test that set_classes is called before train."""
         mock_model = mock.MagicMock()
@@ -347,13 +347,15 @@ class TestTrainYOLOWorldEndToEnd:
         assert train_idx is not None
         assert set_classes_idx < train_idx
 
-    @mock.patch("ultralytics.YOLO")
+    @mock.patch("ultralytics.YOLOWorld")
     def test_different_world_models(self, mock_yolo_class, tmp_path):
         """Test training with different YOLO-World model sizes."""
         mock_model = mock.MagicMock()
         mock_yolo_class.return_value = mock_model
 
-        data_config = {"names": {0: "person"}}
+        data_config = {"path": str(tmp_path), "train": "images/train", "val": "images/val", "names": {0: "person"}}
+        (tmp_path / "images" / "train").mkdir(parents=True, exist_ok=True)
+        (tmp_path / "images" / "val").mkdir(parents=True, exist_ok=True)
         data_yaml_path = tmp_path / "data.yaml"
         with open(data_yaml_path, "w") as f:
             yaml.dump(data_config, f)
@@ -391,13 +393,15 @@ class TestTrainYOLOWorldEndToEnd:
 class TestTrainYOLOWorldModelPathHandling:
     """Test model path handling and weight saving."""
 
-    @mock.patch("ultralytics.YOLO")
+    @mock.patch("ultralytics.YOLOWorld")
     def test_best_weights_saved(self, mock_yolo_class, tmp_path):
         """Test that best weights are saved correctly."""
         mock_model = mock.MagicMock()
         mock_yolo_class.return_value = mock_model
 
-        data_config = {"names": {0: "person"}}
+        data_config = {"path": str(tmp_path), "train": "images/train", "val": "images/val", "names": {0: "person"}}
+        (tmp_path / "images" / "train").mkdir(parents=True, exist_ok=True)
+        (tmp_path / "images" / "val").mkdir(parents=True, exist_ok=True)
         data_yaml_path = tmp_path / "data.yaml"
         with open(data_yaml_path, "w") as f:
             yaml.dump(data_config, f)
@@ -421,13 +425,15 @@ class TestTrainYOLOWorldModelPathHandling:
         assert expected_out_path.exists()
         assert expected_out_path.read_bytes() == b"yolo world weights"
 
-    @mock.patch("ultralytics.YOLO")
+    @mock.patch("ultralytics.YOLOWorld")
     def test_copy_fallback_on_link_error(self, mock_yolo_class, tmp_path):
         """Test copy fallback when hard link fails."""
         mock_model = mock.MagicMock()
         mock_yolo_class.return_value = mock_model
 
-        data_config = {"names": {0: "person"}}
+        data_config = {"path": str(tmp_path), "train": "images/train", "val": "images/val", "names": {0: "person"}}
+        (tmp_path / "images" / "train").mkdir(parents=True, exist_ok=True)
+        (tmp_path / "images" / "val").mkdir(parents=True, exist_ok=True)
         data_yaml_path = tmp_path / "data.yaml"
         with open(data_yaml_path, "w") as f:
             yaml.dump(data_config, f)
@@ -458,7 +464,7 @@ class TestTrainYOLOWorldIntegration:
     def test_script_help_output(self):
         """Test that script produces help output."""
         result = subprocess.run(
-            [sys.executable, "scripts/train_yolo_world.py", "--help"],
+            [sys.executable, "scripts/train/train_yolo_world.py", "--help"],
             capture_output=True,
             text=True
         )

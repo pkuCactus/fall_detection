@@ -25,18 +25,48 @@ fall_detection/
 │   │   └── simple_classifier.py  # Simple image-only classifier
 │   ├── pipeline/              # Pipeline modules
 │   │   └── pipeline.py        # End-to-end pipeline
+│   ├── data/                  # Data processing
+│   │   ├── augmentation.py    # Data augmentation
+│   │   └── datasets.py        # Dataset classes
 │   └── utils/                 # Utilities
 │       ├── visualization.py   # Visualization tools
 │       ├── export.py          # Model export tools
+│       ├── scheduler.py       # Warmup scheduler
 │       └── common.py          # Common utilities
-├── training/                  # Training scripts
-│   └── scripts/               # Training entry points
-├── evaluation/                # Evaluation tools
-├── deployment/                # Demo & deployment
+├── scripts/                   # All executable scripts
+│   ├── train/                 # Training scripts
+│   │   ├── train_detector.py
+│   │   ├── train_pose.py
+│   │   ├── train_classifier.py
+│   │   ├── train_simple_classifier.py
+│   │   ├── train_yolo_world.py
+│   │   ├── export_yolo_world.py
+│   │   ├── extract_features.py
+│   │   └── validate_yolo_world.py
+│   ├── eval/                  # Evaluation scripts
+│   │   ├── evaluate_pipeline.py
+│   │   ├── benchmark_speed.py
+│   │   └── tune_tracker.py
+│   ├── tools/                 # Data processing tools
+│   │   ├── convert_voc_to_yolo.py
+│   │   ├── extract_and_detect.py
+│   │   ├── split_dataset.py
+│   │   └── generate_requirements.py
+│   ├── demo/                  # Demo scripts
+│   │   ├── run_pipeline_demo.py
+│   │   ├── demo_tracker.py
+│   │   └── video_to_frames.py
+│   └── shell/                 # Shell convenience wrappers
+├── tools/                     # Auxiliary tools
+│   └── annotate/              # Annotation tools
+│       ├── yolo_annotate.py
+│       └── vlm_annotate.py
 ├── tests/                     # Test cases
 │   ├── unit/                  # Unit tests
 │   └── integration/           # Integration tests
 ├── data/                      # Data directory
+├── models/                    # Pretrained models
+│   └── pretrained/
 └── outputs/                   # Training outputs
 ```
 
@@ -45,8 +75,8 @@ fall_detection/
 - Install dependencies: `pip install -r requirements.txt`
 - Run all tests: `bash scripts/shell/run_tests.sh`
 - Run a single test file: `PYTHONPATH=src pytest tests/unit/test_pipeline.py -v`
-- Run pipeline demo on a video: `python deployment/run_pipeline_demo.py --video data/sample.mp4 --output output.mp4`
-- Benchmark speed: `python evaluation/benchmark_speed.py --video data/videos/test.mp4 --num-frames 100`
+- Run pipeline demo on a video: `python scripts/demo/run_pipeline_demo.py --video data/sample.mp4 --output output.mp4`
+- Benchmark speed: `python scripts/eval/benchmark_speed.py --video data/videos/test.mp4 --num-frames 100`
 - End-to-end evaluation with threshold grid search: `bash scripts/shell/run_evaluate_pipeline.sh --video-dir data/videos --gt-file data/event_gt.json`
 
 ### Training stages (convenience wrappers in `scripts/shell/`):
@@ -80,7 +110,7 @@ from fall_detection.pipeline import FallDetectionPipeline
 
 ### Utils
 ```python
-from fall_detection.utils import draw_results, load_config, save_config
+from fall_detection.utils import draw_results, load_config, save_config, WarmupScheduler
 from fall_detection.utils.export import export_classifier_onnx, export_simple_classifier_onnx
 ```
 
@@ -135,10 +165,9 @@ All thresholds and training paths are in `configs/default.yaml`. Key sections: `
 
 ### Training Configurations
 
-- `configs/training/detector.yaml`: YOLO detector training config
-- `configs/training/pose.yaml`: Pose estimator training config
-- `configs/training/classifier.yaml`: Fusion classifier training config
 - `configs/training/simple_classifier.yaml`: Simple image classifier training config
+- `configs/training/simple_classifier_voc.yaml`: Simple classifier config for VOC format
+- `configs/training/yolo_world.yaml`: YOLO-World training config
 
 ## Important conventions
 
@@ -154,7 +183,7 @@ All thresholds and training paths are in `configs/default.yaml`. Key sections: `
 
 ```bash
 # Install test dependencies
-pip install pytest pytest-cov pytest-mock
+pip install -r requirements/test.txt
 
 # Run all tests with coverage
 PYTHONPATH=src python -m pytest tests/ -v --cov=src/fall_detection --cov-report=term-missing
@@ -246,4 +275,3 @@ def test_classifier_cuda(mocker):
 | data/augmentation.py | 90% | test_augmentation.py |
 | data/datasets.py | 88% | test_datasets.py |
 | utils/* | 90% | test_utils_*.py |
-| training/scheduler.py | 95% | test_scheduler.py |

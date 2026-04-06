@@ -2,14 +2,12 @@
 
 import argparse
 import json
-import os
 import subprocess
 import sys
-import tempfile
 from unittest import mock
 
 import numpy as np
-import pytest
+import importlib.util
 
 # Ensure src is in path
 sys.path.insert(0, "src")
@@ -17,9 +15,8 @@ sys.path.insert(0, "src")
 
 def load_extract_features_module():
     """Helper to load the extract_features module."""
-    import importlib.util
     spec = importlib.util.spec_from_file_location(
-        "extract_features", "training/scripts/extract_features.py"
+        "extract_features", "scripts/train/extract_features.py"
     )
     module = importlib.util.module_from_spec(spec)
     sys.modules["extract_features"] = module
@@ -517,9 +514,8 @@ class TestMainFunction:
     def test_main_argument_parsing(self, tmp_path):
         """Test main function argument parsing structure."""
         # Verify the argument parser structure by checking help output
-        import subprocess
         result = subprocess.run(
-            [sys.executable, "training/scripts/extract_features.py", "--help"],
+            [sys.executable, "scripts/train/extract_features.py", "--help"],
             capture_output=True,
             text=True
         )
@@ -537,9 +533,8 @@ class TestMainFunction:
         assert callable(module.main)
 
         # Verify argument parser is set up correctly
-        import subprocess
         result = subprocess.run(
-            [sys.executable, "training/scripts/extract_features.py", "--help"],
+            [sys.executable, "scripts/train/extract_features.py", "--help"],
             capture_output=True,
             text=True
         )
@@ -552,7 +547,7 @@ class TestIntegrationWithFileSystem:
     def test_script_help_output(self):
         """Test that script produces help output."""
         result = subprocess.run(
-            [sys.executable, "training/scripts/extract_features.py", "--help"],
+            [sys.executable, "scripts/train/extract_features.py", "--help"],
             capture_output=True,
             text=True
         )

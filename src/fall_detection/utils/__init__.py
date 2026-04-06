@@ -2,6 +2,7 @@
 
 from .common import load_config, save_config
 from .export import export_classifier_onnx, export_simple_classifier_onnx
+from .scheduler import WarmupScheduler
 from .visualization import draw_results, COCO_SKELETON
 
 __all__ = [
@@ -11,4 +12,5 @@ __all__ = [
     "COCO_SKELETON",
     "export_classifier_onnx",
     "export_simple_classifier_onnx",
+    "WarmupScheduler",
 ]

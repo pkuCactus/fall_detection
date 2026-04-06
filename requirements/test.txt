@@ -1,0 +1,14 @@
+# Test dependencies
+# Install: pip install -r requirements/test.txt
+
+# Testing framework
+pytest>=7.4.0
+pytest-cov>=4.1.0
+pytest-mock>=3.11.0
+pytest-subtests>=0.11.0
+
+# Coverage
+coverage>=7.3.0
+
+# Mocking
+mock>=5.1.0

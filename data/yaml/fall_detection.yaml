@@ -1,0 +1,22 @@
+# YOLOv8 人体姿态检测数据集配置 (8类别 - YOLO-World用)
+# 自动生成于 VOC 格式转换
+# 支持8类别姿态检测
+
+path: data/mini  # 使用多类别标签
+
+train: images/train
+val: images/val
+test: images/test
+
+# 类别定义 (8种姿态)
+names:
+  0: stand
+  1: sit
+  2: squat
+  3: bend
+  4: half_up
+  5: kneel
+  6: crawl
+  7: fall_down
+
+nc: 8

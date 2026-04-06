@@ -1,5 +1,4 @@
 # Training outputs
-train/
 *.pt
 *.onnx
 *.engine
@@ -17,9 +16,13 @@ __pycache__/
 .idea/
 
 data/*.mp4
-data/mini/labels/
+data/mini/labels
+data/mini/labels_single
+data/mini/labels_multi
 data/mini/images
 .fuse_*
 logs/
 skills-lock.json
 outputs/*
+*.cache
+runs/

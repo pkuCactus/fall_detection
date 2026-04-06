@@ -21,12 +21,12 @@
 - `src/fall_detection/training/`: scheduler.py
 
 **Training scripts to test:**
-- `training/scripts/train_detector.py` (YOLO detector)
-- `training/scripts/train_pose.py` (YOLO-pose)
-- `training/scripts/train_classifier.py` (fusion classifier)
-- `training/scripts/train_simple_classifier.py` (simple classifier)
+- `scripts/train/train_detector.py` (YOLO detector)
+- `scripts/train/train_pose.py` (YOLO-pose)
+- `scripts/train/train_classifier.py` (fusion classifier)
+- `scripts/train/train_simple_classifier.py` (simple classifier)
 - `scripts/train_yolo_world.py` (YOLO-World)
-- `training/scripts/extract_features.py`
+- `scripts/train/extract_features.py`
 
 ---
 
@@ -1705,7 +1705,7 @@ def test_train_detector_e2e(mocker, tmp_path):
     data_yaml.write_text('train: images/train\nval: images/val\nnc: 1\nnames: [person]\n')
     
     test_args = [
-        'training/scripts/train_detector.py',
+        'scripts/train/train_detector.py',
         '--data', str(data_yaml),
         '--epochs', '1',
         '--batch', '2',
@@ -1897,7 +1897,7 @@ log:
 ''')
     
     test_args = [
-        'training/scripts/train_simple_classifier.py',
+        'scripts/train/train_simple_classifier.py',
         '--config', str(config)
     ]
     
@@ -2100,7 +2100,7 @@ def test_extract_features_args(mocker):
     from unittest.mock import patch
     
     test_args = [
-        'training/scripts/extract_features.py',
+        'scripts/train/extract_features.py',
         '--video-dir', 'data/videos',
         '--label-file', 'data/labels.json',
         '--out-dir', 'outputs/cache'

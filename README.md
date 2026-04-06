@@ -77,13 +77,12 @@
 ```
 fall_detection/
 ├── configs/                          # 配置文件
-│   ├── default.yaml                  # 系统默认配置
+│   ├── pipeline/                     # Pipeline配置
+│   │   └── default.yaml              # 系统默认配置
 │   └── training/                     # 训练配置
-│       ├── detector.yaml
-│       ├── pose.yaml
-│       ├── tracker.yaml
-│       ├── classifier.yaml
-│       └── simple_classifier.yaml
+│       ├── simple_classifier.yaml
+│       ├── simple_classifier_voc.yaml
+│       └── yolo_world.yaml
 │
 ├── src/fall_detection/               # 核心推理模块
 │   ├── core/                         # 核心推理组件
@@ -97,39 +96,56 @@ fall_detection/
 │   │   └── simple_classifier.py      # 简单图像分类器
 │   ├── pipeline/                     # Pipeline
 │   │   └── pipeline.py               # 端到端 Pipeline
+│   ├── data/                         # 数据处理
+│   │   ├── augmentation.py           # 数据增强
+│   │   └── datasets.py               # 数据集类
 │   └── utils/                        # 工具函数
 │       ├── visualization.py          # 可视化
 │       ├── export.py                 # 模型导出
+│       ├── scheduler.py              # 学习率调度器
+│       ├── geometry.py               # 几何计算
 │       └── common.py                 # 通用工具
 │
-├── training/                         # 训练相关
-│   ├── scripts/                      # 训练脚本
+├── scripts/                          # 脚本
+│   ├── shell/                        # Shell脚本
+│   │   ├── run_train_detector.sh
+│   │   ├── run_train_pose.sh
+│   │   ├── run_train_classifier.sh
+│   │   ├── run_train_simple_classifier.sh
+│   │   ├── run_train_yolo_world.sh
+│   │   ├── run_extract_features.sh
+│   │   ├── run_evaluate_pipeline.sh
+│   │   ├── run_tune_tracker.sh
+│   │   ├── run_pipeline_demo.sh
+│   │   ├── run_tracker_demo.sh
+│   │   └── run_tests.sh
+│   ├── train/                        # 训练脚本
 │   │   ├── train_detector.py
 │   │   ├── train_pose.py
 │   │   ├── train_classifier.py
 │   │   ├── train_simple_classifier.py
-│   │   └── extract_features.py
-│   └── trainers/                     # 训练器（预留）
-│       └── __init__.py
+│   │   ├── train_yolo_world.py
+│   │   ├── export_yolo_world.py
+│   │   ├── extract_features.py
+│   │   └── validate_yolo_world.py
+│   ├── eval/                         # 评估脚本
+│   │   ├── evaluate_pipeline.py
+│   │   ├── benchmark_speed.py
+│   │   └── tune_tracker.py
+│   ├── tools/                        # 数据处理工具
+│   │   ├── convert_voc_to_yolo.py
+│   │   ├── extract_and_detect.py
+│   │   ├── split_dataset.py
+│   │   └── generate_requirements.py
+│   └── demo/                         # 演示脚本
+│       ├── run_pipeline_demo.py
+│       ├── demo_tracker.py
+│       └── video_to_frames.py
 │
-├── evaluation/                       # 评估相关
-│   ├── eval_pipeline.py              # pipeline评估
-│   ├── benchmark_speed.py            # 性能基准测试
-│   └── tune_tracker.py               # 跟踪器参数调优
-│
-├── deployment/                       # 部署与演示
-│   ├── run_pipeline_demo.py          # pipeline演示
-│   └── demo_tracker.py               # 跟踪器演示
-│
-├── scripts/shell/                    # Shell脚本
-│   ├── run_train_detector.sh
-│   ├── run_train_pose.sh
-│   ├── run_train_classifier.sh
-│   ├── run_train_simple_classifier.sh
-│   ├── run_extract_features.sh
-│   ├── run_evaluate_pipeline.sh
-│   ├── run_tune_tracker.sh
-│   └── run_tests.sh
+├── tools/                            # 辅助工具
+│   └── annotate/                     # 标注工具
+│       ├── yolo_annotate.py          # YOLO自动标注
+│       └── vlm_annotate.py           # VLM自动标注
 │
 ├── tests/                            # 测试用例
 │   ├── unit/                         # 单元测试
@@ -137,14 +153,26 @@ fall_detection/
 │   │   ├── test_tracker.py
 │   │   ├── test_pose_estimator.py
 │   │   ├── test_rules.py
-│   │   ├── test_classifier.py
 │   │   ├── test_fusion.py
-│   │   └── test_pipeline.py
+│   │   ├── test_classifier.py
+│   │   ├── test_simple_classifier.py
+│   │   ├── test_augmentation.py
+│   │   ├── test_datasets.py
+│   │   ├── test_pipeline.py
+│   │   ├── test_export.py
+│   │   ├── test_scheduler.py
+│   │   └── test_utils_*.py
 │   ├── integration/                  # 集成测试
-│   │   └── test_training_scripts.py
-│   └── test_export.py
+│   │   ├── test_training_detector.py
+│   │   ├── test_training_pose.py
+│   │   ├── test_training_classifier.py
+│   │   ├── test_training_simple_classifier.py
+│   │   ├── test_training_yolo_world.py
+│   │   └── test_extract_features.py
+│   └── conftest.py                   # 测试配置
 │
 ├── data/                             # 数据目录
+│   ├── mini/                         # 示例数据集
 │   ├── videos/                       # 视频文件
 │   └── annotations/                  # 标注文件
 │
@@ -154,12 +182,18 @@ fall_detection/
 │   ├── classifier/
 │   ├── simple_classifier/
 │   ├── tracker/
-│   └── cache/
+│   ├── cache/
+│   └── eval/
 │
 ├── docs/                             # 文档
-│   └── api/
+│   ├── api/                          # API文档
+│   └── superpowers/                  # 开发计划
 │
 ├── requirements.txt                  # 依赖
+├── requirements/                     # 详细依赖
+│   ├── base.txt
+│   ├── test.txt
+│   └── torch-*.txt                   # PyTorch版本依赖
 ├── README.md                         # 项目说明
 ├── CLAUDE.md                         # AI助手指引
 └── LICENSE
@@ -192,20 +226,26 @@ python -c "from ultralytics import YOLO; YOLO('yolov8n.pt'); YOLO('yolov8n-pose.
 
 ```bash
 # 单视频演示
-python deployment/run_pipeline_demo.py --video data/videos/test.mp4 --output output.mp4
+python scripts/demo/run_pipeline_demo.py --video data/videos/test.mp4 --output output.mp4
 
 # 摄像头实时演示
-python deployment/run_pipeline_demo.py --video 0
+python scripts/demo/run_pipeline_demo.py --video 0
 ```
 
 ### 4. 运行测试
 
 ```bash
+# 安装测试依赖
+pip install -r requirements/test.txt
+
 # 运行所有测试
 bash scripts/shell/run_tests.sh
 
 # 或指定测试文件
 PYTHONPATH=src pytest tests/unit/test_pipeline.py -v
+
+# 运行带覆盖率的测试
+PYTHONPATH=src pytest tests/ --cov=src/fall_detection --cov-fail-under=90
 ```
 
 ## 分阶段训练流程
@@ -292,7 +332,24 @@ bash scripts/shell/run_train_classifier.sh --ngpus 2 --batch-size 16
 
 最佳权重保存为 `outputs/classifier/best.pt`
 
-### 阶段5b: 简单图像分类器训练
+### 阶段5b: YOLO-World 开放词汇检测器训练
+
+```bash
+# 单卡训练
+bash scripts/shell/run_train_yolo_world.sh
+
+# 多卡DDP训练
+bash scripts/shell/run_train_yolo_world.sh --ngpus 2
+```
+
+参数说明：
+- `--config`: 配置文件路径 (默认: configs/training/yolo_world.yaml)
+- `--ngpus`: GPU数量
+- `--epochs`: 训练轮数
+- `--batch`: 批次大小
+- `--imgsz`: 输入尺寸 (默认: 1280)
+
+### 阶段5c: 简单图像分类器训练
 
 ```bash
 # 使用配置文件训练
@@ -378,16 +435,26 @@ export_simple_classifier_onnx(model, 'simple_fall_classifier.onnx')
 
 运行基准测试：
 ```bash
-python evaluation/benchmark_speed.py --video data/videos/test.mp4 --num-frames 100
+python scripts/eval/benchmark_speed.py --video data/videos/test.mp4 --num-frames 100
 ```
 
 ## 配置说明
 
-编辑 `configs/default.yaml` 调整系统参数：
+编辑 `configs/pipeline/default.yaml` 调整系统参数：
 
 ```yaml
 detector:
   conf_thresh: 0.3          # 检测置信度阈值
+  model_path: "data/models/pretrained/yolov8n.pt"
+  classes: null             # 开放词汇检测器文本提示
+
+pose_estimator:
+  model_path: "data/models/pretrained/yolov8n-pose.pt"
+
+classifier:
+  type: "simple"            # 分类器类型: "fusion" 或 "simple"
+  model_path: "outputs/simple_classifier/best.pt"
+  fall_class_idx: 1         # 跌倒类别索引
 
 tracker:
   track_thresh: 0.5         # 跟踪置信度阈值
@@ -396,26 +463,73 @@ tracker:
   min_hits: 3               # 最小确认帧数
 
 rules:
-  h_ratio_thresh: 0.5       # 高度压缩比阈值
-  n_ground_min: 3           # 最小贴地点数
-  trigger_thresh: 0.6       # 规则触发阈值
+  h_ratio_thresh: 0.60      # 高度压缩比阈值
+  n_ground_min: 2           # 最小贴地点数
+  trigger_thresh: 0.60      # 规则触发阈值
+  motion_thresh: 50.0       # 运动期位移阈值
+  static_thresh: 20.0       # 静止期位移阈值
+  fall_vy_thresh: 200.0     # 垂直下降速度阈值
+  visible_ratio_min: 0.50   # 关键点可见比例下限
+  ground_ratio: 0.40        # 贴地判定区域比例
+  fps: 25                   # 规则引擎归一化帧率
 
 fusion:
-  alpha: 0.35               # 规则分权重
-  beta: 0.45                # 分类器分权重
-  gamma: 0.20               # 时序分权重
-  alarm_thresh: 0.70        # 告警阈值
-  alarm_min_frames: 5       # 最小告警帧数
+  alpha: 0.5                # 规则分权重
+  beta: 0.3                 # 分类器分权重
+  gamma: 0.2                # 时序分权重
+  alarm_thresh: 0.50        # 告警阈值
+  alarm_min_frames: 3       # 最小告警帧数
+  cooldown_seconds: 3.0     # 冷却期
+  recovery_seconds: 0.5     # 恢复确认期
 
 pipeline:
   skip_frames: 2            # 检测间隔帧数 (每3帧检测1次)
   fps: 25                   # 输入视频帧率
-
-classifier:
-  type: "fusion"            # 分类器类型: "fusion" 或 "simple"
-  model_path: null          # 模型路径 (null使用默认)
-  fall_class_idx: 1         # 跌倒类别索引
 ```
+
+## 自动标注工具
+
+项目提供两种自动标注方式，用于快速生成训练数据：
+
+### YOLO自动标注
+
+使用预训练YOLOv8模型检测人体，生成Pascal VOC格式标注：
+
+```bash
+# 单张图像
+python tools/annotate/yolo_annotate.py \
+    --input data/my_image.jpg \
+    --output-dir outputs/Annotations \
+    --vis-dir outputs/Visualizations
+
+# 批量处理
+python tools/annotate/yolo_annotate.py \
+    --input data/images/ \
+    --output-dir outputs/Annotations \
+    --model yolov8n.pt \
+    --conf-threshold 0.3
+```
+
+详细文档：[YOLO_ANNOTATION_README.md](docs/api/YOLO_ANNOTATION_README.md)
+
+### VLM自动标注
+
+使用视觉语言模型(Claude/阿里百炼)分析图像，识别人物状态并生成标注：
+
+```bash
+# 设置API密钥
+export ANTHROPIC_API_KEY="your-api-key"
+# 或 export DASHSCOPE_API_KEY="your-api-key" (国内推荐)
+
+# 运行标注
+python tools/annotate/vlm_annotate.py \
+    --input data/images/ \
+    --output-dir outputs/Annotations \
+    --vis-dir outputs/Visualizations \
+    --model claude
+```
+
+详细文档：[VLM_ANNOTATION_README.md](docs/api/VLM_ANNOTATION_README.md)
 
 ## 数据集格式
 

@@ -43,17 +43,21 @@ if [[ -n "$OVERRIDE" ]]; then
   OVERRIDE_ARG="--override ${OVERRIDE}"
 fi
 
+if [ ! -d runs/simple_classifier ]; then
+mkdir -p runs/simple_classifier;
+fi
+
 if [ "${NGPUS}" -gt 1 ]; then
   echo "Starting DDP training on ${NGPUS} GPUs..."
   torchrun --nproc_per_node="${NGPUS}" \
-    training/scripts/train_simple_classifier.py \
+    scripts/train/train_simple_classifier.py \
     --config "${CONFIG}" \
-    ${OVERRIDE_ARG} 2>&1 | tee outputs/simple_classifier/ddp_train.log
+    ${OVERRIDE_ARG} 2>&1 | tee runs/simple_classifier/ddp_train.log
 else
   echo "Starting single-GPU training..."
-  python training/scripts/train_simple_classifier.py \
+  python scripts/train/train_simple_classifier.py \
     --config "${CONFIG}" \
-    ${OVERRIDE_ARG} 2>&1 | tee outputs/simple_classifier/single_gpu_train.log
+    ${OVERRIDE_ARG} 2>&1 | tee runs/simple_classifier/single_gpu_train.log
 fi
 
 echo "Training completed."

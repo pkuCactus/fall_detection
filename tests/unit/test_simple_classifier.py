@@ -141,6 +141,7 @@ class TestSimpleFallClassifierForwardPass:
     def test_forward_single_sample(self):
         """Test forward pass with batch size 1."""
         model = SimpleFallClassifier()
+        model.eval()  # BatchNorm requires eval mode for batch_size=1
         x = torch.randn(1, 3, 96, 96)
         out = model(x)
         assert out.shape == (1, 2)
@@ -290,6 +291,7 @@ class TestSimpleFallClassifierDropout:
         """Test model works with different dropout values."""
         for dropout in [0.0, 0.1, 0.3, 0.5, 0.8]:
             model = SimpleFallClassifier(dropout=dropout)
+            model.eval()  # BatchNorm requires eval mode for batch_size=1
             x = torch.randn(1, 3, 96, 96)
             out = model(x)
             assert out.shape == (1, 2)
@@ -356,6 +358,7 @@ class TestSimpleFallClassifierDevice:
     def test_cpu_inference(self):
         """Test inference on CPU."""
         model = SimpleFallClassifier()
+        model.eval()  # BatchNorm requires eval mode for batch_size=1
         x = torch.randn(1, 3, 96, 96)
         out = model(x)
         assert out.shape == (1, 2)
@@ -365,6 +368,7 @@ class TestSimpleFallClassifierDevice:
     def test_cuda_inference(self):
         """Test inference on CUDA if available."""
         model = SimpleFallClassifier().cuda()
+        model.eval()  # BatchNorm requires eval mode for batch_size=1
         x = torch.randn(1, 3, 96, 96).cuda()
         out = model(x)
         assert out.shape == (1, 2)
@@ -391,14 +395,18 @@ class TestSimpleFallClassifierStateDict:
         model1 = SimpleFallClassifier()
         model2 = SimpleFallClassifier()
 
-        # Manually change model2 weights to ensure they're different
+        # Manually change model2 weights (only trainable params with actual values)
         with torch.no_grad():
             for p in model2.parameters():
-                p.fill_(0.0)
+                if p.numel() > 0 and p.dtype == torch.float32:
+                    p.fill_(0.0)
 
-        # Verify weights are now different
-        for p1, p2 in zip(model1.parameters(), model2.parameters()):
-            assert not torch.allclose(p1, p2)
+        # Verify at least some weights are now different (skip BatchNorm defaults)
+        different_count = sum(
+            1 for p1, p2 in zip(model1.parameters(), model2.parameters())
+            if not torch.allclose(p1, p2)
+        )
+        assert different_count > 0, "At least some parameters should be different"
 
         # Load state dict from model1 to model2
         model2.load_state_dict(model1.state_dict())

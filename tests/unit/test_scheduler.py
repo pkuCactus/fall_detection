@@ -5,7 +5,7 @@ import torch
 from torch.optim import SGD, Adam
 from torch.optim.lr_scheduler import ReduceLROnPlateau, StepLR, CosineAnnealingLR
 
-from fall_detection.training.scheduler import WarmupScheduler
+from fall_detection.utils.scheduler import WarmupScheduler
 
 
 class TestWarmupSchedulerInitialization:

@@ -1,0 +1,28 @@
+<?xml version='1.0' encoding='utf-8'?>
+<annotation>
+  <folder>JPEGImages</folder>
+  <filename>shixishengxiaomei_frame002560_t102.400.jpg</filename>
+  <path>data/new/JPEGImages/shixishengxiaomei_frame002560_t102.400.jpg</path>
+  <source>
+    <database>YOLO Auto Generated</database>
+  </source>
+  <size>
+    <width>1920</width>
+    <height>1080</height>
+    <depth>3</depth>
+  </size>
+  <segmented>0</segmented>
+  <object>
+    <name>person</name>
+    <pose>Unspecified</pose>
+    <truncated>0</truncated>
+    <difficult>0</difficult>
+    <confidence>0.6989126205444336</confidence>
+    <bndbox>
+      <xmin>1756</xmin>
+      <ymin>17</ymin>
+      <xmax>1919</xmax>
+      <ymax>1048</ymax>
+    </bndbox>
+  </object>
+</annotation>

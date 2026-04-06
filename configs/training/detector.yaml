@@ -1,16 +1,16 @@
-# 人体检测器训练配置 (YOLOv8n)
-# 使用: bash scripts/shell/run_train_detector.sh --ngpus 2
+# YOLOv8 人体检测器训练配置
+# 使用: bash scripts/shell/run_train_detector.sh --config configs/training/detector.yaml
 
 # 数据配置
-data: "data/fall_detection.yaml"  # YOLO格式数据配置文件路径
+data: "data/yaml/fall_detection.yaml"  # 数据集配置文件路径
 
 # 模型配置
-model: "yolov8n.pt"  # 预训练模型路径
-imgsz: 832  # 输入图像尺寸 (宽=高)
+model: "data/models/pretrained/yolov8n.pt"  # 预训练模型路径
+imgsz: 1280  # 训练图像尺寸 (YOLO训练只支持正方形整数)
 
 # 训练配置
 epochs: 50
-batch: 16
+batch: 2
 workers: 8  # 数据加载线程数
 
 # 优化器配置
@@ -35,7 +35,7 @@ mixup: 0.0    # Mixup增强
 copy_paste: 0.0  # 复制粘贴增强
 
 # 输出配置
-project: "train/detector"  # 训练输出目录
+project: "yolov8"  # 训练输出目录 (Ultralytics会自动添加runs/detect/前缀)
 name: "exp"  # 实验名称
 exist_ok: false  # 是否覆盖已有实验目录
 

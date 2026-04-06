@@ -1,62 +1,51 @@
-# 姿态估计器训练配置 (YOLOv8n-pose)
-# 使用: bash scripts/shell/run_train_pose.sh --ngpus 2
+# YOLOv8-pose 姿态估计器训练配置
+# 使用: bash scripts/shell/run_train_pose.sh --config configs/training/pose.yaml
 
 # 数据配置
-data: "data/fall_pose.yaml"  # YOLO格式姿态数据配置文件
+data: "data/fall_pose.yaml"  # 数据集配置文件路径
 
 # 模型配置
-model: "yolov8n-pose.pt"  # 预训练姿态模型
-imgsz: 128  # 输入图像尺寸 (姿态估计通常用较小尺寸)
+model: "yolov8n-pose.pt"  # 预训练模型路径
+imgsz: 128  # 训练图像尺寸 (YOLO训练只支持正方形整数)
 
 # 训练配置
 epochs: 100
 batch: 64
-workers: 8
+workers: 8  # 数据加载线程数
 
 # 优化器配置
-lr0: 0.01
-lrf: 0.01
-momentum: 0.937
-weight_decay: 0.0005
+lr0: 0.01  # 初始学习率
+lrf: 0.01  # 最终学习率 (lr0 * lrf)
+momentum: 0.937  # SGD动量
+weight_decay: 0.0005  # 权重衰减
 
-# 关键点特定配置
-kpt_shape: [17, 3]  # [关键点数量, 每个点维度(x,y,visible)]
-flip_idx: [0, 2, 1, 4, 3, 6, 5, 8, 7, 10, 9, 12, 11, 14, 13, 16, 15]  # 左右翻转对应索引
-
-# 数据增强 (姿态任务通常需要更保守的增强)
-hsv_h: 0.015
-hsv_s: 0.7
-hsv_v: 0.4
-degrees: 10.0  # 允许适度旋转
-translate: 0.1
-scale: 0.5
-shear: 0.0
-perspective: 0.0
-flipud: 0.0
-fliplr: 0.5   # 左右翻转对姿态学习很重要
-mosaic: 0.5   # 姿态任务mosaic可以稍低
-mixup: 0.0
-copy_paste: 0.0
-
-# 损失权重
-box: 7.5      # 边界框损失权重
-cls: 0.5      # 分类损失权重
-dfl: 1.5      # 分布焦点损失权重
-pose: 12.0    # 关键点损失权重 (关键！)
-kobj: 2.0     # 关键点目标性损失权重
+# 数据增强
+hsv_h: 0.015  # HSV色调增强
+hsv_s: 0.7    # HSV饱和度增强
+hsv_v: 0.4    # HSV亮度增强
+degrees: 0.0  # 旋转角度
+translate: 0.1  # 平移
+scale: 0.5    # 缩放
+shear: 0.0    # 剪切
+perspective: 0.0  # 透视变换
+flipud: 0.0   # 上下翻转
+fliplr: 0.5   # 左右翻转
+mosaic: 1.0   # Mosaic增强
+mixup: 0.0    # Mixup增强
+copy_paste: 0.0  # 复制粘贴增强
 
 # 输出配置
-project: "train/pose"
-name: "exp"
-exist_ok: false
+project: "yolov8-pose"  # 训练输出目录 (Ultralytics会自动添加runs/pose/前缀)
+name: "exp"  # 实验名称
+exist_ok: false  # 是否覆盖已有实验目录
 
 # 设备配置
-device: null
+device: null  # 设备 (null=自动选择, 0=GPU0, cpu=CPU)
 
 # 早停与保存
-patience: 20
-save: true
-save_period: 10
+patience: 10  # 早停耐心值
+save: true    # 保存检查点
+save_period: 10  # 每N轮保存一次
 
 # 日志
-verbose: true
+verbose: true  # 详细输出

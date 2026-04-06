@@ -4,10 +4,8 @@ import argparse
 import os
 import subprocess
 import sys
-import tempfile
 from unittest import mock
 
-import numpy as np
 import pytest
 import torch
 import torch.nn as nn
@@ -21,7 +19,7 @@ def load_train_simple_classifier_module():
     """Helper to load the train_simple_classifier module."""
     import importlib.util
     spec = importlib.util.spec_from_file_location(
-        "train_simple_classifier", "training/scripts/train_simple_classifier.py"
+        "train_simple_classifier", "scripts/train/train_simple_classifier.py"
     )
     module = importlib.util.module_from_spec(spec)
     sys.modules["train_simple_classifier"] = module
@@ -386,7 +384,7 @@ class TestOptimizerSchedulerCreation:
             batch_size=4
         )
 
-        optimizer, scheduler = module.create_optimizer_scheduler(cfg, model, loader, rank=0)
+        optimizer, _ = module.create_optimizer_scheduler(cfg, model, loader, rank=0)
 
         assert isinstance(optimizer, torch.optim.Adam)
         assert optimizer.param_groups[0]["lr"] == 0.001
@@ -415,7 +413,7 @@ class TestOptimizerSchedulerCreation:
             batch_size=4
         )
 
-        optimizer, scheduler = module.create_optimizer_scheduler(cfg, model, loader, rank=0)
+        _, scheduler = module.create_optimizer_scheduler(cfg, model, loader, rank=0)
 
         assert isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau)
 
@@ -442,7 +440,7 @@ class TestOptimizerSchedulerCreation:
             batch_size=4
         )
 
-        optimizer, scheduler = module.create_optimizer_scheduler(cfg, model, loader, rank=0)
+        _, scheduler = module.create_optimizer_scheduler(cfg, model, loader, rank=0)
 
         assert isinstance(scheduler, torch.optim.lr_scheduler.CosineAnnealingLR)
 
@@ -468,7 +466,7 @@ class TestOptimizerSchedulerCreation:
             batch_size=4
         )
 
-        optimizer, scheduler = module.create_optimizer_scheduler(cfg, model, loader, rank=0)
+        _, scheduler = module.create_optimizer_scheduler(cfg, model, loader, rank=0)
 
         assert isinstance(scheduler, torch.optim.lr_scheduler.StepLR)
 
@@ -499,9 +497,9 @@ class TestOptimizerSchedulerCreation:
             batch_size=4
         )
 
-        optimizer, scheduler = module.create_optimizer_scheduler(cfg, model, loader, rank=0)
+        _, scheduler = module.create_optimizer_scheduler(cfg, model, loader, rank=0)
 
-        from fall_detection.training import WarmupScheduler
+        from fall_detection.utils import WarmupScheduler
         assert isinstance(scheduler, WarmupScheduler)
 
 
@@ -671,7 +669,7 @@ class TestIntegrationWithFileSystem:
     def test_script_help_output(self):
         """Test that script produces help output."""
         result = subprocess.run(
-            [sys.executable, "training/scripts/train_simple_classifier.py", "--help"],
+            [sys.executable, "scripts/train/train_simple_classifier.py", "--help"],
             capture_output=True,
             text=True
         )

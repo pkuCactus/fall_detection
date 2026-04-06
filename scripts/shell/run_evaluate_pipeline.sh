@@ -23,7 +23,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-python evaluation/evaluate_pipeline.py \
+python scripts/eval/evaluate_pipeline.py \
   --video-dir "${VIDEO_DIR}" \
   --gt-file "${GT_FILE}" \
   --config "${CONFIG}" \

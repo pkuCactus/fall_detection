@@ -23,7 +23,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-python training/scripts/extract_features.py \
+python scripts/train/extract_features.py \
   --video-dir "${VIDEO_DIR}" \
   --label-file "${LABEL_FILE}" \
   --config "${CONFIG}" \

@@ -24,12 +24,12 @@ pip install -r requirements.txt
 
 ```bash
 # 仅生成标注（默认）
-python deployment/yolo_annotate.py \
+python tools/annotate/yolo_annotate.py \
     --input data/my_image.jpg \
     --output-dir outputs/Annotations
 
 # 生成标注 + 可视化
-python deployment/yolo_annotate.py \
+python tools/annotate/yolo_annotate.py \
     --input data/my_image.jpg \
     --output-dir outputs/Annotations \
     --vis-dir outputs/Visualizations
@@ -39,12 +39,12 @@ python deployment/yolo_annotate.py \
 
 ```bash
 # 仅生成标注（默认）
-python deployment/yolo_annotate.py \
+python tools/annotate/yolo_annotate.py \
     --input data/images/ \
     --output-dir outputs/Annotations
 
 # 生成标注 + 可视化
-python deployment/yolo_annotate.py \
+python tools/annotate/yolo_annotate.py \
     --input data/images/ \
     --output-dir outputs/Annotations \
     --vis-dir outputs/Visualizations
@@ -54,10 +54,10 @@ python deployment/yolo_annotate.py \
 
 ```bash
 # 使用不同大小的 YOLOv8 模型
-python deployment/yolo_annotate.py -i data/ -o outputs/ --model yolov8n.pt  # Nano - 最快
-python deployment/yolo_annotate.py -i data/ -o outputs/ --model yolov8s.pt  # Small - 平衡
-python deployment/yolo_annotate.py -i data/ -o outputs/ --model yolov8m.pt  # Medium - 更准
-python deployment/yolo_annotate.py -i data/ -o outputs/ --model yolov8l.pt  # Large - 最准但慢
+python tools/annotate/yolo_annotate.py -i data/ -o outputs/ --model yolov8n.pt  # Nano - 最快
+python tools/annotate/yolo_annotate.py -i data/ -o outputs/ --model yolov8s.pt  # Small - 平衡
+python tools/annotate/yolo_annotate.py -i data/ -o outputs/ --model yolov8m.pt  # Medium - 更准
+python tools/annotate/yolo_annotate.py -i data/ -o outputs/ --model yolov8l.pt  # Large - 最准但慢
 ```
 
 模型会自动下载到当前目录。
@@ -65,7 +65,7 @@ python deployment/yolo_annotate.py -i data/ -o outputs/ --model yolov8l.pt  # La
 ### 调整检测阈值
 
 ```bash
-python deployment/yolo_annotate.py \
+python tools/annotate/yolo_annotate.py \
     --input data/images/ \
     --output-dir outputs/Annotations \
     --conf-threshold 0.5 \  # 只保留置信度 > 0.5 的检测结果
@@ -76,14 +76,14 @@ python deployment/yolo_annotate.py \
 
 ```bash
 # 自动选择 (默认)
-python deployment/yolo_annotate.py -i data/ -o outputs/ --device auto
+python tools/annotate/yolo_annotate.py -i data/ -o outputs/ --device auto
 
 # 强制 CPU
-python deployment/yolo_annotate.py -i data/ -o outputs/ --device cpu
+python tools/annotate/yolo_annotate.py -i data/ -o outputs/ --device cpu
 
 # 指定 GPU
-python deployment/yolo_annotate.py -i data/ -o outputs/ --device cuda
-python deployment/yolo_annotate.py -i data/ -o outputs/ --device 0
+python tools/annotate/yolo_annotate.py -i data/ -o outputs/ --device cuda
+python tools/annotate/yolo_annotate.py -i data/ -o outputs/ --device 0
 ```
 
 ## 输出结构
@@ -102,13 +102,13 @@ outputs/
 
 ```bash
 # 1. 视频拆帧
-python deployment/video_to_frames.py \
+python scripts/demo/video_to_frames.py \
     --input videos/ \
     --output frames/ \
     --fps 1
 
 # 2. YOLO自动标注 (无需API密钥，默认不生成可视化)
-python deployment/yolo_annotate.py \
+python tools/annotate/yolo_annotate.py \
     --input frames/ \
     --output-dir outputs/Annotations \
     --model yolov8n.pt \
@@ -119,7 +119,7 @@ mkdir -p outputs/JPEGImages
 cp frames/*.jpg outputs/JPEGImages/
 
 # 4. 划分数据集
-python deployment/split_dataset.py \
+python scripts/tools/split_dataset.py \
     --image-dir outputs/JPEGImages \
     --anno-dir outputs/Annotations \
     --output data/VOC_fall \

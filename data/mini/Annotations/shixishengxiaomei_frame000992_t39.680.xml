@@ -1,0 +1,26 @@
+<annotation>
+	<folder>JPEGImages</folder>
+	<filename>shixishengxiaomei_frame000992_t39.680.jpg</filename>
+	<path>/mnt/ssd5/fall_detection/data/new/JPEGImages/shixishengxiaomei_frame000992_t39.680.jpg</path>
+	<source>
+		<database>Unknown</database>
+	</source>
+	<size>
+		<width>1920</width>
+		<height>1080</height>
+		<depth>3</depth>
+	</size>
+	<segmented>0</segmented>
+	<object>
+		<name>sit</name>
+		<pose>Unspecified</pose>
+		<truncated>0</truncated>
+		<difficult>0</difficult>
+		<bndbox>
+			<xmin>357</xmin>
+			<ymin>414</ymin>
+			<xmax>753</xmax>
+			<ymax>1075</ymax>
+		</bndbox>
+	</object>
+</annotation>

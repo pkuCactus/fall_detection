@@ -9,6 +9,7 @@ from unittest import mock
 
 import pytest
 import yaml
+import importlib.util
 
 # Ensure src is in path
 sys.path.insert(0, "src")
@@ -16,9 +17,8 @@ sys.path.insert(0, "src")
 
 def load_train_detector_module():
     """Helper to load the train_detector module."""
-    import importlib.util
     spec = importlib.util.spec_from_file_location(
-        "train_detector", "training/scripts/train_detector.py"
+        "train_detector", "scripts/train/train_detector.py"
     )
     module = importlib.util.module_from_spec(spec)
     sys.modules["train_detector"] = module
@@ -348,7 +348,7 @@ class TestTrainDetectorIntegrationWithFileSystem:
     def test_script_help_output(self):
         """Test that script produces help output."""
         result = subprocess.run(
-            [sys.executable, "training/scripts/train_detector.py", "--help"],
+            [sys.executable, "scripts/train/train_detector.py", "--help"],
             capture_output=True,
             text=True
         )

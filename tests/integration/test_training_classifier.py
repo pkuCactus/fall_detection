@@ -12,16 +12,18 @@ import numpy as np
 import pytest
 import torch
 import torch.nn as nn
+import importlib.util
 
 # Ensure src is in path
 sys.path.insert(0, "src")
 
+from fall_detection.models import FallClassifier
+
 
 def load_train_classifier_module():
     """Helper to load the train_classifier module."""
-    import importlib.util
     spec = importlib.util.spec_from_file_location(
-        "train_classifier", "training/scripts/train_classifier.py"
+        "train_classifier", "scripts/train/train_classifier.py"
     )
     module = importlib.util.module_from_spec(spec)
     sys.modules["train_classifier"] = module
@@ -462,7 +464,6 @@ class TestClassifierModelIntegration:
 
     def test_model_creation(self):
         """Test FallClassifier model creation."""
-        from fall_detection.models.classifier import FallClassifier
 
         model = FallClassifier()
         assert isinstance(model, nn.Module)
@@ -477,7 +478,6 @@ class TestClassifierModelIntegration:
 
     def test_model_to_device(self):
         """Test model can be moved to device."""
-        from fall_detection.models.classifier import FallClassifier
 
         model = FallClassifier()
         device = torch.device("cpu")
@@ -493,7 +493,6 @@ class TestTrainingLoopComponents:
 
     def test_optimizer_creation(self):
         """Test optimizer creation."""
-        from fall_detection.models.classifier import FallClassifier
 
         model = FallClassifier()
         optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
@@ -619,7 +618,7 @@ class TestIntegrationWithFileSystem:
     def test_script_help_output(self):
         """Test that script produces help output."""
         result = subprocess.run(
-            [sys.executable, "training/scripts/train_classifier.py", "--help"],
+            [sys.executable, "scripts/train/train_classifier.py", "--help"],
             capture_output=True,
             text=True
         )

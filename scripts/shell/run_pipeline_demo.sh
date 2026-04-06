@@ -15,4 +15,4 @@ echo "Controls:"
 echo "  ESC - quit"
 echo ""
 
-python deployment/run_pipeline_demo.py --video $VIDEO --output $OUTPUT $@
+python scripts/demo/run_pipeline_demo.py --video $VIDEO --output $OUTPUT $@

@@ -2,15 +2,17 @@
 # 使用: bash scripts/shell/run_train_yolo_world.sh --ngpus 2
 
 # 数据配置
-data: "data/fall_detection.yaml"  # YOLO格式数据配置文件路径
+data: "data/yaml/fall_detection_yolo_world.yaml"  # YOLO-World格式数据配置文件路径
 
 # 模型配置
-model: "yolov8l-worldv2.pt"  # 预训练YOLOWorld模型路径
-imgsz: 640  # YOLOWorld默认输入尺寸
+# YOLO-World v2 预训练模型 (v2.1 可能不存在，使用 v2 是稳定选择)
+# 如需手动下载: bash scripts/shell/download_yolo_world_models.sh l v2
+model: "data/models/pretrained/yolov8l-worldv2.pt"  # 预训练YOLOWorld v2模型路径
+imgsz: 1280  # 训练时使用正方形尺寸 (YOLO训练只支持整数/正方形)
 
 # 训练配置
 epochs: 50
-batch: 16
+batch: 2
 workers: 8  # 数据加载线程数
 
 # 优化器配置
@@ -35,7 +37,7 @@ mixup: 0.0    # Mixup增强
 copy_paste: 0.0  # 复制粘贴增强
 
 # 输出配置
-project: "train/yolo_world"  # 训练输出目录
+project: "yolo_world"  # 训练输出目录 (Ultralytics会自动添加runs/detect/前缀)
 name: "exp"  # 实验名称
 exist_ok: false  # 是否覆盖已有实验目录
 
