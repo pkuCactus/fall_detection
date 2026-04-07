@@ -162,11 +162,12 @@ class TestParseVocXml:
 
     def test_parse_valid_xml(self, sample_voc_xml):
         """Test parsing a valid VOC XML file."""
-        boxes, width, height = parse_voc_xml(sample_voc_xml)
+        boxes, width, height, was_fixed = parse_voc_xml(sample_voc_xml)
 
         assert width == 640
         assert height == 480
         assert len(boxes) == 2
+        assert was_fixed is False
 
         # Check first box (person)
         assert boxes[0]['class'] == 'person'
@@ -191,14 +192,15 @@ class TestParseVocXml:
         xml_path = tmp_path / 'empty.xml'
         xml_path.write_text(xml_content)
 
-        boxes, width, height = parse_voc_xml(xml_path)
+        boxes, width, height, was_fixed = parse_voc_xml(xml_path)
         assert len(boxes) == 0
         assert width == 100
         assert height == 100
+        assert was_fixed is False
 
     def test_normalized_coordinates(self, sample_voc_xml):
         """Test that coordinates are properly normalized."""
-        boxes, width, height = parse_voc_xml(sample_voc_xml)
+        boxes, width, height, was_fixed = parse_voc_xml(sample_voc_xml)
 
         for box in boxes:
             assert 0 <= box['x_center'] <= 1
@@ -415,7 +417,7 @@ class TestConvertDatasetSplit:
         voc_to_yolo = {'stand': 'person'}
         yolo_to_id = {'person': 0}
 
-        converted, skipped = convert_dataset_split(
+        converted, skipped, no_label = convert_dataset_split(
             data_dirs=[sample_voc_dataset],
             output_dir=output_dir,
             split_name='train',
@@ -426,7 +428,9 @@ class TestConvertDatasetSplit:
         )
 
         assert converted == 2  # image_000 and image_001
+        assert no_label == 0
         assert skipped == 0
+        assert no_label == 0
 
         # Check output structure
         assert (output_dir / 'labels' / 'train').exists()
@@ -440,7 +444,7 @@ class TestConvertDatasetSplit:
         voc_to_yolo = {'stand': 'person'}
         yolo_to_id = {'person': 0}
 
-        converted, skipped = convert_dataset_split(
+        converted, skipped, no_label = convert_dataset_split(
             data_dirs=[sample_voc_dataset],
             output_dir=output_dir,
             split_name='train',
@@ -451,6 +455,7 @@ class TestConvertDatasetSplit:
         )
 
         assert converted == 5  # All 5 images
+        assert no_label == 0
 
     def test_unknown_class_warning(self, sample_voc_dataset, tmp_path, capsys):
         """Test warning for unknown classes."""
@@ -500,7 +505,7 @@ class TestConvertDatasetSplit:
         voc_to_yolo = {'stand': 'person'}
         yolo_to_id = {'person': 0}
 
-        converted, skipped = convert_dataset_split(
+        converted, skipped, no_label = convert_dataset_split(
             data_dirs=[sample_voc_dataset, dataset2],
             output_dir=output_dir,
             split_name='train',
@@ -611,7 +616,7 @@ class TestIntegration:
 
         # Convert train split
         train_dirs = [Path(d) for d in loaded_config['datasets']['train_dirs']]
-        train_conv, train_skip = convert_dataset_split(
+        train_conv, train_skip, _ = convert_dataset_split(
             data_dirs=train_dirs,
             output_dir=output_cfg['output_dir'],
             split_name='train',
@@ -623,7 +628,7 @@ class TestIntegration:
 
         # Convert val split
         val_dirs = [Path(d) for d in loaded_config['datasets']['val_dirs']]
-        val_conv, val_skip = convert_dataset_split(
+        val_conv, val_skip, _ = convert_dataset_split(
             data_dirs=val_dirs,
             output_dir=output_cfg['output_dir'],
             split_name='val',
@@ -716,7 +721,7 @@ class TestIntegration:
         output_cfg['output_dir'].mkdir(parents=True, exist_ok=True)
 
         train_dirs = [Path(d) for d in config['datasets']['train_dirs']]
-        converted, _ = convert_dataset_split(
+        converted, _, _ = convert_dataset_split(
             data_dirs=train_dirs,
             output_dir=output_cfg['output_dir'],
             split_name='train',

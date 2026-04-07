@@ -45,25 +45,119 @@ from typing import Dict, List, Optional, Set, Tuple, Any
 import yaml
 from tqdm import tqdm
 import shutil
+try:
+    from PIL import Image
+    PIL_AVAILABLE = True
+except ImportError:
+    PIL_AVAILABLE = False
 
 
-def parse_voc_xml(xml_path: Path) -> Tuple[List[Dict], int, int]:
+def get_image_size(image_path: Path) -> Optional[Tuple[int, int]]:
+    """Get image dimensions using PIL.
+
+    Args:
+        image_path: Path to image file
+
+    Returns:
+        Tuple of (width, height) or None if failed
+    """
+    if not PIL_AVAILABLE:
+        return None
+    try:
+        with Image.open(image_path) as img:
+            return img.size
+    except Exception:
+        return None
+
+
+def fix_xml_size(xml_path: Path, correct_width: int, correct_height: int) -> bool:
+    """Fix XML file with incorrect or zero size values.
+
+    Args:
+        xml_path: Path to XML annotation file
+        correct_width: Correct width from actual image
+        correct_height: Correct height from actual image
+
+    Returns:
+        True if XML was modified, False otherwise
+    """
+    try:
+        tree = ET.parse(xml_path)
+        root = tree.getroot()
+
+        size_elem = root.find('size')
+        if size_elem is None:
+            size_elem = ET.SubElement(root, 'size')
+            width_elem = ET.SubElement(size_elem, 'width')
+            height_elem = ET.SubElement(size_elem, 'height')
+            depth_elem = ET.SubElement(size_elem, 'depth')
+            depth_elem.text = '3'
+        else:
+            width_elem = size_elem.find('width')
+            height_elem = size_elem.find('height')
+            if width_elem is None:
+                width_elem = ET.SubElement(size_elem, 'width')
+            if height_elem is None:
+                height_elem = ET.SubElement(size_elem, 'height')
+
+        orig_width = int(width_elem.text) if width_elem.text else 0
+        orig_height = int(height_elem.text) if height_elem.text else 0
+
+        if orig_width != correct_width or orig_height != correct_height:
+            width_elem.text = str(correct_width)
+            height_elem.text = str(correct_height)
+
+            # Write back with proper formatting
+            tree.write(xml_path, encoding='utf-8', xml_declaration=True)
+            return True
+
+        return False
+    except Exception as e:
+        print(f"    Warning: Failed to fix XML {xml_path}: {e}")
+        return False
+
+
+def parse_voc_xml(xml_path: Path, image_path: Optional[Path] = None) -> Tuple[List[Dict], int, int, bool]:
     """Parse PASCAL VOC XML file and extract bounding boxes.
 
     Args:
         xml_path: Path to XML annotation file
+        image_path: Optional path to corresponding image for size validation
 
     Returns:
-        Tuple of (boxes, width, height)
+        Tuple of (boxes, width, height, was_fixed)
         boxes: list of dict with keys: class, x_center, y_center, width, height
+        was_fixed: True if XML was modified to fix size issues
     """
     tree = ET.parse(xml_path)
     root = tree.getroot()
 
-    # Get image size
+    # Get image size from XML
     size = root.find('size')
-    width = int(size.find('width').text)
-    height = int(size.find('height').text)
+    if size is not None:
+        width_elem = size.find('width')
+        height_elem = size.find('height')
+        width = int(width_elem.text) if width_elem is not None and width_elem.text else 0
+        height = int(height_elem.text) if height_elem is not None and height_elem.text else 0
+    else:
+        width, height = 0, 0
+
+    was_fixed = False
+
+    # Check if size is invalid (0 or missing)
+    if width <= 0 or height <= 0:
+        if image_path and image_path.exists():
+            actual_size = get_image_size(image_path)
+            if actual_size:
+                width, height = actual_size
+                # Try to fix the XML file
+                was_fixed = fix_xml_size(xml_path, width, height)
+                if was_fixed:
+                    print(f"    Fixed XML size: {xml_path.name} -> {width}x{height}")
+            else:
+                raise ValueError(f"Cannot read image size from {image_path}")
+        else:
+            raise ValueError(f"Invalid size {width}x{height} in {xml_path} and no image available")
 
     boxes = []
     for obj in root.findall('object'):
@@ -94,7 +188,7 @@ def parse_voc_xml(xml_path: Path) -> Tuple[List[Dict], int, int]:
             'height': h
         })
 
-    return boxes, width, height
+    return boxes, width, height, was_fixed
 
 
 def load_config(config_path: Path) -> Dict[str, Any]:
@@ -254,8 +348,13 @@ def convert_dataset_split(
     images_split_dir = output_dir / images_subdir / split_name
     images_split_dir.mkdir(parents=True, exist_ok=True)
 
+    # Directory for images without labels (for manual annotation later)
+    no_labels_dir = output_dir / 'no_labels' / split_name
+    no_labels_dir.mkdir(parents=True, exist_ok=True)
+
     converted = 0
     skipped = 0
+    no_label_count = 0
     processed_ids = set()  # Track processed image IDs to avoid duplicates
 
     for data_dir in data_dirs:
@@ -292,15 +391,28 @@ def convert_dataset_split(
         all_xml_files = get_xml_files_from_dir(data_dir)
 
         for image_id in tqdm(image_ids, desc=f"  Converting {split_name}", leave=False):
+            img_file = get_image_path(jpeg_dir, image_id)
+
             if image_id not in all_xml_files:
-                print(f"    Warning: {image_id}.xml not found, skipping")
-                skipped += 1
+                # No XML annotation - copy image to no_labels for manual annotation
+                if img_file:
+                    dest_path = no_labels_dir / img_file.name
+                    if dest_path.exists() or dest_path.is_symlink():
+                        dest_path.unlink()
+                    if copy_images:
+                        shutil.copy2(img_file, dest_path)
+                    else:
+                        os.symlink(os.path.abspath(img_file), dest_path)
+                    no_label_count += 1
+                else:
+                    print(f"    Warning: {image_id}.xml and image not found, skipping")
+                    skipped += 1
                 continue
 
             xml_file = all_xml_files[image_id]
 
             try:
-                boxes, _, _ = parse_voc_xml(xml_file)
+                boxes, _, _, was_fixed = parse_voc_xml(xml_file, img_file)
 
                 # Map boxes to YOLO class IDs
                 valid_boxes = []
@@ -353,8 +465,11 @@ def convert_dataset_split(
                 print(f"    Error processing {xml_file}: {e}")
                 skipped += 1
 
-    print(f"  {split_name}: Converted {converted}, Skipped {skipped}")
-    return converted, skipped
+    if no_label_count > 0:
+        print(f"  {split_name}: Converted {converted}, Skipped {skipped}, No labels: {no_label_count} (copied to no_labels/)")
+    else:
+        print(f"  {split_name}: Converted {converted}, Skipped {skipped}")
+    return converted, skipped, no_label_count
 
 
 def create_yolo_yaml(
@@ -552,11 +667,21 @@ def main():
     print(f"{'='*60}")
     total_conv = 0
     total_skip = 0
-    for split_name, (conv, skip) in results.items():
-        print(f"  {split_name}: Converted {conv}, Skipped {skip}")
+    total_no_label = 0
+    for split_name, (conv, skip, no_label) in results.items():
+        if no_label > 0:
+            print(f"  {split_name}: Converted {conv}, Skipped {skip}, No labels: {no_label}")
+        else:
+            print(f"  {split_name}: Converted {conv}, Skipped {skip}")
         total_conv += conv
         total_skip += skip
-    print(f"  Total: Converted {total_conv}, Skipped {total_skip}")
+        total_no_label += no_label
+    if total_no_label > 0:
+        print(f"  Total: Converted {total_conv}, Skipped {total_skip}, No labels: {total_no_label}")
+        print(f"\n  Note: {total_no_label} images without labels were copied to no_labels/{{train,val,test}}/")
+        print(f"        for manual annotation.")
+    else:
+        print(f"  Total: Converted {total_conv}, Skipped {total_skip}")
     print(f"\nOutput directory: {output_cfg['output_dir']}")
     print(f"  Labels: {output_cfg['output_dir'] / output_cfg['labels_dir']}")
     print(f"  Images: {output_cfg['output_dir'] / output_cfg['images_dir']}")
