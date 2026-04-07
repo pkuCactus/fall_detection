@@ -1,7 +1,9 @@
 """Dataset classes for fall detection training."""
 
+import hashlib
 import json
 import os
+import pickle
 import xml.etree.ElementTree as ET
 from typing import List, Dict, Any, Optional, Tuple
 
@@ -141,6 +143,7 @@ class VOCFallDataset(Dataset):
         normal_classes: Optional[List[str]] = None,
         shrink_max: int = 3,
         expand_max: int = 25,
+        cache_dir: Optional[str] = None,
     ):
         """
         Args:
@@ -154,6 +157,7 @@ class VOCFallDataset(Dataset):
             normal_classes: 非跌倒类别名称列表 (这些类别映射到label=0)，默认None表示其他所有类别
             shrink_max: 最大内缩像素
             expand_max: 最大外扩像素
+            cache_dir: 缓存目录，如果指定则尝试从缓存加载samples
         """
         self.data_dirs = data_dirs if isinstance(data_dirs, list) else [data_dirs]
         self.split = split
@@ -171,11 +175,21 @@ class VOCFallDataset(Dataset):
         # 构建样本列表: (image_path, bbox, label)
         self.samples: List[Tuple[str, List[float], int]] = []
 
-        # 为每个数据目录加载样本
-        self.total_images = 0
-        for data_dir in self.data_dirs:
-            self._load_from_dir(data_dir)
-        print(f"Loaded {len(self.samples)} samples from {self.total_images} images across {len(self.data_dirs)} directories.")
+        # 尝试从缓存加载
+        cache_loaded = False
+        if cache_dir:
+            cache_loaded = self._try_load_from_cache(cache_dir, shrink_max, expand_max)
+
+        if not cache_loaded:
+            # 为每个数据目录加载样本
+            self.total_images = 0
+            for data_dir in self.data_dirs:
+                self._load_from_dir(data_dir)
+            print(f"Loaded {len(self.samples)} samples from {self.total_images} images across {len(self.data_dirs)} directories.")
+
+            # 保存缓存
+            if cache_dir:
+                self._save_cache(cache_dir, shrink_max, expand_max)
 
         if len(self.samples) == 0:
             raise ValueError(f"No valid samples found in VOC dataset. data_dirs={self.data_dirs}, split={split}")
@@ -291,6 +305,62 @@ class VOCFallDataset(Dataset):
             return 0
         # 未知类别
         return None
+
+    def _get_cache_key(self, shrink_max: int, expand_max: int) -> str:
+        """生成缓存键，基于数据目录、split和配置."""
+        key_data = {
+            'data_dirs': sorted(self.data_dirs),
+            'split': self.split,
+            'fall_classes': sorted(self.fall_classes),
+            'normal_classes': sorted(self.normal_classes) if self.normal_classes else None,
+            'shrink_max': shrink_max,
+            'expand_max': expand_max,
+        }
+        key_str = json.dumps(key_data, sort_keys=True)
+        return hashlib.md5(key_str.encode()).hexdigest()
+
+    def _try_load_from_cache(self, cache_dir: str, shrink_max: int, expand_max: int) -> bool:
+        """尝试从缓存加载samples.
+        Returns:
+            True if loaded from cache, False otherwise
+        """
+        try:
+            os.makedirs(cache_dir, exist_ok=True)
+            cache_key = self._get_cache_key(shrink_max, expand_max)
+            cache_file = os.path.join(cache_dir, f'voc_{self.split}_{cache_key}.pkl')
+
+            if os.path.exists(cache_file):
+                print(f"Loading samples from cache: {cache_file}")
+                with open(cache_file, 'rb') as f:
+                    cache_data = pickle.load(f)
+                self.samples = cache_data['samples']
+                self.total_images = cache_data.get('total_images', 0)
+                print(f"Loaded {len(self.samples)} samples from {self.total_images} images (from cache)")
+                return True
+        except Exception as e:
+            print(f"Warning: Failed to load cache: {e}")
+        return False
+
+    def _save_cache(self, cache_dir: str, shrink_max: int, expand_max: int) -> None:
+        """保存samples到缓存."""
+        try:
+            os.makedirs(cache_dir, exist_ok=True)
+            cache_key = self._get_cache_key(shrink_max, expand_max)
+            cache_file = os.path.join(cache_dir, f'voc_{self.split}_{cache_key}.pkl')
+
+            cache_data = {
+                'samples': self.samples,
+                'total_images': self.total_images,
+                'data_dirs': self.data_dirs,
+                'split': self.split,
+                'fall_classes': self.fall_classes,
+                'normal_classes': self.normal_classes,
+            }
+            with open(cache_file, 'wb') as f:
+                pickle.dump(cache_data, f)
+            print(f"Saved samples cache to: {cache_file}")
+        except Exception as e:
+            print(f"Warning: Failed to save cache: {e}")
 
     def __len__(self):
         return len(self.samples)

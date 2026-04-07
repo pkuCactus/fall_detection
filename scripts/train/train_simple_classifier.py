@@ -146,6 +146,9 @@ def create_datasets(cfg: Dict[str, Any], rank: int):
             print(f"  Fall classes: {fall_classes}")
             print(f"  Normal classes: {normal_classes or '<all others>'}")
 
+        # Cache directory for samples
+        cache_dir = cfg.get("cache", {}).get("dir", "outputs/cache")
+
         train_dataset = VOCFallDataset(
             data_dirs=train_dirs,
             split="train",
@@ -157,6 +160,7 @@ def create_datasets(cfg: Dict[str, Any], rank: int):
             normal_classes=normal_classes,
             shrink_max=crop_cfg.get("shrink_max", 3),
             expand_max=crop_cfg.get("expand_max", 25),
+            cache_dir=cache_dir,
         )
 
         val_dataset = None
@@ -174,6 +178,7 @@ def create_datasets(cfg: Dict[str, Any], rank: int):
                 normal_classes=normal_classes,
                 shrink_max=crop_cfg.get("shrink_max", 3),
                 expand_max=crop_cfg.get("expand_max", 25),
+                cache_dir=cache_dir,
             )
     else:
         # COCO format
