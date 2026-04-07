@@ -317,11 +317,15 @@ def convert_dataset_split(
                         print(f"    Warning: VOC class '{voc_class}' not in class_mapping")
 
                 if not valid_boxes:
-                    print(f"    Skipped {xml_file.name}: no valid classes found")
-                    skipped += 1
-                    continue
+                    # Check if this is an empty scene (no objects at all) or filtered scene
+                    if len(boxes) == 0:
+                        # Empty scene - will create empty label file as negative sample
+                        pass
+                    else:
+                        # Has objects but none in class_mapping - warning already printed above
+                        print(f"    Note: {xml_file.name} has {len(boxes)} objects but none in class_mapping")
 
-                # Create label file
+                # Create label file (may be empty for negative samples)
                 label_file = labels_split_dir / f"{image_id}.txt"
                 with open(label_file, 'w') as f:
                     for box in valid_boxes:

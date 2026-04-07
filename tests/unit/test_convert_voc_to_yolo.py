@@ -470,7 +470,7 @@ class TestConvertDatasetSplit:
         )
 
         captured = capsys.readouterr()
-        assert "no valid classes found" in captured.out or "no valid classes found" in captured.err
+        assert "not in class_mapping" in captured.out or "not in class_mapping" in captured.err
 
     def test_convert_multiple_dirs(self, sample_voc_dataset, tmp_path):
         """Test conversion from multiple source directories."""
