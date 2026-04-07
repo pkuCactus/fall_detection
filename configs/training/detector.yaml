@@ -58,7 +58,6 @@ output:
 # DDP配置
 ddp:
   backend: "nccl"  # 分布式后端 (nccl用于GPU, gloo用于CPU)
-  # port: 29500  # 可选：自定义端口，默认29500
 
 # 设备配置
 device: null  # 设备 (null=自动选择, 0=GPU0, cpu=CPU)

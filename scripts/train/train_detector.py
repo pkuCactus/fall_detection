@@ -13,7 +13,6 @@ from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 import torch
-import torch.distributed as dist
 import yaml
 
 
@@ -23,7 +22,6 @@ def parse_args():
         description="Train person detector with YOLOv8"
     )
     parser.add_argument("--config", required=True, help="Path to config YAML file")
-    parser.add_argument("--local-rank", type=int, default=-1)
     parser.add_argument(
         "--override",
         type=str,
@@ -55,31 +53,15 @@ def load_config(args) -> Dict[str, Any]:
     return cfg
 
 
-def setup_ddp(cfg: Dict[str, Any]) -> Tuple[bool, int, int]:
-    """Setup Distributed Data Parallel.
+def setup_ddp() -> Tuple[bool, int, int]:
+    """Detect DDP environment set by torchrun.
 
     Returns:
         (ddp_enabled, world_size, rank)
     """
     ddp = int(os.environ.get("WORLD_SIZE", 1)) > 1
-
-    if ddp:
-        ddp_cfg = cfg.get("ddp", {})
-        backend = ddp_cfg.get("backend", "nccl")
-
-        # Support custom port from config
-        port = ddp_cfg.get("port", None)
-        if port:
-            os.environ["MASTER_PORT"] = str(port)
-            print(f"DDP using custom port: {port}")
-
-        dist.init_process_group(backend=backend if torch.cuda.is_available() else "gloo")
-        world_size = dist.get_world_size()
-        rank = dist.get_rank()
-    else:
-        world_size = 1
-        rank = 0
-
+    rank = int(os.environ.get("RANK", 0))
+    world_size = int(os.environ.get("WORLD_SIZE", 1))
     return ddp, world_size, rank
 
 
@@ -104,8 +86,8 @@ def main():
     args = parse_args()
     cfg = load_config(args)
 
-    # Setup DDP
-    ddp, world_size, rank = setup_ddp(cfg)
+    # Detect DDP environment (set by torchrun)
+    ddp, world_size, rank = setup_ddp()
 
     # Setup seed
     setup_seed(cfg.get("seed"), rank)
@@ -114,7 +96,8 @@ def main():
     try:
         from ultralytics import YOLO
     except ImportError:
-        print("Error: ultralytics not installed. Run: pip install ultralytics>=8.0")
+        if rank == 0:
+            print("Error: ultralytics not installed. Run: pip install ultralytics>=8.0")
         sys.exit(1)
 
     # Get configuration values with modular sections
@@ -175,9 +158,11 @@ def main():
     save_period = cfg.get("save_period", 10)
     verbose = cfg.get("verbose", True)
 
-    # Device
+    # Device: DDP mode uses auto-selection; single GPU mode respects config
     device_cfg = cfg.get("device", None)
-    if device_cfg is None:
+    if ddp:
+        device = None  # Force auto-select in DDP mode (ultralytics handles GPU assignment)
+    elif device_cfg is None:
         device = 0 if os.path.exists("/proc/driver/nvidia/version") else "cpu"
     else:
         device = device_cfg
@@ -237,24 +222,26 @@ def main():
             device=device,
         )
     except Exception as e:
-        print(f"\nError during training: {e}")
-        import traceback
-        traceback.print_exc()
+        if rank == 0:
+            print(f"\nError during training: {e}")
+            import traceback
+            traceback.print_exc()
         sys.exit(1)
 
-    # Create symlink/copy for best weights
-    best_path = os.path.join("runs/detect", project, name, "weights", "best.pt")
-    out_path = os.path.join("runs/detect", project, name, "best.pt")
-    if os.path.exists(best_path):
-        try:
-            os.link(best_path, out_path)
-            print(f"Best weights linked to {out_path}")
-        except OSError:
-            import shutil
-            shutil.copy2(best_path, out_path)
-            print(f"Best weights copied to {out_path}")
+    # Create symlink/copy for best weights (rank 0 only)
+    if rank == 0:
+        best_path = os.path.join("runs/detect", project, name, "weights", "best.pt")
+        out_path = os.path.join("runs/detect", project, name, "best.pt")
+        if os.path.exists(best_path):
+            try:
+                os.link(best_path, out_path)
+                print(f"Best weights linked to {out_path}")
+            except OSError:
+                import shutil
+                shutil.copy2(best_path, out_path)
+                print(f"Best weights copied to {out_path}")
 
-    print(f"\nTraining complete. Results saved to: runs/detect/{project}/{name}/")
+        print(f"\nTraining complete. Results saved to: runs/detect/{project}/{name}/")
 
 
 if __name__ == "__main__":
