@@ -265,20 +265,20 @@ def read_imageset_split(data_dir: Path, split_name: str) -> Optional[Set[str]]:
         split_name: Split name (train, val, test, trainval)
 
     Returns:
-        Set of image IDs (stems) or None if file doesn't exist
+        Set of image IDs (stems) or None if file doesn't exist.
+        Each non-empty line is treated as a complete image ID (supports names with spaces).
     """
     split_file = data_dir / 'ImageSets' / 'Main' / f'{split_name}.txt'
     if not split_file.exists():
         return None
 
     image_ids = set()
-    with open(split_file, 'r') as f:
+    with open(split_file, 'r', encoding='utf-8') as f:
         for line in f:
-            line = line.strip()
+            line = line.rstrip('\n\r')  # Only strip newline characters
             if line:
-                # Handle format: "image_id" or "image_id 1" or "image_id -1"
-                parts = line.split()
-                image_ids.add(parts[0])
+                # Treat entire line as image ID (supports names with spaces)
+                image_ids.add(line)
     return image_ids
 
 

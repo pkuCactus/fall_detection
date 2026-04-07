@@ -338,20 +338,20 @@ class TestReadImagesetSplit:
         image_ids = read_imageset_split(tmp_path, 'train')
         assert image_ids is None
 
-    def test_handle_annotated_format(self, tmp_path):
-        """Test handling ImageSets with +/- 1 annotations."""
+    def test_image_names_with_spaces(self, tmp_path):
+        """Test handling image names containing spaces."""
         imagesets_dir = tmp_path / 'ImageSets' / 'Main'
         imagesets_dir.mkdir(parents=True)
 
-        # Format: "image_id 1" for positive, "image_id -1" for negative
+        # Image names with spaces (entire line is the ID)
         (imagesets_dir / 'train.txt').write_text(
-            'image_001 1\nimage_002 -1\nimage_003 1\n'
+            'scene 001 frame 01\nimage with spaces\nregular_name\n'
         )
 
         image_ids = read_imageset_split(tmp_path, 'train')
-        assert 'image_001' in image_ids
-        assert 'image_002' in image_ids  # Still included
-        assert 'image_003' in image_ids
+        assert 'scene 001 frame 01' in image_ids
+        assert 'image with spaces' in image_ids
+        assert 'regular_name' in image_ids
 
 
 class TestGetImagePath:
