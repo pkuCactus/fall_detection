@@ -6,7 +6,7 @@ Refactored version with clean separation of concerns.
 import argparse
 import ast
 import os
-import sys
+import random
 import time
 from typing import Optional, Tuple, Dict, Any
 
@@ -18,16 +18,6 @@ import yaml
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
-
-sys.path.insert(0, "src")
-
-
-def worker_init_fn(worker_id):
-    """Initialize worker process with correct path."""
-    import sys
-    if "src" not in sys.path:
-        sys.path.insert(0, "src")
-
 
 from fall_detection.data import CocoFallDataset, VOCFallDataset, TrainingAugmentation
 from fall_detection.models.simple_classifier import SimpleFallClassifier
@@ -74,7 +64,7 @@ def load_config(args) -> Dict[str, Any]:
 
 def setup_ddp(cfg: Dict[str, Any]) -> Tuple[bool, torch.device, int, int, int]:
     """Setup Distributed Data Parallel.
-    
+
     Returns:
         (ddp_enabled, device, world_size, rank, local_rank)
     """
@@ -101,8 +91,6 @@ def setup_seed(seed: Optional[int], rank: int) -> None:
     """Set random seed for reproducibility."""
     if seed is None:
         return
-
-    import random
 
     random.seed(seed)
     np.random.seed(seed)
@@ -366,7 +354,8 @@ def train_epoch(
             print(
                 f"  Epoch[{epoch}] Batch[{batch_idx + 1}/{num_batches}]  "
                 f"loss={loss.item():.4f} acc={batch_acc:.4f}  "
-                f"avg_loss={avg_loss:.4f} avg_acc={avg_acc:.4f}  lr={current_lr:.6f}"
+                f"avg_loss={avg_loss:.4f} avg_acc={avg_acc:.4f}  lr={current_lr:.6f}",
+                flush=True,
             )
 
     return total_loss, total_correct, total_samples
@@ -605,7 +594,6 @@ def main():
         num_workers=num_workers,
         pin_memory=True,
         drop_last=True,
-        worker_init_fn=worker_init_fn if num_workers > 0 else None,
         persistent_workers=num_workers > 0,
     )
 
