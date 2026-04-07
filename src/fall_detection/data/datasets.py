@@ -114,8 +114,6 @@ class CocoFallDataset(Dataset):
         return roi, torch.tensor(label, dtype=torch.long)
 
 
-
-
 class VOCFallDataset(Dataset):
     """从Pascal VOC格式标注加载数据，支持动态crop和数据增强.
 
@@ -174,8 +172,10 @@ class VOCFallDataset(Dataset):
         self.samples: List[Tuple[str, List[float], int]] = []
 
         # 为每个数据目录加载样本
+        self.total_images = 0
         for data_dir in self.data_dirs:
             self._load_from_dir(data_dir)
+        print(f"Loaded {len(self.samples)} samples from {self.total_images} images across {len(self.data_dirs)} directories.")
 
         if len(self.samples) == 0:
             raise ValueError(f"No valid samples found in VOC dataset. data_dirs={self.data_dirs}, split={split}")
@@ -220,6 +220,7 @@ class VOCFallDataset(Dataset):
                 print(f"Warning: No valid objects found in annotation: {anno_path}")
                 continue
             self.samples.extend(samples)
+            self.total_images += 1
 
     def _find_image(self, image_dir: str, img_id: str) -> Optional[str]:
         """查找图像文件路径."""
