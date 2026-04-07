@@ -15,6 +15,7 @@ while [[ $# -gt 0 ]]; do
     --config) CONFIG="$2"; shift 2 ;;
     --ngpus) NGPUS="$2"; shift 2 ;;
     --override) OVERRIDE="$2"; shift 2 ;;
+    --master-port) MASTER_PORT="$2"; shift 2 ;;
     *) echo "Unknown option: $1"; exit 1 ;;
   esac
 done
@@ -22,7 +23,7 @@ done
 # 检查必需参数
 if [[ -z "$CONFIG" ]]; then
   echo "Error: --config is required"
-  echo "Usage: bash scripts/shell/run_train_simple_classifier.sh --config configs/training/simple_classifier.yaml [--ngpus 2]"
+  echo "Usage: bash scripts/shell/run_train_simple_classifier.sh --config configs/training/simple_classifier.yaml [--ngpus 2] [--override \"epochs=100,batch=8\"] [--master-port 29500]"
   exit 1
 fi
 
@@ -50,6 +51,7 @@ fi
 if [ "${NGPUS}" -gt 1 ]; then
   echo "Starting DDP training on ${NGPUS} GPUs..."
   torchrun --nproc_per_node="${NGPUS}" \
+    --master_port="${MASTER_PORT:-29500}" \
     scripts/train/train_simple_classifier.py \
     --config "${CONFIG}" \
     ${OVERRIDE_ARG} 2>&1 | tee runs/simple_classifier/ddp_train.log

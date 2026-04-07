@@ -1,43 +1,64 @@
 # YOLOv8 人体检测器训练配置
 # 使用: bash scripts/shell/run_train_detector.sh --config configs/training/detector.yaml
 
+# 随机种子（可选，用于可复现性）
+# seed: 42
+
 # 数据配置
-data: "data/yaml/fall_detection.yaml"  # 数据集配置文件路径
+data:
+  yaml: "data/yaml/fall_detection.yaml"  # 数据集配置文件路径
 
 # 模型配置
-model: "data/models/pretrained/yolov8n.pt"  # 预训练模型路径
-imgsz: 1280  # 训练图像尺寸 (YOLO训练只支持正方形整数)
+model:
+  name: "yolov8n.pt"  # 预训练模型名称或路径
+  pretrained: "data/models/pretrained/yolov8n.pt"  # 预训练权重路径（可选）
 
 # 训练配置
-epochs: 50
-batch: 2
-workers: 8  # 数据加载线程数
+training:
+  epochs: 50
+  imgsz: 1280  # 训练图像尺寸 (YOLO训练只支持正方形整数)
+  batch: 2
+  workers: 8  # 数据加载线程数
 
 # 优化器配置
-lr0: 0.01  # 初始学习率
-lrf: 0.01  # 最终学习率 (lr0 * lrf)
-momentum: 0.937  # SGD动量
-weight_decay: 0.0005  # 权重衰减
+optimizer:
+  lr0: 0.01  # 初始学习率
+  lrf: 0.01  # 最终学习率 (lr0 * lrf)
+  momentum: 0.937  # SGD动量
+  weight_decay: 0.0005  # 权重衰减
+
+# Warmup配置
+warmup:
+  epochs: 3.0  # warmup轮数
+  momentum: 0.8  # warmup期间的动量
+  bias_lr: 0.1  # warmup期间偏置的学习率
 
 # 数据增强
-hsv_h: 0.015  # HSV色调增强
-hsv_s: 0.7    # HSV饱和度增强
-hsv_v: 0.4    # HSV亮度增强
-degrees: 0.0  # 旋转角度
-translate: 0.1  # 平移
-scale: 0.5    # 缩放
-shear: 0.0    # 剪切
-perspective: 0.0  # 透视变换
-flipud: 0.0   # 上下翻转
-fliplr: 0.5   # 左右翻转
-mosaic: 1.0   # Mosaic增强
-mixup: 0.0    # Mixup增强
-copy_paste: 0.0  # 复制粘贴增强
+augmentation:
+  hsv_h: 0.015  # HSV色调增强
+  hsv_s: 0.7    # HSV饱和度增强
+  hsv_v: 0.4    # HSV亮度增强
+  degrees: 0.0  # 旋转角度
+  translate: 0.1  # 平移
+  scale: 0.5    # 缩放
+  shear: 0.0    # 剪切
+  perspective: 0.0  # 透视变换
+  flipud: 0.0   # 上下翻转
+  fliplr: 0.5   # 左右翻转
+  mosaic: 1.0   # Mosaic增强
+  mixup: 0.0    # Mixup增强
+  copy_paste: 0.0  # 复制粘贴增强
 
 # 输出配置
-project: "yolov8"  # 训练输出目录 (Ultralytics会自动添加runs/detect/前缀)
-name: "exp"  # 实验名称
-exist_ok: false  # 是否覆盖已有实验目录
+output:
+  project: "yolov8"  # 训练输出目录 (Ultralytics会自动添加runs/detect/前缀)
+  name: "exp"  # 实验名称
+  exist_ok: false  # 是否覆盖已有实验目录
+
+# DDP配置
+ddp:
+  backend: "nccl"  # 分布式后端 (nccl用于GPU, gloo用于CPU)
+  # port: 29500  # 可选：自定义端口，默认29500
 
 # 设备配置
 device: null  # 设备 (null=自动选择, 0=GPU0, cpu=CPU)

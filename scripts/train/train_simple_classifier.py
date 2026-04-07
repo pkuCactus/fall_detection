@@ -75,12 +75,6 @@ def setup_ddp(cfg: Dict[str, Any]) -> Tuple[bool, torch.device, int, int, int]:
         ddp_cfg = cfg.get("ddp", {})
         backend = ddp_cfg.get("backend", "nccl")
 
-        # Support custom port from config
-        port = ddp_cfg.get("port", None)
-        if port:
-            os.environ["MASTER_PORT"] = str(port)
-            print(f"DDP using custom port: {port}")
-
         dist.init_process_group(backend=backend if torch.cuda.is_available() else "gloo")
         local_rank = int(os.environ["LOCAL_RANK"])
         torch.cuda.set_device(local_rank)

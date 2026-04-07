@@ -16,6 +16,7 @@ while [[ $# -gt 0 ]]; do
     --config) CONFIG="$2"; shift 2 ;;
     --ngpus) NGPUS="$2"; shift 2 ;;
     --override) OVERRIDE="$2"; shift 2 ;;
+    --master-port) MASTER_PORT="$2"; shift 2 ;;
     *) echo "Unknown option: $1"; exit 1 ;;
   esac
 done
@@ -27,6 +28,7 @@ if [ "${NGPUS}" -gt 1 ]; then
     echo "Override: ${OVERRIDE}"
   fi
   torchrun --nproc_per_node="${NGPUS}" \
+    --master_port="${MASTER_PORT:-29500}" \
     scripts/train/train_detector.py \
     --config "${CONFIG}" \
     ${OVERRIDE:+--override "${OVERRIDE}"}
