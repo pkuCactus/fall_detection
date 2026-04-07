@@ -136,7 +136,7 @@ output:
 # DDP配置
 ddp:
   backend: "nccl"
-  find_unused_parameters: true
+  find_unused_parameters: false
 
 # 日志
 log:

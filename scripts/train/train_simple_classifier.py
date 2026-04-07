@@ -8,6 +8,7 @@ import ast
 import os
 import random
 import time
+import traceback
 from typing import Optional, Tuple, Dict, Any
 
 import numpy as np
@@ -71,7 +72,15 @@ def setup_ddp(cfg: Dict[str, Any]) -> Tuple[bool, torch.device, int, int, int]:
     ddp = int(os.environ.get("WORLD_SIZE", 1)) > 1
 
     if ddp:
-        backend = cfg.get("ddp", {}).get("backend", "nccl")
+        ddp_cfg = cfg.get("ddp", {})
+        backend = ddp_cfg.get("backend", "nccl")
+
+        # Support custom port from config
+        port = ddp_cfg.get("port", None)
+        if port:
+            os.environ["MASTER_PORT"] = str(port)
+            print(f"DDP using custom port: {port}")
+
         dist.init_process_group(backend=backend if torch.cuda.is_available() else "gloo")
         local_rank = int(os.environ["LOCAL_RANK"])
         torch.cuda.set_device(local_rank)
@@ -83,6 +92,7 @@ def setup_ddp(cfg: Dict[str, Any]) -> Tuple[bool, torch.device, int, int, int]:
         world_size = 1
         rank = 0
         local_rank = 0
+    print(f"DDP setup: ddp={ddp}, device={device}, world_size={world_size}, rank={rank}, local_rank={local_rank}")
 
     return ddp, device, world_size, rank, local_rank
 
@@ -545,13 +555,12 @@ def main():
     if rank == 0:
         output_dir = cfg.get("output", {}).get("dir", "outputs/simple_classifier")
         os.makedirs(output_dir, exist_ok=True)
-        import yaml
 
         with open(os.path.join(output_dir, "config_used.yaml"), "w") as f:
             yaml.dump(cfg, f)
 
     if ddp:
-        dist.barrier()
+        dist.barrier(device_ids=[local_rank])  # Ensure all processes have created output directory
 
     # Create datasets
     if rank == 0:
@@ -578,7 +587,6 @@ def main():
             print(f"  Sample loaded: shape={sample_img.shape}, label={sample_label}")
         except Exception as e:
             print(f"  ERROR loading sample: {e}")
-            import traceback
             traceback.print_exc()
             raise
 
@@ -638,7 +646,6 @@ def main():
             print(f"First batch loaded: images={first_batch[0].shape}, labels={first_batch[1].shape}")
         except Exception as e:
             print(f"ERROR loading first batch: {e}")
-            import traceback
             traceback.print_exc()
             raise
         print("Entering training loop...")
