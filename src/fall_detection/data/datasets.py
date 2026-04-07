@@ -192,8 +192,8 @@ class VOCFallDataset(Dataset):
 
         # 加载图像列表
         if os.path.exists(image_set_file):
-            with open(image_set_file, 'r') as f:
-                image_ids = [line.strip().split()[0] for line in f if line.strip()]
+            with open(image_set_file, 'r', encoding='utf-8') as f:
+                image_ids = [line.rstrip('\n\r') for line in f if line.rstrip('\n\r')]
         else:
             print(f"Warning: Image set file not found: {image_set_file}, scanning all XML files")
             image_ids = [
@@ -216,6 +216,9 @@ class VOCFallDataset(Dataset):
 
             # 解析XML
             samples = self._parse_xml(anno_path, image_path)
+            if not samples:
+                print(f"Warning: No valid objects found in annotation: {anno_path}")
+                continue
             self.samples.extend(samples)
 
     def _find_image(self, image_dir: str, img_id: str) -> Optional[str]:
