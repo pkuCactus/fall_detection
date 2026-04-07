@@ -1,0 +1,70 @@
+# VOC to YOLO Conversion Configuration Example
+# 用法: python scripts/tools/convert_voc_to_yolo.py --config configs/voc_to_yolo_example.yaml -o data/yolo
+
+# 数据集列表 - 支持多个VOC数据集
+# 每个数据集应包含 Annotations/ 和 JPEGImages/ 目录
+# 可选包含 ImageSets/Main/{train,val,test}.txt 进行划分
+datasets:
+  train_dirs:
+    - "data/dataset1"
+    - "data/dataset2"
+
+  val_dirs:
+    - "data/dataset1"
+    - "data/dataset3"
+  # test_dirs:  # 可选测试集目录
+  #   - "data/dataset4"
+
+# 类别映射配置
+# 将VOC XML中的类别名映射到YOLO的类别名称，然后根据names列表中的顺序分配类别ID
+# 支持一个类别ID对应多个类别名（别名）
+class_mapping:
+  # 类别0: 站立
+  stand: "person"
+  standing: "person"
+  person: "person"
+
+  # 类别1: 坐下
+  sit: "person"
+  sitting: "person"
+  # 类别2: 蹲下
+  squat: "person"
+  squatting: "person"
+
+  # 类别3: 弯腰
+  bend: "person"
+  bending: "person"
+
+  # 类别4: 半起
+  half_up: "person"
+  crouch: "person"
+
+  # 类别5: 跪下
+  kneel: "person"
+  kneeling: "person"
+  # 类别6: 爬行
+  crawl: "person"
+  crawling: "person"
+
+  # 类别7: 摔倒
+  fall_down: "person"
+  fall: "person"
+  falldown: "person"
+  fallen: "person"
+
+output:
+  dir: "data/yolo"  # 输出目录
+  images_dir: "images"  # 输出图像目录
+  labels_dir: "labels"  # 输出标签目录
+  yaml_path: "data/fall_detection.yaml"  # 输出数据集yaml配置路径
+
+use_imagesets: true  # 是否使用ImageSets/Main/{train,val,test}.txt进行划分，否则按目录划分
+
+# 注意：关于copy_images选项
+# - true (推荐): 复制图像到输出目录，YOLO能正确找到标注文件
+# - false (有风险): 创建符号链接节省空间，但YOLO解析图像路径时可能
+#   通过软链接找到原始图像路径，然后到原始目录寻找标注文件，导致找不到
+#   例如：图像软链接指向 /data/dataset1/JPEGImages/img.jpg
+#         YOLO可能去 /data/dataset1/labels/ 找标注，而不是输出目录
+# 建议：除非磁盘空间非常紧张，否则保持 copy_images: true
+copy_images: true
