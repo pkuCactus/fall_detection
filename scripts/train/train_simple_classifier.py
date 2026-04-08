@@ -371,7 +371,7 @@ def _save_model_checkpoint(model: nn.Module, save_path: str, ddp: bool):
 def _handle_early_stopping(
     v_acc: float, best_acc: float, patience_counter: int,
     cfg: Dict[str, Any], model: nn.Module, ddp: bool,
-    epoch: int, epoch_log_interval: int
+    epoch: int, epoch_log_interval: int, rank: int = 0
 ) -> tuple:
     """Handle early stopping and model saving.
 
@@ -384,32 +384,30 @@ def _handle_early_stopping(
     patience = early_cfg.get("patience", 20)
 
     if v_acc > best_acc + min_delta:
-        patience_counter = 0
-        best_acc = v_acc
         save_path = os.path.join(output_cfg.get("dir", "outputs/simple_classifier"), "best.pt")
-        _save_model_checkpoint(model, save_path, ddp)
+        rank == 0 and _save_model_checkpoint(model, save_path, ddp)
         if epoch % epoch_log_interval == 0:
             print(f"  -> Saved best model (val_acc={v_acc:.4f})")
-    elif v_acc <= best_acc:
-        patience_counter += 1
-        if patience_counter >= patience:
-            print(f"Early stopping at epoch {epoch}")
-            return best_acc, patience_counter, True
-
+        return v_acc, 0, False
+    patience_counter += 1
+    if patience_counter >= patience:
+        print(f"Early stopping at epoch {epoch}")
+        return best_acc, patience_counter, True
     return best_acc, patience_counter, False
 
 
 def _handle_no_validation_save(
-    cfg: Dict[str, Any], model: nn.Module, ddp: bool, epoch: int
+    cfg: Dict[str, Any], model: nn.Module, ddp: bool, epoch: int, rank: int = 0
 ):
     """Save checkpoint when no validation is used."""
+    if rank or epoch % cfg.get("log", {}).get("epoch_log_interval", 1) != 0:
+        return
     output_cfg = cfg.get("output", {})
-    if epoch % output_cfg.get("save_every", 10) == 0:
-        save_path = os.path.join(
-            output_cfg.get("dir", "outputs/simple_classifier"), f"epoch_{epoch}.pt"
-        )
-        _save_model_checkpoint(model, save_path, ddp)
-        print(f"  -> Saved checkpoint (epoch={epoch})")
+    save_path = os.path.join(
+        output_cfg.get("dir", "outputs/simple_classifier"), f"epoch_{epoch}.pt"
+    )
+    _save_model_checkpoint(model, save_path, ddp)
+    print(f"  -> Saved checkpoint (epoch={epoch})")
 
 
 def train_loop(
@@ -478,14 +476,14 @@ def train_loop(
             if epoch % epoch_log_interval == 0 or epoch == epochs:
                 print(_format_epoch_log(epoch, epochs, t_loss_avg, t_acc, v_loss_avg, v_acc, current_lr, remaining_str, val_loader))
 
-            if val_loader:
-                best_acc, patience_counter, should_stop = _handle_early_stopping(
-                    v_acc, best_acc, patience_counter, cfg, model, ddp, epoch, epoch_log_interval
-                )
-                if should_stop:
-                    break
-            else:
-                _handle_no_validation_save(cfg, model, ddp, epoch)
+        if val_loader:
+            best_acc, patience_counter, should_stop = _handle_early_stopping(
+                v_acc, best_acc, patience_counter, cfg, model, ddp, epoch, epoch_log_interval, rank
+            )
+            if should_stop:
+                break
+        else:
+            _handle_no_validation_save(cfg, model, ddp, epoch, rank)
 
     return best_acc if val_loader else t_acc
 
