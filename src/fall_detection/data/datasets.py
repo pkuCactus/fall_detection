@@ -5,6 +5,7 @@ import json
 import os
 import pickle
 import xml.etree.ElementTree as ET
+from collections import OrderedDict
 from typing import List, Dict, Any, Optional, Tuple
 
 import cv2
@@ -13,6 +14,58 @@ import torch
 from torch.utils.data import Dataset
 
 from .augmentation import RandomCropWithPadding, LetterBoxResize
+
+
+class LRUImageCache:
+    """LRU 图像缓存队列，限制内存使用."""
+
+    def __init__(self, max_size: int = 1000):
+        """
+        Args:
+            max_size: 最大缓存图像数量，默认1000张
+        """
+        self.max_size = max_size
+        self._cache: OrderedDict[int, np.ndarray] = OrderedDict()
+        self._hits = 0
+        self._misses = 0
+
+    def get(self, key: int) -> Optional[np.ndarray]:
+        """获取缓存的图像，LRU更新."""
+        if key in self._cache:
+            # 移动到末尾（最近使用）
+            self._cache.move_to_end(key)
+            self._hits += 1
+            return self._cache[key]
+        self._misses += 1
+        return None
+
+    def put(self, key: int, image: np.ndarray) -> None:
+        """添加图像到缓存."""
+        if key in self._cache:
+            # 已存在，更新并移到末尾
+            self._cache.move_to_end(key)
+            self._cache[key] = image
+        else:
+            # 新图像
+            if len(self._cache) >= self.max_size:
+                # 淘汰最旧的
+                self._cache.popitem(last=False)
+            self._cache[key] = image
+
+    def clear(self) -> None:
+        """清空缓存."""
+        self._cache.clear()
+        self._hits = 0
+        self._misses = 0
+
+    @property
+    def hit_rate(self) -> float:
+        """计算缓存命中率."""
+        total = self._hits + self._misses
+        return self._hits / total if total > 0 else 0.0
+
+    def __len__(self) -> int:
+        return len(self._cache)
 
 
 class CocoFallDataset(Dataset):
@@ -30,6 +83,7 @@ class CocoFallDataset(Dataset):
         fall_category_id: int = 1,
         shrink_max: int = 3,
         expand_max: int = 25,
+        cache_size: int = 1000,
     ):
         self.image_dir = image_dir
         self.transform = transform
@@ -70,11 +124,21 @@ class CocoFallDataset(Dataset):
         # 缓存图像路径
         self.img_path_cache: Dict[int, str] = {}
 
+        # LRU图像缓存
+        self.image_cache = LRUImageCache(max_size=cache_size) if cache_size > 0 else None
+
     def __len__(self):
         return len(self.samples)
 
     def _get_image(self, img_id: int) -> np.ndarray:
-        """加载图像，带缓存."""
+        """加载图像，带LRU缓存."""
+        # 先尝试从LRU缓存获取
+        if self.image_cache is not None:
+            cached_img = self.image_cache.get(img_id)
+            if cached_img is not None:
+                return cached_img
+
+        # 缓存未命中，加载图像
         if img_id not in self.img_path_cache:
             img_info = self.images[img_id]
             file_name = img_info['file_name']
@@ -86,6 +150,11 @@ class CocoFallDataset(Dataset):
         img = cv2.imread(img_path)
         if img is None:
             raise ValueError(f"Failed to load image: {img_path}")
+
+        # 存入LRU缓存
+        if self.image_cache is not None:
+            self.image_cache.put(img_id, img)
+
         return img
 
     def __getitem__(self, idx):
@@ -144,6 +213,7 @@ class VOCFallDataset(Dataset):
         shrink_max: int = 3,
         expand_max: int = 25,
         cache_dir: Optional[str] = None,
+        cache_size: int = 1000,
     ):
         """
         Args:
@@ -158,6 +228,7 @@ class VOCFallDataset(Dataset):
             shrink_max: 最大内缩像素
             expand_max: 最大外扩像素
             cache_dir: 缓存目录，如果指定则尝试从缓存加载samples
+            cache_size: LRU图像缓存大小，默认1000张图像，设为0禁用缓存
         """
         self.data_dirs = data_dirs if isinstance(data_dirs, list) else [data_dirs]
         self.split = split
@@ -174,6 +245,11 @@ class VOCFallDataset(Dataset):
 
         # 构建样本列表: (image_path, bbox, label)
         self.samples: List[Tuple[str, List[float], int]] = []
+
+        # LRU图像缓存 - 使用图像路径作为key
+        self._image_cache = LRUImageCache(max_size=cache_size) if cache_size > 0 else None
+        self._image_path_to_key: Dict[str, int] = {}
+        self._next_image_key = 0
 
         # 尝试从缓存加载
         cache_loaded = False
@@ -365,13 +441,41 @@ class VOCFallDataset(Dataset):
     def __len__(self):
         return len(self.samples)
 
-    def __getitem__(self, idx):
-        image_path, bbox, label = self.samples[idx]
+    def _get_image(self, image_path: str) -> np.ndarray:
+        """加载图像，带LRU缓存."""
+        # 获取或分配图像key
+        if image_path not in self._image_path_to_key:
+            self._image_path_to_key[image_path] = self._next_image_key
+            self._next_image_key += 1
+        image_key = self._image_path_to_key[image_path]
 
-        # 加载图像
+        # 尝试从LRU缓存获取
+        if self._image_cache is not None:
+            cached_img = self._image_cache.get(image_key)
+            if cached_img is not None:
+                return cached_img
+
+        # 缓存未命中，加载图像
         img = cv2.imread(image_path)
         if img is None:
             raise ValueError(f"Failed to load image: {image_path}")
+
+        # 存入LRU缓存
+        if self._image_cache is not None:
+            self._image_cache.put(image_key, img)
+
+        return img
+
+    @property
+    def cache_hit_rate(self) -> float:
+        """获取图像缓存命中率."""
+        return self._image_cache.hit_rate if self._image_cache else 0.0
+
+    def __getitem__(self, idx):
+        image_path, bbox, label = self.samples[idx]
+
+        # 加载图像（带LRU缓存）
+        img = self._get_image(image_path)
 
         # 随机crop ROI
         roi = self.cropper(img, bbox)

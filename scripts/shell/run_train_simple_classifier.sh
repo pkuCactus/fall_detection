@@ -48,6 +48,7 @@ if [ ! -d runs/simple_classifier ]; then
 mkdir -p runs/simple_classifier;
 fi
 
+export PYTHONPATH=src:$PYTHONPATH
 if [ "${NGPUS}" -gt 1 ]; then
   echo "Starting DDP training on ${NGPUS} GPUs..."
   torchrun --nproc_per_node="${NGPUS}" \

@@ -65,8 +65,9 @@ model:
 
 # 训练配置
 epochs: 100
-batch_size: 16
-num_workers: 4  # 设置为0避免DataLoader死锁，生产环境可改为4
+batch_size: 4
+num_workers: 8  # 数据加载worker数量，建议根据CPU核心数设置4-16
+prefetch_factor: 4  # 每个worker预取的batch数量
 
 # 优化器配置
 lr: 0.001
@@ -126,6 +127,11 @@ data_augmentation:
 crop:
   shrink_max: 3
   expand_max: 25
+
+# 缓存配置
+cache:
+  dir: "outputs/cache"  # VOC格式样本列表缓存目录
+  image_cache_size: 1000  # LRU图像缓存大小（张），设为0禁用缓存
 
 # 输出配置
 output:

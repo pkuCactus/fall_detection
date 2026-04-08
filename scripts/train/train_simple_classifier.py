@@ -6,7 +6,13 @@ Refactored version with clean separation of concerns.
 import os
 import time
 import traceback
+from datetime import datetime
 from typing import Optional, Tuple, Dict, Any
+
+
+def _timestamp() -> str:
+    """获取当前时间字符串."""
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 import torch
 import torch.distributed as dist
@@ -28,19 +34,21 @@ from fall_detection.utils import (
 )
 
 
-def _get_dataset_config(cfg: Dict[str, Any]) -> Tuple[Dict, Dict, Any]:
+def _get_dataset_config(cfg: Dict[str, Any]) -> Tuple[Dict, Dict, Any, int]:
     """Extract common dataset configuration."""
     input_cfg = cfg.get("input", {})
     crop_cfg = cfg.get("crop", {})
     aug_cfg = cfg.get("data_augmentation", {})
     train_transform = None if not aug_cfg.get("enabled", True) else TrainingAugmentation(aug_cfg)
-    return input_cfg, crop_cfg, train_transform
+    cache_cfg = cfg.get("cache", {})
+    cache_size = cache_cfg.get("image_cache_size", 1000)
+    return input_cfg, crop_cfg, train_transform, cache_size
 
 
 def _create_voc_datasets(cfg: Dict[str, Any], rank: int) -> Tuple:
     """Create VOC format datasets."""
     voc_cfg = cfg.get("voc", {})
-    input_cfg, crop_cfg, train_transform = _get_dataset_config(cfg)
+    input_cfg, crop_cfg, train_transform, cache_size = _get_dataset_config(cfg)
     cache_dir = cfg.get("cache", {}).get("dir", "outputs/cache")
 
     train_dirs = voc_cfg.get("train_dirs", voc_cfg.get("data_dir"))
@@ -70,6 +78,7 @@ def _create_voc_datasets(cfg: Dict[str, Any], rank: int) -> Tuple:
         "shrink_max": crop_cfg.get("shrink_max", 3),
         "expand_max": crop_cfg.get("expand_max", 25),
         "cache_dir": cache_dir,
+        "cache_size": cache_size,
     }
 
     train_dataset = VOCFallDataset(data_dirs=train_dirs, split="train", transform=train_transform, **common_args)
@@ -86,7 +95,7 @@ def _create_voc_datasets(cfg: Dict[str, Any], rank: int) -> Tuple:
 def _create_coco_datasets(cfg: Dict[str, Any], rank: int) -> Tuple:
     """Create COCO format datasets."""
     data_cfg = cfg.get("data", {})
-    input_cfg, crop_cfg, train_transform = _get_dataset_config(cfg)
+    input_cfg, crop_cfg, train_transform, cache_size = _get_dataset_config(cfg)
 
     train_coco_json = data_cfg.get("train_coco_json")
     val_coco_json = data_cfg.get("val_coco_json")
@@ -107,6 +116,7 @@ def _create_coco_datasets(cfg: Dict[str, Any], rank: int) -> Tuple:
         "fall_category_id": cfg.get("coco", {}).get("fall_category_id", 1),
         "shrink_max": crop_cfg.get("shrink_max", 3),
         "expand_max": crop_cfg.get("expand_max", 25),
+        "cache_size": cache_size,
     }
 
     train_dataset = CocoFallDataset(coco_json=train_coco_json, transform=train_transform, **common_args)
@@ -284,7 +294,7 @@ def train_epoch(
             avg_acc = total_correct / total_samples
             current_lr = optimizer.param_groups[0]["lr"]
             print(
-                f"  Epoch[{epoch}] Batch[{batch_idx + 1}/{num_batches}]  "
+                f"[{_timestamp()}] Epoch[{epoch}] Batch[{batch_idx + 1}/{num_batches}]  "
                 f"loss={loss.item():.4f} acc={batch_acc:.4f}  "
                 f"avg_loss={avg_loss:.4f} avg_acc={avg_acc:.4f}  lr={current_lr:.6f}",
                 flush=True,
@@ -293,6 +303,7 @@ def train_epoch(
     return total_loss, total_correct, total_samples
 
 
+@torch.no_grad()
 def eval_epoch(
     model: nn.Module, loader: DataLoader, criterion: nn.Module, device: torch.device
 ) -> Tuple[float, int, int]:
@@ -302,16 +313,15 @@ def eval_epoch(
     total_correct = 0
     total_samples = 0
 
-    with torch.no_grad():
-        for images, labels in loader:
-            images, labels = images.to(device), labels.to(device)
-            outputs = model(images)
-            loss = criterion(outputs, labels)
+    for images, labels in loader:
+        images, labels = images.to(device), labels.to(device)
+        outputs = model(images)
+        loss = criterion(outputs, labels)
 
-            _, predicted = torch.max(outputs, 1)
-            total_correct += (predicted == labels).sum().item()
-            total_samples += labels.size(0)
-            total_loss += loss.item() * labels.size(0)
+        _, predicted = torch.max(outputs, 1)
+        total_correct += (predicted == labels).sum().item()
+        total_samples += labels.size(0)
+        total_loss += loss.item() * labels.size(0)
 
     return total_loss, total_correct, total_samples
 
@@ -355,7 +365,7 @@ def _format_epoch_log(
     val_loader
 ) -> str:
     """Format epoch log message."""
-    msg = f"Epoch {epoch}/{epochs}  train_loss={t_loss:.4f} train_acc={t_acc:.4f}"
+    msg = f"[{_timestamp()}] Epoch {epoch}/{epochs}  train_loss={t_loss:.4f} train_acc={t_acc:.4f}"
     if val_loader:
         msg += f"  val_loss={v_loss:.4f} val_acc={v_acc:.4f}"
     msg += f"  lr={lr:.6f}  remain={remaining}"
@@ -387,11 +397,11 @@ def _handle_early_stopping(
         save_path = os.path.join(output_cfg.get("dir", "outputs/simple_classifier"), "best.pt")
         rank == 0 and _save_model_checkpoint(model, save_path, ddp)
         if epoch % epoch_log_interval == 0:
-            print(f"  -> Saved best model (val_acc={v_acc:.4f})")
+            print(f"[{_timestamp()}] Saved best model (val_acc={v_acc:.4f})")
         return v_acc, 0, False
     patience_counter += 1
     if patience_counter >= patience:
-        print(f"Early stopping at epoch {epoch}")
+        print(f"[{_timestamp()}] Early stopping at epoch {epoch}")
         return best_acc, patience_counter, True
     return best_acc, patience_counter, False
 
@@ -407,7 +417,7 @@ def _handle_no_validation_save(
         output_cfg.get("dir", "outputs/simple_classifier"), f"epoch_{epoch}.pt"
     )
     _save_model_checkpoint(model, save_path, ddp)
-    print(f"  -> Saved checkpoint (epoch={epoch})")
+    print(f"[{_timestamp()}] Saved checkpoint (epoch={epoch})")
 
 
 def train_loop(
@@ -474,7 +484,8 @@ def train_loop(
         if rank == 0:
             current_lr = optimizer.param_groups[0]["lr"]
             if epoch % epoch_log_interval == 0 or epoch == epochs:
-                print(_format_epoch_log(epoch, epochs, t_loss_avg, t_acc, v_loss_avg, v_acc, current_lr, remaining_str, val_loader))
+                print(_format_epoch_log(epoch, epochs, t_loss_avg, t_acc, v_loss_avg, v_acc, current_lr, remaining_str, val_loader),
+                      flush=True)
 
         if val_loader:
             best_acc, patience_counter, should_stop = _handle_early_stopping(
@@ -492,6 +503,7 @@ def create_data_loaders(train_dataset, val_dataset, cfg: Dict[str, Any], world_s
     """Create training and validation data loaders."""
     batch_size = cfg.get("batch_size", 64)
     num_workers = cfg.get("num_workers", 4)
+    prefetch_factor = cfg.get("prefetch_factor", 4) if num_workers > 0 else None
 
     train_sampler = (
         DistributedSampler(train_dataset, num_replicas=world_size, rank=rank, shuffle=True)
@@ -504,6 +516,7 @@ def create_data_loaders(train_dataset, val_dataset, cfg: Dict[str, Any], world_s
         sampler=train_sampler,
         shuffle=(train_sampler is None),
         num_workers=num_workers,
+        prefetch_factor=prefetch_factor,
         pin_memory=True,
         drop_last=True,
         persistent_workers=num_workers > 0,
@@ -521,7 +534,9 @@ def create_data_loaders(train_dataset, val_dataset, cfg: Dict[str, Any], world_s
             sampler=val_sampler,
             shuffle=False,
             num_workers=num_workers,
+            prefetch_factor=prefetch_factor,
             pin_memory=True,
+            persistent_workers=num_workers > 0,
         )
 
     return train_loader, val_loader
@@ -609,7 +624,7 @@ def main():
     optimizer, scheduler = create_optimizer_scheduler(cfg, model, train_loader, rank)
     if rank == 0:
         print(f"Train loader has {len(train_loader)} batches")
-        print(f"\nStarting training: {cfg.get('epochs', 100)} epochs")
+        print(f"\n[{_timestamp()}] Starting training: {cfg.get('epochs', 100)} epochs")
         print("=" * 50)
 
     # Test first batch
@@ -621,7 +636,7 @@ def main():
     )
 
     if rank == 0:
-        print(f"\nTraining done. Final accuracy: {final_acc:.4f}")
+        print(f"\n[{_timestamp()}] Training done. Final accuracy: {final_acc:.4f}")
 
     if ddp:
         dist.destroy_process_group()
