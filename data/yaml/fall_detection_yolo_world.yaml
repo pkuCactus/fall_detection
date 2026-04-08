@@ -9,24 +9,13 @@ val: images/val
 
 # 类别定义 (8种姿态类别)
 names:
-  0: person stand
+  0: person standing
   1: person sitting
-  2: person squat
-  3: person bend
-  4: person half up
-  5: person kneel
-  6: person crawl
+  2: person squatting
+  3: person bending
+  4: person half up or crouching
+  5: person kneeling
+  6: person crawling or crawling-like
   7: person lying on floor
 
 nc: 8
-
-# YOLO-World 特定配置 - 类别频率 (用于负采样，避免空字典错误)
-category_freq:
-  peroson stand: 100
-  person sitting: 80
-  person squat: 60
-  person bend: 50
-  person half up: 40
-  person kneel: 30
-  person crawl: 20
-  person lying on floor: 25

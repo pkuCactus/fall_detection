@@ -11,6 +11,7 @@ from typing import Optional, Tuple, Dict, Any
 import torch
 import torch.distributed as dist
 import torch.nn as nn
+import yaml
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
@@ -24,6 +25,7 @@ from fall_detection.utils import (
     parse_args,
     setup_ddp,
     setup_seed,
+    should_stop_early
 )
 
 
@@ -308,8 +310,6 @@ def eval_epoch(
     return total_loss, total_correct, total_samples
 
 
-
-
 def train_loop(
     cfg: Dict[str, Any],
     model: nn.Module,
@@ -442,17 +442,7 @@ def train_loop(
                 else:
                     patience_counter = 0
 
-        # Early stopping signal (all ranks)
-        should_stop = torch.tensor(0.0, device=device)
-        if rank == 0 and early_cfg.get("enabled", True) and val_loader:
-            if patience_counter >= early_cfg.get("patience", 20):
-                should_stop = torch.tensor(1.0, device=device)
-
-        # Broadcast stop signal to all ranks
-        if ddp:
-            dist.broadcast(should_stop, src=0)
-
-        if should_stop.item() > 0:
+        if should_stop_early(cfg, rank, device, ddp, patience_counter):
             break
 
     return best_acc if val_loader else t_acc
