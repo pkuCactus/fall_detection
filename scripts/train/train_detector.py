@@ -4,59 +4,18 @@ Refactored to use config file like train_simple_classifier.
 Supports DDP, random seed, modular config sections, and warmup.
 """
 
-import argparse
-import ast
 import os
-import random
 import sys
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict
 
-import numpy as np
 import torch
 import torch.distributed as dist
-import yaml
+
+from fall_detection.utils import load_config, parse_args, setup_seed
 
 
-def parse_args():
-    """Parse command line arguments."""
-    parser = argparse.ArgumentParser(
-        description="Train person detector with YOLOv8"
-    )
-    parser.add_argument("--config", required=True, help="Path to config YAML file")
-    parser.add_argument("--local-rank", type=int, default=-1)
-    parser.add_argument(
-        "--override",
-        type=str,
-        default=None,
-        help="Override config values, e.g., 'epochs=100,batch=8'",
-    )
-    return parser.parse_args()
-
-
-def load_config(args) -> Dict[str, Any]:
-    """Load and parse configuration."""
-    with open(args.config, "r") as f:
-        cfg = yaml.safe_load(f)
-
-    # Process command line overrides
-    if args.override:
-        for override in args.override.split(","):
-            key, value = override.split("=")
-            keys = key.split(".")
-            d = cfg
-            for k in keys[:-1]:
-                d = d.setdefault(k, {})
-            try:
-                value = ast.literal_eval(value)
-            except (ValueError, SyntaxError):
-                pass
-            d[keys[-1]] = value
-
-    return cfg
-
-
-def setup_ddp(cfg: Dict[str, Any]) -> Tuple[bool, int, int]:
-    """Setup Distributed Data Parallel.
+def setup_ddp_detector(cfg: Dict[str, Any]):
+    """Setup DDP for detector (simpler version without device management).
 
     Returns:
         (ddp_enabled, world_size, rank)
@@ -66,6 +25,13 @@ def setup_ddp(cfg: Dict[str, Any]) -> Tuple[bool, int, int]:
     if ddp:
         ddp_cfg = cfg.get("ddp", {})
         backend = ddp_cfg.get("backend", "nccl")
+
+        # Support custom port from config
+        port = ddp_cfg.get("port", None)
+        if port:
+            os.environ["MASTER_PORT"] = str(port)
+            if int(os.environ.get("RANK", 0)) == 0:
+                print(f"DDP using custom port: {port}")
 
         dist.init_process_group(backend=backend if torch.cuda.is_available() else "gloo")
         world_size = dist.get_world_size()
@@ -77,29 +43,13 @@ def setup_ddp(cfg: Dict[str, Any]) -> Tuple[bool, int, int]:
     return ddp, world_size, rank
 
 
-def setup_seed(seed: Optional[int], rank: int) -> None:
-    """Set random seed for reproducibility."""
-    if seed is None:
-        return
-
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
-
-    if rank == 0:
-        print(f"Random seed set to {seed}")
-
-
 def main():
     """Main entry point."""
-    args = parse_args()
+    args = parse_args("Train person detector with YOLOv8")
     cfg = load_config(args)
 
     # Setup DDP
-    ddp, world_size, rank = setup_ddp(cfg)
+    ddp, world_size, rank = setup_ddp_detector(cfg)
 
     # Setup seed
     setup_seed(cfg.get("seed"), rank)
@@ -108,7 +58,8 @@ def main():
     try:
         from ultralytics import YOLO
     except ImportError:
-        print("Error: ultralytics not installed. Run: pip install ultralytics>=8.0")
+        if rank == 0:
+            print("Error: ultralytics not installed. Run: pip install ultralytics>=8.0")
         sys.exit(1)
 
     # Get configuration values with modular sections
@@ -231,24 +182,26 @@ def main():
             device=device,
         )
     except Exception as e:
-        print(f"\nError during training: {e}")
-        import traceback
-        traceback.print_exc()
+        if rank == 0:
+            print(f"\nError during training: {e}")
+            import traceback
+            traceback.print_exc()
         sys.exit(1)
 
     # Create symlink/copy for best weights
-    best_path = os.path.join("runs/detect", project, name, "weights", "best.pt")
-    out_path = os.path.join("runs/detect", project, name, "best.pt")
-    if os.path.exists(best_path):
-        try:
-            os.link(best_path, out_path)
-            print(f"Best weights linked to {out_path}")
-        except OSError:
-            import shutil
-            shutil.copy2(best_path, out_path)
-            print(f"Best weights copied to {out_path}")
+    if rank == 0:
+        best_path = os.path.join("runs/detect", project, name, "weights", "best.pt")
+        out_path = os.path.join("runs/detect", project, name, "best.pt")
+        if os.path.exists(best_path):
+            try:
+                os.link(best_path, out_path)
+                print(f"Best weights linked to {out_path}")
+            except OSError:
+                import shutil
+                shutil.copy2(best_path, out_path)
+                print(f"Best weights copied to {out_path}")
 
-    print(f"\nTraining complete. Results saved to: runs/detect/{project}/{name}/")
+        print(f"\nTraining complete. Results saved to: runs/detect/{project}/{name}/")
 
 
 if __name__ == "__main__":
