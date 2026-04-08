@@ -25,130 +25,124 @@ from fall_detection.utils import (
     parse_args,
     setup_ddp,
     setup_seed,
-    should_stop_early
 )
+
+
+def _get_dataset_config(cfg: Dict[str, Any]) -> Tuple[Dict, Dict, Any]:
+    """Extract common dataset configuration."""
+    input_cfg = cfg.get("input", {})
+    crop_cfg = cfg.get("crop", {})
+    aug_cfg = cfg.get("data_augmentation", {})
+    train_transform = None if not aug_cfg.get("enabled", True) else TrainingAugmentation(aug_cfg)
+    return input_cfg, crop_cfg, train_transform
+
+
+def _create_voc_datasets(cfg: Dict[str, Any], rank: int) -> Tuple:
+    """Create VOC format datasets."""
+    voc_cfg = cfg.get("voc", {})
+    input_cfg, crop_cfg, train_transform = _get_dataset_config(cfg)
+    cache_dir = cfg.get("cache", {}).get("dir", "outputs/cache")
+
+    train_dirs = voc_cfg.get("train_dirs", voc_cfg.get("data_dir"))
+    if train_dirs is None:
+        raise ValueError("voc.train_dirs or voc.data_dir must be specified for VOC format")
+    if isinstance(train_dirs, str):
+        train_dirs = [train_dirs]
+
+    val_dirs = voc_cfg.get("val_dirs")
+    if isinstance(val_dirs, str):
+        val_dirs = [val_dirs]
+
+    fall_classes = voc_cfg.get("fall_classes", ["fall"])
+    normal_classes = voc_cfg.get("normal_classes")
+
+    if rank == 0:
+        print(f"Loading training data from VOC directories: {train_dirs}")
+        print(f"  Fall classes: {fall_classes}")
+        print(f"  Normal classes: {normal_classes or '<all others>'}")
+
+    common_args = {
+        "target_size": input_cfg.get("target_size", 96),
+        "use_letterbox": input_cfg.get("use_letterbox", True),
+        "fill_value": input_cfg.get("fill_value", 114),
+        "fall_classes": fall_classes,
+        "normal_classes": normal_classes,
+        "shrink_max": crop_cfg.get("shrink_max", 3),
+        "expand_max": crop_cfg.get("expand_max", 25),
+        "cache_dir": cache_dir,
+    }
+
+    train_dataset = VOCFallDataset(data_dirs=train_dirs, split="train", transform=train_transform, **common_args)
+
+    val_dataset = None
+    if val_dirs:
+        if rank == 0:
+            print(f"Loading validation data from VOC directories: {val_dirs}")
+        val_dataset = VOCFallDataset(data_dirs=val_dirs, split="val", transform=None, **common_args)
+
+    return train_dataset, val_dataset
+
+
+def _create_coco_datasets(cfg: Dict[str, Any], rank: int) -> Tuple:
+    """Create COCO format datasets."""
+    data_cfg = cfg.get("data", {})
+    input_cfg, crop_cfg, train_transform = _get_dataset_config(cfg)
+
+    train_coco_json = data_cfg.get("train_coco_json")
+    val_coco_json = data_cfg.get("val_coco_json")
+    image_dir = data_cfg.get("image_dir")
+
+    if not train_coco_json or not image_dir:
+        raise ValueError("train_coco_json and image_dir must be specified for COCO format")
+
+    if rank == 0:
+        print(f"Loading training data from: {train_coco_json}")
+
+    common_args = {
+        "image_dir": image_dir,
+        "target_size": input_cfg.get("target_size", 96),
+        "use_letterbox": input_cfg.get("use_letterbox", True),
+        "fill_value": input_cfg.get("fill_value", 114),
+        "person_category_id": cfg.get("coco", {}).get("person_category_id", 1),
+        "fall_category_id": cfg.get("coco", {}).get("fall_category_id", 1),
+        "shrink_max": crop_cfg.get("shrink_max", 3),
+        "expand_max": crop_cfg.get("expand_max", 25),
+    }
+
+    train_dataset = CocoFallDataset(coco_json=train_coco_json, transform=train_transform, **common_args)
+
+    val_dataset = None
+    if val_coco_json and os.path.exists(val_coco_json):
+        if rank == 0:
+            print(f"Loading validation data from: {val_coco_json}")
+        val_dataset = CocoFallDataset(coco_json=val_coco_json, transform=None, **common_args)
+
+    return train_dataset, val_dataset
+
+
+def _print_dataset_stats(dataset, name: str, rank: int):
+    """Print dataset statistics."""
+    if rank != 0:
+        return
+    print(f"{name} samples: {len(dataset)}")
+    labels = [s[2] for s in dataset.samples]
+    n_fall = sum(labels)
+    n_normal = len(labels) - n_fall
+    print(f"  Fall: {n_fall}, Normal: {n_normal}")
 
 
 def create_datasets(cfg: Dict[str, Any], rank: int):
     """Create training and validation datasets."""
-    data_cfg = cfg.get("data", {})
-    input_cfg = cfg.get("input", {})
-    crop_cfg = cfg.get("crop", {})
-    aug_cfg = cfg.get("data_augmentation", {})
-    data_format = data_cfg.get("format", "coco").lower()
-
-    # Create training augmentation
-    train_transform = None if not aug_cfg.get("enabled", True) else TrainingAugmentation(aug_cfg)
+    data_format = cfg.get("data", {}).get("format", "coco").lower()
 
     if data_format == "voc":
-        voc_cfg = cfg.get("voc", {})
-        train_dirs = voc_cfg.get("train_dirs", voc_cfg.get("data_dir"))
-        if train_dirs is None:
-            raise ValueError("voc.train_dirs or voc.data_dir must be specified for VOC format")
-        if isinstance(train_dirs, str):
-            train_dirs = [train_dirs]
-
-        val_dirs = voc_cfg.get("val_dirs")
-        if isinstance(val_dirs, str):
-            val_dirs = [val_dirs]
-
-        fall_classes = voc_cfg.get("fall_classes", ["fall"])
-        normal_classes = voc_cfg.get("normal_classes")
-
-        if rank == 0:
-            print(f"Loading training data from VOC directories: {train_dirs}")
-            print(f"  Fall classes: {fall_classes}")
-            print(f"  Normal classes: {normal_classes or '<all others>'}")
-
-        # Cache directory for samples
-        cache_dir = cfg.get("cache", {}).get("dir", "outputs/cache")
-
-        train_dataset = VOCFallDataset(
-            data_dirs=train_dirs,
-            split="train",
-            transform=train_transform,
-            target_size=input_cfg.get("target_size", 96),
-            use_letterbox=input_cfg.get("use_letterbox", True),
-            fill_value=input_cfg.get("fill_value", 114),
-            fall_classes=fall_classes,
-            normal_classes=normal_classes,
-            shrink_max=crop_cfg.get("shrink_max", 3),
-            expand_max=crop_cfg.get("expand_max", 25),
-            cache_dir=cache_dir,
-        )
-
-        val_dataset = None
-        if val_dirs:
-            if rank == 0:
-                print(f"Loading validation data from VOC directories: {val_dirs}")
-            val_dataset = VOCFallDataset(
-                data_dirs=val_dirs,
-                split="val",
-                transform=None,  # No augmentation for validation
-                target_size=input_cfg.get("target_size", 96),
-                use_letterbox=input_cfg.get("use_letterbox", True),
-                fill_value=input_cfg.get("fill_value", 114),
-                fall_classes=fall_classes,
-                normal_classes=normal_classes,
-                shrink_max=crop_cfg.get("shrink_max", 3),
-                expand_max=crop_cfg.get("expand_max", 25),
-                cache_dir=cache_dir,
-            )
+        train_dataset, val_dataset = _create_voc_datasets(cfg, rank)
     else:
-        # COCO format
-        train_coco_json = data_cfg.get("train_coco_json")
-        val_coco_json = data_cfg.get("val_coco_json")
-        image_dir = data_cfg.get("image_dir")
+        train_dataset, val_dataset = _create_coco_datasets(cfg, rank)
 
-        if not train_coco_json or not image_dir:
-            raise ValueError("train_coco_json and image_dir must be specified for COCO format")
-
-        if rank == 0:
-            print(f"Loading training data from: {train_coco_json}")
-
-        train_dataset = CocoFallDataset(
-            image_dir=image_dir,
-            coco_json=train_coco_json,
-            transform=train_transform,
-            target_size=input_cfg.get("target_size", 96),
-            use_letterbox=input_cfg.get("use_letterbox", True),
-            fill_value=input_cfg.get("fill_value", 114),
-            person_category_id=cfg.get("coco", {}).get("person_category_id", 1),
-            fall_category_id=cfg.get("coco", {}).get("fall_category_id", 1),
-            shrink_max=crop_cfg.get("shrink_max", 3),
-            expand_max=crop_cfg.get("expand_max", 25),
-        )
-
-        val_dataset = None
-        if val_coco_json and os.path.exists(val_coco_json):
-            if rank == 0:
-                print(f"Loading validation data from: {val_coco_json}")
-            val_dataset = CocoFallDataset(
-                image_dir=image_dir,
-                coco_json=val_coco_json,
-                transform=None,
-                target_size=input_cfg.get("target_size", 96),
-                use_letterbox=input_cfg.get("use_letterbox", True),
-                fill_value=input_cfg.get("fill_value", 114),
-                person_category_id=cfg.get("coco", {}).get("person_category_id", 1),
-                fall_category_id=cfg.get("coco", {}).get("fall_category_id", 1),
-                shrink_max=crop_cfg.get("shrink_max", 3),
-                expand_max=crop_cfg.get("expand_max", 25),
-            )
-
-    if rank == 0:
-        print(f"Train samples: {len(train_dataset)}")
-        labels = [s[2] for s in train_dataset.samples]
-        n_fall = sum(labels)
-        n_normal = len(labels) - n_fall
-        print(f"  Fall: {n_fall}, Normal: {n_normal}")
-
-        if val_dataset:
-            print(f"Val samples: {len(val_dataset)}")
-            labels = [s[2] for s in val_dataset.samples]
-            n_fall = sum(labels)
-            n_normal = len(labels) - n_fall
-            print(f"  Fall: {n_fall}, Normal: {n_normal}")
+    _print_dataset_stats(train_dataset, "Train", rank)
+    if val_dataset:
+        _print_dataset_stats(val_dataset, "Val", rank)
 
     return train_dataset, val_dataset
 
@@ -174,20 +168,13 @@ def create_model(cfg: Dict[str, Any], device: torch.device, ddp: bool, local_ran
     return model
 
 
-def create_optimizer_scheduler(
-    cfg: Dict[str, Any], model: nn.Module, train_loader: DataLoader, rank: int
-):
-    """Create optimizer and learning rate scheduler."""
+def _create_base_scheduler(optimizer, cfg: Dict[str, Any], train_loader: DataLoader):
+    """Create base learning rate scheduler."""
     lr_cfg = cfg.get("lr_scheduler", {})
-
-    lr = cfg.get("lr", 0.001)
-    weight_decay = cfg.get("weight_decay", 0.0001)
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
-
-    # Base scheduler
     scheduler_type = lr_cfg.get("type", "plateau")
+
     if scheduler_type == "plateau":
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        return torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer,
             mode="max",
             factor=lr_cfg.get("factor", 0.5),
@@ -195,38 +182,57 @@ def create_optimizer_scheduler(
             min_lr=lr_cfg.get("min_lr", 1e-5),
         )
     elif scheduler_type == "cosine":
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        return torch.optim.lr_scheduler.CosineAnnealingLR(
             optimizer,
             T_max=lr_cfg.get("T_max", cfg.get("epochs", 100)),
             eta_min=lr_cfg.get("min_lr", 1e-5),
         )
     elif scheduler_type == "step":
-        scheduler = torch.optim.lr_scheduler.StepLR(
+        return torch.optim.lr_scheduler.StepLR(
             optimizer,
             step_size=lr_cfg.get("step_size", 30),
             gamma=lr_cfg.get("gamma", 0.1),
         )
-    else:
-        scheduler = None
+    return None
 
-    # Wrap with warmup
+
+def _apply_warmup(scheduler, optimizer, cfg: Dict[str, Any], train_loader: DataLoader, rank: int):
+    """Wrap scheduler with warmup if enabled."""
+    lr_cfg = cfg.get("lr_scheduler", {})
     warmup_cfg = lr_cfg.get("warmup", {})
-    if warmup_cfg.get("enabled", False):
-        warmup_epochs = warmup_cfg.get("epochs", 5)
-        warmup_steps = warmup_epochs * len(train_loader)
-        scheduler = WarmupScheduler(
-            optimizer,
-            scheduler,
-            warmup_steps=warmup_steps,
-            warmup_strategy=warmup_cfg.get("strategy", "linear"),
-            warmup_init_lr=warmup_cfg.get("init_lr", 1e-5),
+
+    if not warmup_cfg.get("enabled", False):
+        return scheduler
+
+    warmup_epochs = warmup_cfg.get("epochs", 5)
+    warmup_steps = warmup_epochs * len(train_loader)
+
+    if rank == 0:
+        print(
+            f"Warmup enabled: {warmup_epochs} epochs = {warmup_steps} steps, "
+            f"strategy={warmup_cfg.get('strategy', 'linear')}, "
+            f"init_lr={warmup_cfg.get('init_lr', 1e-5)}"
         )
-        if rank == 0:
-            print(
-                f"Warmup enabled: {warmup_epochs} epochs = {warmup_steps} steps, "
-                f"strategy={warmup_cfg.get('strategy', 'linear')}, "
-                f"init_lr={warmup_cfg.get('init_lr', 1e-5)}"
-            )
+
+    return WarmupScheduler(
+        optimizer,
+        scheduler,
+        warmup_steps=warmup_steps,
+        warmup_strategy=warmup_cfg.get("strategy", "linear"),
+        warmup_init_lr=warmup_cfg.get("init_lr", 1e-5),
+    )
+
+
+def create_optimizer_scheduler(
+    cfg: Dict[str, Any], model: nn.Module, train_loader: DataLoader, rank: int
+):
+    """Create optimizer and learning rate scheduler."""
+    lr = cfg.get("lr", 0.001)
+    weight_decay = cfg.get("weight_decay", 0.0001)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
+
+    scheduler = _create_base_scheduler(optimizer, cfg, train_loader)
+    scheduler = _apply_warmup(scheduler, optimizer, cfg, train_loader, rank)
 
     return optimizer, scheduler
 
@@ -310,6 +316,102 @@ def eval_epoch(
     return total_loss, total_correct, total_samples
 
 
+def _aggregate_metrics(
+    t_loss: float, t_correct: int, t_samples: int,
+    v_loss: float, v_correct: int, v_samples: int,
+    device: torch.device, ddp: bool
+) -> tuple:
+    """Aggregate metrics across DDP processes."""
+    if not ddp:
+        return t_loss, t_correct, t_samples, v_loss, v_correct, v_samples
+
+    metrics = torch.tensor(
+        [t_loss, t_correct, t_samples, v_loss, v_correct, v_samples],
+        device=device, dtype=torch.float64
+    )
+    dist.all_reduce(metrics, op=dist.ReduceOp.SUM)
+    return tuple(metrics.tolist())
+
+
+def _update_scheduler_step(scheduler, scheduler_type: str, val_loader, v_acc: float):
+    """Update learning rate scheduler for one step."""
+    if scheduler is None:
+        return
+
+    if isinstance(scheduler, WarmupScheduler):
+        if val_loader and scheduler.scheduler is not None:
+            scheduler.step(v_acc)
+        else:
+            scheduler.step()
+    elif scheduler_type == "plateau" and val_loader:
+        scheduler.step(v_acc)
+    else:
+        scheduler.step()
+
+
+def _format_epoch_log(
+    epoch: int, epochs: int, t_loss: float, t_acc: float,
+    v_loss: float, v_acc: float, lr: float, remaining: str,
+    val_loader
+) -> str:
+    """Format epoch log message."""
+    msg = f"Epoch {epoch}/{epochs}  train_loss={t_loss:.4f} train_acc={t_acc:.4f}"
+    if val_loader:
+        msg += f"  val_loss={v_loss:.4f} val_acc={v_acc:.4f}"
+    msg += f"  lr={lr:.6f}  remain={remaining}"
+    return msg
+
+
+def _save_model_checkpoint(model: nn.Module, save_path: str, ddp: bool):
+    """Save model checkpoint."""
+    state = model.module.state_dict() if ddp else model.state_dict()
+    torch.save(state, save_path)
+
+
+def _handle_early_stopping(
+    v_acc: float, best_acc: float, patience_counter: int,
+    cfg: Dict[str, Any], model: nn.Module, ddp: bool,
+    epoch: int, epoch_log_interval: int
+) -> tuple:
+    """Handle early stopping and model saving.
+
+    Returns:
+        (new_best_acc, new_patience_counter, should_stop)
+    """
+    early_cfg = cfg.get("early_stopping", {})
+    output_cfg = cfg.get("output", {})
+    min_delta = early_cfg.get("min_delta", 0.001)
+    patience = early_cfg.get("patience", 20)
+
+    if v_acc > best_acc + min_delta:
+        patience_counter = 0
+        best_acc = v_acc
+        save_path = os.path.join(output_cfg.get("dir", "outputs/simple_classifier"), "best.pt")
+        _save_model_checkpoint(model, save_path, ddp)
+        if epoch % epoch_log_interval == 0:
+            print(f"  -> Saved best model (val_acc={v_acc:.4f})")
+    elif v_acc <= best_acc:
+        patience_counter += 1
+        if patience_counter >= patience:
+            print(f"Early stopping at epoch {epoch}")
+            return best_acc, patience_counter, True
+
+    return best_acc, patience_counter, False
+
+
+def _handle_no_validation_save(
+    cfg: Dict[str, Any], model: nn.Module, ddp: bool, epoch: int
+):
+    """Save checkpoint when no validation is used."""
+    output_cfg = cfg.get("output", {})
+    if epoch % output_cfg.get("save_every", 10) == 0:
+        save_path = os.path.join(
+            output_cfg.get("dir", "outputs/simple_classifier"), f"epoch_{epoch}.pt"
+        )
+        _save_model_checkpoint(model, save_path, ddp)
+        print(f"  -> Saved checkpoint (epoch={epoch})")
+
+
 def train_loop(
     cfg: Dict[str, Any],
     model: nn.Module,
@@ -325,15 +427,13 @@ def train_loop(
     criterion = nn.CrossEntropyLoss()
     epochs = cfg.get("epochs", 100)
     log_cfg = cfg.get("log", {})
-    epoch_log_interval = log_cfg.get("epoch_log_interval", 1)
-    early_cfg = cfg.get("early_stopping", {})
-    output_cfg = cfg.get("output", {})
     lr_cfg = cfg.get("lr_scheduler", {})
     scheduler_type = lr_cfg.get("type", "plateau")
 
     best_acc = 0.0
     patience_counter = 0
     epoch_times = []
+    epoch_log_interval = log_cfg.get("epoch_log_interval", 1)
 
     for epoch in range(1, epochs + 1):
         epoch_start = time.time()
@@ -343,13 +443,8 @@ def train_loop(
 
         # Train
         t_loss, t_correct, t_samples = train_epoch(
-            model,
-            train_loader,
-            optimizer,
-            criterion,
-            device,
-            epoch=epoch,
-            rank=rank,
+            model, train_loader, optimizer, criterion, device,
+            epoch=epoch, rank=rank,
             log_interval=log_cfg.get("batch_log_interval", 50),
             scheduler=scheduler,
         )
@@ -360,15 +455,9 @@ def train_loop(
         else:
             v_loss, v_correct, v_samples = 0.0, 0, 0
 
-        # Aggregate metrics
-        if ddp:
-            metrics = torch.tensor(
-                [t_loss, t_correct, t_samples, v_loss, v_correct, v_samples],
-                device=device,
-                dtype=torch.float64,
-            )
-            dist.all_reduce(metrics, op=dist.ReduceOp.SUM)
-            t_loss, t_correct, t_samples, v_loss, v_correct, v_samples = metrics.tolist()
+        # Aggregate and calculate metrics
+        metrics = _aggregate_metrics(t_loss, t_correct, t_samples, v_loss, v_correct, v_samples, device, ddp)
+        t_loss, t_correct, t_samples, v_loss, v_correct, v_samples = metrics
 
         t_loss_avg = t_loss / max(1, t_samples)
         t_acc = t_correct / max(1, t_samples)
@@ -379,73 +468,107 @@ def train_loop(
         epoch_duration = time.time() - epoch_start
         epoch_times.append(epoch_duration)
         avg_epoch_time = sum(epoch_times[-10:]) / min(len(epoch_times), 10)
-        remaining_time = avg_epoch_time * (epochs - epoch)
-        remaining_str = format_time_remaining(int(remaining_time))
+        remaining_str = format_time_remaining(int(avg_epoch_time * (epochs - epoch)))
 
-        # Update learning rate (all ranks)
-        if scheduler is not None:
-            if isinstance(scheduler, WarmupScheduler):
-                if val_loader and scheduler.scheduler is not None:
-                    scheduler.step(v_acc)
-                else:
-                    scheduler.step()
-            elif scheduler_type == "plateau" and val_loader:
-                scheduler.step(v_acc)
-            else:
-                scheduler.step()
-
-        current_lr = optimizer.param_groups[0]["lr"]
+        # Update scheduler (all ranks)
+        _update_scheduler_step(scheduler, scheduler_type, val_loader, v_acc)
 
         if rank == 0:
-
+            current_lr = optimizer.param_groups[0]["lr"]
             if epoch % epoch_log_interval == 0 or epoch == epochs:
-                if val_loader:
-                    print(
-                        f"Epoch {epoch}/{epochs}  "
-                        f"train_loss={t_loss_avg:.4f} train_acc={t_acc:.4f}  "
-                        f"val_loss={v_loss_avg:.4f} val_acc={v_acc:.4f}  "
-                        f"lr={current_lr:.6f}  remain={remaining_str}"
-                    )
-                else:
-                    print(
-                        f"Epoch {epoch}/{epochs}  "
-                        f"train_loss={t_loss_avg:.4f} train_acc={t_acc:.4f}  "
-                        f"lr={current_lr:.6f}  remain={remaining_str}"
-                    )
+                print(_format_epoch_log(epoch, epochs, t_loss_avg, t_acc, v_loss_avg, v_acc, current_lr, remaining_str, val_loader))
 
-            # Early stopping & save model (rank 0 only)
-            if early_cfg.get("enabled", True) and val_loader:
-                if v_acc > best_acc + early_cfg.get("min_delta", 0.001):
-                    # Significant improvement: reset counter, save model
-                    patience_counter = 0
-                    best_acc = v_acc
-                    save_path = os.path.join(
-                        output_cfg.get("dir", "outputs/simple_classifier"), "best.pt"
-                    )
-                    torch.save(
-                        model.module.state_dict() if ddp else model.state_dict(), save_path
-                    )
-                    if epoch % epoch_log_interval == 0:
-                        print(f"  -> Saved best model (val_acc={v_acc:.4f})")
-                elif v_acc <= best_acc:
-                    # No improvement: increment counter
-                    patience_counter += 1
-                    if patience_counter >= early_cfg.get("patience", 20):
-                        print(f"Early stopping at epoch {epoch}")
-                # else: small improvement (within min_delta), do nothing
-            elif not val_loader and epoch % output_cfg.get("save_every", 10) == 0:
-                save_path = os.path.join(
-                    output_cfg.get("dir", "outputs/simple_classifier"), f"epoch_{epoch}.pt"
+            if val_loader:
+                best_acc, patience_counter, should_stop = _handle_early_stopping(
+                    v_acc, best_acc, patience_counter, cfg, model, ddp, epoch, epoch_log_interval
                 )
-                torch.save(
-                    model.module.state_dict() if ddp else model.state_dict(), save_path
-                )
-                print(f"  -> Saved checkpoint (epoch={epoch})")
-
-        if should_stop_early(cfg, rank, device, ddp, patience_counter):
-            break
+                if should_stop:
+                    break
+            else:
+                _handle_no_validation_save(cfg, model, ddp, epoch)
 
     return best_acc if val_loader else t_acc
+
+
+def create_data_loaders(train_dataset, val_dataset, cfg: Dict[str, Any], world_size: int, rank: int, ddp: bool):
+    """Create training and validation data loaders."""
+    batch_size = cfg.get("batch_size", 64)
+    num_workers = cfg.get("num_workers", 4)
+
+    train_sampler = (
+        DistributedSampler(train_dataset, num_replicas=world_size, rank=rank, shuffle=True)
+        if ddp else None
+    )
+
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=batch_size,
+        sampler=train_sampler,
+        shuffle=(train_sampler is None),
+        num_workers=num_workers,
+        pin_memory=True,
+        drop_last=True,
+        persistent_workers=num_workers > 0,
+    )
+
+    val_loader = None
+    if val_dataset:
+        val_sampler = (
+            DistributedSampler(val_dataset, num_replicas=world_size, rank=rank, shuffle=False)
+            if ddp else None
+        )
+        val_loader = DataLoader(
+            val_dataset,
+            batch_size=batch_size,
+            sampler=val_sampler,
+            shuffle=False,
+            num_workers=num_workers,
+            pin_memory=True,
+        )
+
+    return train_loader, val_loader
+
+
+def _test_sample_loading(dataset, rank: int):
+    """Test loading a single sample."""
+    if rank != 0:
+        return
+    print("  Testing dataset __getitem__...")
+    try:
+        sample_img, sample_label = dataset[0]
+        print(f"  Sample loaded: shape={sample_img.shape}, label={sample_label}")
+    except Exception as e:
+        print(f"  ERROR: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
+
+
+def _test_first_batch(loader, rank: int):
+    """Test loading first batch."""
+    if rank != 0:
+        return
+    print("Testing first batch loading...")
+    try:
+        first_batch = next(iter(loader))
+        print(f"First batch loaded: images={first_batch[0].shape}, labels={first_batch[1].shape}")
+    except Exception as e:
+        print(f"ERROR: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
+
+
+def _setup_output_dir(cfg: Dict[str, Any], rank: int, ddp: bool, local_rank: int):
+    """Setup output directory and save config."""
+    if rank == 0:
+        output_dir = cfg.get("output", {}).get("dir", "outputs/simple_classifier")
+        os.makedirs(output_dir, exist_ok=True)
+        with open(os.path.join(output_dir, "config_used.yaml"), "w") as f:
+            yaml.dump(cfg, f)
+
+    if ddp:
+        dist.barrier(device_ids=[local_rank])
 
 
 def main():
@@ -459,16 +582,8 @@ def main():
     # Setup seed
     setup_seed(cfg.get("seed"), rank)
 
-    # Create output directory
-    if rank == 0:
-        output_dir = cfg.get("output", {}).get("dir", "outputs/simple_classifier")
-        os.makedirs(output_dir, exist_ok=True)
-
-        with open(os.path.join(output_dir, "config_used.yaml"), "w") as f:
-            yaml.dump(cfg, f)
-
-    if ddp:
-        dist.barrier(device_ids=[local_rank])  # Ensure all processes have created output directory
+    # Setup output directory
+    _setup_output_dir(cfg, rank, ddp, local_rank)
 
     # Create datasets
     if rank == 0:
@@ -479,83 +594,29 @@ def main():
 
     # Create data loaders
     if rank == 0:
-        print("Creating data loaders...")
-        print(f"  batch_size={cfg.get('batch_size', 64)}, num_workers={cfg.get('num_workers', 4)}")
-    train_sampler = (
-        DistributedSampler(train_dataset, num_replicas=world_size, rank=rank, shuffle=True)
-        if ddp
-        else None
-    )
+        print(f"Creating data loaders (batch={cfg.get('batch_size', 64)}, workers={cfg.get('num_workers', 4)})...")
+    train_loader, val_loader = create_data_loaders(train_dataset, val_dataset, cfg, world_size, rank, ddp)
 
-    # Test single sample loading before creating DataLoader
-    if rank == 0:
-        print("  Testing dataset __getitem__...")
-        try:
-            sample_img, sample_label = train_dataset[0]
-            print(f"  Sample loaded: shape={sample_img.shape}, label={sample_label}")
-        except Exception as e:
-            print(f"  ERROR loading sample: {e}")
-            traceback.print_exc()
-            raise
-
-    if rank == 0:
-        print("  Creating train DataLoader...")
-
-    num_workers = cfg.get("num_workers", 4)
-    train_loader = DataLoader(
-        train_dataset,
-        batch_size=cfg.get("batch_size", 64),
-        sampler=train_sampler,
-        shuffle=(train_sampler is None),
-        num_workers=num_workers,
-        pin_memory=True,
-        drop_last=True,
-        persistent_workers=num_workers > 0,
-    )
-
-    val_loader = None
-    if val_dataset:
-        val_sampler = (
-            DistributedSampler(val_dataset, num_replicas=world_size, rank=rank, shuffle=False)
-            if ddp
-            else None
-        )
-        val_loader = DataLoader(
-            val_dataset,
-            batch_size=cfg.get("batch_size", 64),
-            sampler=val_sampler,
-            shuffle=False,
-            num_workers=cfg.get("num_workers", 4),
-            pin_memory=True,
-        )
+    # Test sample loading
+    _test_sample_loading(train_dataset, rank)
 
     # Create model
     if rank == 0:
         print("Creating model...")
     model = create_model(cfg, device, ddp, local_rank)
-    if rank == 0:
-        print("Model created.")
 
     # Create optimizer and scheduler
     if rank == 0:
         print("Creating optimizer and scheduler...")
     optimizer, scheduler = create_optimizer_scheduler(cfg, model, train_loader, rank)
     if rank == 0:
-        print("Optimizer and scheduler created.")
         print(f"Train loader has {len(train_loader)} batches")
-
-    # Training loop
-    if rank == 0:
         print(f"\nStarting training: {cfg.get('epochs', 100)} epochs")
-        print("="*50)
-        print("Testing first batch loading...")
-        try:
-            first_batch = next(iter(train_loader))
-            print(f"First batch loaded: images={first_batch[0].shape}, labels={first_batch[1].shape}")
-        except Exception as e:
-            print(f"ERROR loading first batch: {e}")
-            traceback.print_exc()
-            raise
+        print("=" * 50)
+
+    # Test first batch
+    _test_first_batch(train_loader, rank)
+    if rank == 0:
         print("Entering training loop...")
     final_acc = train_loop(
         cfg, model, train_loader, val_loader, optimizer, scheduler, device, ddp, rank
