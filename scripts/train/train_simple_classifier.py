@@ -157,7 +157,7 @@ def create_datasets(cfg: Dict[str, Any], rank: int):
     return train_dataset, val_dataset
 
 
-def create_model(cfg: Dict[str, Any], device: torch.device, ddp: bool, local_rank: int) -> nn.Module:
+def create_model(cfg: Dict[str, Any], device: torch.device, ddp: bool, local_rank: int, rank: int = 0) -> nn.Module:
     """Create and setup model."""
     model_cfg = cfg.get("model", {})
     ddp_cfg = cfg.get("ddp", {})
@@ -165,6 +165,19 @@ def create_model(cfg: Dict[str, Any], device: torch.device, ddp: bool, local_ran
     dropout = model_cfg.get("dropout", 0.3)
     fall_class_idx = model_cfg.get("fall_class_idx", 1)
     model = SimpleFallClassifier(dropout=dropout, fall_class_idx=fall_class_idx).to(device)
+
+    # Apply torch.compile for PyTorch 2.0+ (before DDP wrapping)
+    compile_cfg = cfg.get("compile", {})
+    if compile_cfg.get("enabled", False) and hasattr(torch, "compile"):
+        if rank == 0:
+            print(f"[{_timestamp()}] Compiling model with torch.compile (mode={compile_cfg.get('mode', 'default')})...")
+        try:
+            model = torch.compile(model, mode=compile_cfg.get("mode", "default"))
+            if rank == 0:
+                print(f"[{_timestamp()}] Model compiled successfully")
+        except Exception as e:
+            if rank == 0:
+                print(f"[{_timestamp()}] Warning: torch.compile failed ({e}), using uncompiled model")
 
     if ddp:
         find_unused = ddp_cfg.get("find_unused_parameters", False)
@@ -484,8 +497,11 @@ def train_loop(
         if rank == 0:
             current_lr = optimizer.param_groups[0]["lr"]
             if epoch % epoch_log_interval == 0 or epoch == epochs:
-                print(_format_epoch_log(epoch, epochs, t_loss_avg, t_acc, v_loss_avg, v_acc, current_lr, remaining_str, val_loader),
-                      flush=True)
+                print(
+                    _format_epoch_log(epoch, epochs, t_loss_avg, t_acc, v_loss_avg,
+                                      v_acc, current_lr, remaining_str, val_loader),
+                    flush=True
+                )
 
         if val_loader:
             best_acc, patience_counter, should_stop = _handle_early_stopping(
@@ -552,7 +568,6 @@ def _test_sample_loading(dataset, rank: int):
         print(f"  Sample loaded: shape={sample_img.shape}, label={sample_label}")
     except Exception as e:
         print(f"  ERROR: {e}")
-        import traceback
         traceback.print_exc()
         raise
 
@@ -567,7 +582,6 @@ def _test_first_batch(loader, rank: int):
         print(f"First batch loaded: images={first_batch[0].shape}, labels={first_batch[1].shape}")
     except Exception as e:
         print(f"ERROR: {e}")
-        import traceback
         traceback.print_exc()
         raise
 
@@ -616,7 +630,7 @@ def main():
     # Create model
     if rank == 0:
         print("Creating model...")
-    model = create_model(cfg, device, ddp, local_rank)
+    model = create_model(cfg, device, ddp, local_rank, rank)
 
     # Create optimizer and scheduler
     if rank == 0:

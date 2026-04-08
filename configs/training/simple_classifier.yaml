@@ -121,6 +121,11 @@ output:
   save_best: true
   save_every: 10  # 每N轮保存检查点 (仅无验证集时有效)
 
+# torch.compile 配置 (PyTorch 2.0+)
+compile:
+  enabled: true  # 是否启用 torch.compile
+  mode: "default"  # 编译模式: "default", "reduce-overhead", "max-autotune"
+
 # DDP配置
 ddp:
   backend: "nccl"

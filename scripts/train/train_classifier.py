@@ -225,6 +225,20 @@ def main():
 
     # Create model
     model = FallClassifier(dropout=dropout).to(device)
+
+    # Apply torch.compile for PyTorch 2.0+ (before DDP wrapping)
+    compile_cfg = cfg.get("compile", {})
+    if compile_cfg.get("enabled", False) and hasattr(torch, "compile"):
+        if rank == 0:
+            print(f"Compiling model with torch.compile (mode={compile_cfg.get('mode', 'default')})...")
+        try:
+            model = torch.compile(model, mode=compile_cfg.get("mode", "default"))
+            if rank == 0:
+                print("Model compiled successfully")
+        except Exception as e:
+            if rank == 0:
+                print(f"Warning: torch.compile failed ({e}), using uncompiled model")
+
     if ddp:
         find_unused = cfg.get("ddp", {}).get("find_unused_parameters", False)
         model = DDP(
