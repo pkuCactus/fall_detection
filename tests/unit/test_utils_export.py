@@ -92,7 +92,7 @@ class TestExportClassifierOnnx:
 
     @patch("fall_detection.utils.export.torch.onnx.export")
     @patch("fall_detection.utils.export.FallClassifier")
-    def test_export_classifier_custom_path(self, mock_classifier_class, mock_export):
+    def test_export_classifier_custom_path(self, mock_classifier_class, mock_export, capsys):
         """Export should use custom path when specified."""
         mock_model = MagicMock()
         mock_classifier_class.return_value = mock_model
