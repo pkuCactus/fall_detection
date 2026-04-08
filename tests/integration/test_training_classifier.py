@@ -487,6 +487,23 @@ class TestClassifierModelIntegration:
         for param in model.parameters():
             assert param.device.type == "cpu"
 
+    @pytest.mark.skipif(not hasattr(torch, "compile"), reason="torch.compile not available")
+    def test_model_with_torch_compile(self):
+        """Test FallClassifier with torch.compile."""
+        model = FallClassifier()
+
+        # Compile the model
+        compiled_model = torch.compile(model)
+        assert isinstance(compiled_model, nn.Module)
+
+        # Test forward pass with compiled model
+        roi = torch.randn(2, 3, 96, 96)
+        kpts = torch.randn(2, 17, 3)
+        motion = torch.randn(2, 8)
+
+        output = compiled_model(roi, kpts, motion)
+        assert output.shape == (2, 1)
+
 
 class TestTrainingLoopComponents:
     """Test training loop components."""

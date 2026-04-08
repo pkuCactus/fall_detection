@@ -177,7 +177,7 @@ class TestModelCreation:
         }
 
         device = torch.device("cpu")
-        model = module.create_model(cfg, device, ddp=False, local_rank=0)
+        model = module.create_model(cfg, device, ddp=False, local_rank=0, rank=0)
 
         assert isinstance(model, nn.Module)
         # Check it's SimpleFallClassifier
@@ -203,7 +203,7 @@ class TestModelCreation:
 
         # Mock DDP to avoid actual distributed setup
         mock_ddp.return_value = nn.Linear(10, 2)  # Dummy wrapped model
-        model = module.create_model(cfg, device, ddp=True, local_rank=0)
+        model = module.create_model(cfg, device, ddp=True, local_rank=0, rank=0)
 
         # Verify DDP was called
         mock_ddp.assert_called_once()
@@ -220,9 +220,51 @@ class TestModelCreation:
         }
 
         device = torch.device("cpu")
-        model = module.create_model(cfg, device, ddp=False, local_rank=0)
+        model = module.create_model(cfg, device, ddp=False, local_rank=0, rank=0)
 
         # Check dropout layer exists with correct value
+        from fall_detection.models.simple_classifier import SimpleFallClassifier
+        assert isinstance(model, SimpleFallClassifier)
+
+    @pytest.mark.skipif(not hasattr(torch, "compile"), reason="torch.compile not available")
+    def test_create_model_with_compile(self):
+        """Test model creation with torch.compile enabled."""
+        module = load_train_simple_classifier_module()
+
+        cfg = {
+            "model": {
+                "dropout": 0.3,
+                "fall_class_idx": 1
+            },
+            "compile": {
+                "enabled": True,
+                "mode": "default"
+            }
+        }
+
+        device = torch.device("cpu")
+        model = module.create_model(cfg, device, ddp=False, local_rank=0, rank=0)
+
+        # Model should be compiled if torch.compile is available
+        assert isinstance(model, nn.Module)
+
+    def test_create_model_with_compile_disabled(self):
+        """Test model creation with torch.compile disabled."""
+        module = load_train_simple_classifier_module()
+
+        cfg = {
+            "model": {
+                "dropout": 0.3,
+                "fall_class_idx": 1
+            },
+            "compile": {
+                "enabled": False
+            }
+        }
+
+        device = torch.device("cpu")
+        model = module.create_model(cfg, device, ddp=False, local_rank=0, rank=0)
+
         from fall_detection.models.simple_classifier import SimpleFallClassifier
         assert isinstance(model, SimpleFallClassifier)
 
