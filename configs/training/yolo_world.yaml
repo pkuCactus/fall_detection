@@ -53,3 +53,8 @@ verbose: true  # 详细输出
 
 # 设备配置
 device: 0  # 设备 (cuda=自动选择, 0=GPU0, cpu=CPU)
+
+# torch.compile 配置 (PyTorch 2.0+)
+compile:
+  enabled: true  # 是否启用 torch.compile
+  mode: "reduce-overhead"  # 编译模式: "default", "reduce-overhead", "max-autotune"

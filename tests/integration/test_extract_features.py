@@ -16,7 +16,7 @@ sys.path.insert(0, "src")
 def load_extract_features_module():
     """Helper to load the extract_features module."""
     spec = importlib.util.spec_from_file_location(
-        "extract_features", "scripts/train/extract_features.py"
+        "extract_features", "scripts/tools/extract_features.py"
     )
     module = importlib.util.module_from_spec(spec)
     sys.modules["extract_features"] = module
@@ -515,7 +515,7 @@ class TestMainFunction:
         """Test main function argument parsing structure."""
         # Verify the argument parser structure by checking help output
         result = subprocess.run(
-            [sys.executable, "scripts/train/extract_features.py", "--help"],
+            [sys.executable, "scripts/tools/extract_features.py", "--help"],
             capture_output=True,
             text=True
         )
@@ -534,7 +534,7 @@ class TestMainFunction:
 
         # Verify argument parser is set up correctly
         result = subprocess.run(
-            [sys.executable, "scripts/train/extract_features.py", "--help"],
+            [sys.executable, "scripts/tools/extract_features.py", "--help"],
             capture_output=True,
             text=True
         )
@@ -547,7 +547,7 @@ class TestIntegrationWithFileSystem:
     def test_script_help_output(self):
         """Test that script produces help output."""
         result = subprocess.run(
-            [sys.executable, "scripts/train/extract_features.py", "--help"],
+            [sys.executable, "scripts/tools/extract_features.py", "--help"],
             capture_output=True,
             text=True
         )

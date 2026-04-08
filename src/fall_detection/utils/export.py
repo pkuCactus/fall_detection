@@ -19,12 +19,6 @@ def export_classifier_onnx(out_path: str = "fall_classifier.onnx"):
         out_path,
         input_names=["roi", "kpts", "motion"],
         output_names=["prob"],
-        dynamic_axes={
-            "roi": {0: "batch_size"},
-            "kpts": {0: "batch_size"},
-            "motion": {0: "batch_size"},
-            "prob": {0: "batch_size"},
-        },
         opset_version=11,
     )
     print(f"ONNX exported to {out_path}")

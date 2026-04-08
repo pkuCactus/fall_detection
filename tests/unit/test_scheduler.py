@@ -80,6 +80,7 @@ class TestLinearWarmupStrategy:
 
         learning_rates = []
         for _ in range(10):
+            optimizer.step()  # Simulate optimizer step
             scheduler.step_batch()
             learning_rates.append(optimizer.param_groups[0]['lr'])
 
@@ -148,6 +149,7 @@ class TestConstantWarmupStrategy:
 
         # Warmup phase
         for _ in range(5):
+            optimizer.step()  # Simulate optimizer step
             scheduler.step_batch()
             assert optimizer.param_groups[0]['lr'] == 1e-4
 
@@ -173,6 +175,7 @@ class TestWarmupCompletion:
 
         # During warmup (steps 0-4)
         for _ in range(5):
+            optimizer.step()  # Simulate optimizer step
             assert scheduler.warmup_finished is False
             scheduler.step_batch()
 
@@ -193,6 +196,7 @@ class TestWarmupCompletion:
 
         # Run through warmup (steps 0-4)
         for _ in range(5):
+            optimizer.step()  # Simulate optimizer step
             scheduler.step_batch()
 
         # Step 5: transition to base_lr
@@ -245,6 +249,7 @@ class TestStepMethod:
         scheduler.warmup_finished = True
 
         initial_lr = optimizer.param_groups[0]['lr']
+        optimizer.step()  # Simulate optimizer step
         scheduler.step()
         assert optimizer.param_groups[0]['lr'] == initial_lr * 0.1
 
@@ -295,6 +300,7 @@ class TestStepMethod:
 
         # Complete warmup
         for _ in range(6):
+            optimizer.step()  # Simulate optimizer step
             scheduler.step_batch()
 
         # Now step() should affect LR
@@ -435,6 +441,7 @@ class TestMultipleParamGroups:
         )
 
         for step in range(5):
+            optimizer.step()  # Simulate optimizer step
             scheduler.step_batch()
             alpha = step / 5
             expected_lr1 = 0.0 + alpha * 0.1
@@ -458,6 +465,7 @@ class TestMultipleParamGroups:
         )
 
         for _ in range(5):
+            optimizer.step()  # Simulate optimizer step
             scheduler.step_batch()
             lrs = scheduler.get_last_lr()
             assert lrs[0] == 1e-4
@@ -485,6 +493,7 @@ class TestMultipleParamGroups:
 
         # Complete warmup
         for _ in range(6):
+            optimizer.step()  # Simulate optimizer step
             scheduler.step_batch()
 
         # Apply step
@@ -511,6 +520,7 @@ class TestReduceLROnPlateauIntegration:
 
         # Complete warmup
         for _ in range(6):
+            optimizer.step()  # Simulate optimizer step
             scheduler.step_batch()
 
         assert optimizer.param_groups[0]['lr'] == 0.1
@@ -558,6 +568,7 @@ class TestReduceLROnPlateauIntegration:
 
         # Complete warmup (need 4 steps to finish: steps 0,1,2 are warmup, step 3 finishes)
         for _ in range(4):
+            optimizer.step()  # Simulate optimizer step
             scheduler.step_batch()
 
         # With patience=1, need 2 consecutive worse metrics
@@ -595,6 +606,7 @@ class TestCosineAnnealingIntegration:
         # Cosine annealing should decrease LR
         initial_lr = optimizer.param_groups[0]['lr']
         for _ in range(5):
+            optimizer.step()  # Simulate optimizer step
             scheduler.step()
             assert optimizer.param_groups[0]['lr'] <= initial_lr
             initial_lr = optimizer.param_groups[0]['lr']

@@ -10,13 +10,6 @@ test: images/test
 
 # 类别定义 (8种姿态)
 names:
-  0: stand
-  1: sit
-  2: squat
-  3: bend
-  4: half_up
-  5: kneel
-  6: crawl
-  7: fall_down
+  0: person
 
-nc: 8
+nc: 1  # 类别数量 (这里是1类：person)

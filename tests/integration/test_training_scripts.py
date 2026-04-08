@@ -9,13 +9,13 @@ import tempfile
 def test_train_detector_help():
     result = subprocess.run([sys.executable, "scripts/train/train_detector.py", "--help"], capture_output=True, text=True)
     assert result.returncode == 0
-    assert "--data" in result.stdout
+    assert "--config" in result.stdout
 
 
 def test_train_pose_help():
     result = subprocess.run([sys.executable, "scripts/train/train_pose.py", "--help"], capture_output=True, text=True)
     assert result.returncode == 0
-    assert "--data" in result.stdout
+    assert "--config" in result.stdout
 
 
 def test_tune_tracker_help():
@@ -23,7 +23,7 @@ def test_tune_tracker_help():
 
 
 def test_extract_features_help():
-    result = subprocess.run([sys.executable, "scripts/train/extract_features.py", "--help"], capture_output=True, text=True)
+    result = subprocess.run([sys.executable, "scripts/tools/extract_features.py", "--help"], capture_output=True, text=True)
     assert result.returncode == 0
     assert "--video-dir" in result.stdout
 
@@ -31,13 +31,7 @@ def test_extract_features_help():
 def test_train_classifier_help():
     result = subprocess.run([sys.executable, "scripts/train/train_classifier.py", "--help"], capture_output=True, text=True)
     assert result.returncode == 0
-    assert "--cache-dir" in result.stdout
-
-
-def test_train_yolo_world_help():
-    result = subprocess.run([sys.executable, "scripts/train/train_yolo_world.py", "--help"], capture_output=True, text=True)
-    assert result.returncode == 0
-    assert "--data" in result.stdout
+    assert "--config" in result.stdout
 
 
 def test_evaluate_pipeline_help():

@@ -49,7 +49,6 @@ class TestExportClassifierOnnx:
         assert kwargs["input_names"] == ["roi", "kpts", "motion"]
         assert kwargs["output_names"] == ["prob"]
         assert kwargs["opset_version"] == 11
-        assert "dynamic_axes" in kwargs
 
     @patch("fall_detection.utils.export.torch.onnx.export")
     @patch("fall_detection.utils.export.FallClassifier")
@@ -62,23 +61,6 @@ class TestExportClassifierOnnx:
 
         args, _ = mock_export.call_args
         assert args[2] == "fall_classifier.onnx"
-
-    @patch("fall_detection.utils.export.torch.onnx.export")
-    @patch("fall_detection.utils.export.FallClassifier")
-    def test_export_classifier_dynamic_axes(self, mock_classifier_class, mock_export):
-        """Export should set up dynamic axes for batch dimension."""
-        mock_model = MagicMock()
-        mock_classifier_class.return_value = mock_model
-
-        export_classifier_onnx("test.onnx")
-
-        args, kwargs = mock_export.call_args
-        dynamic_axes = kwargs["dynamic_axes"]
-
-        assert dynamic_axes["roi"] == {0: "batch_size"}
-        assert dynamic_axes["kpts"] == {0: "batch_size"}
-        assert dynamic_axes["motion"] == {0: "batch_size"}
-        assert dynamic_axes["prob"] == {0: "batch_size"}
 
     @patch("fall_detection.utils.export.torch.onnx.export")
     @patch("fall_detection.utils.export.FallClassifier")

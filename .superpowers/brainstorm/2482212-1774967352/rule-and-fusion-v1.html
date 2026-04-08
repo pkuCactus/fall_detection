@@ -1,69 +1,582 @@
 <h2>规则引擎 + 分类器融合设计</h2>
-<p class="subtitle">规则触发 → 二阶段验证 → 融合决策</p>
+<p class="subtitle">5规则快速筛选 → 分类器验证 → 状态机融合决策</p>
 
-<div style="max-width:950px;margin:20px auto;font-size:14px;line-height:1.7;">
+<style>
+  .flow-box {
+    border: 2px solid #007bff;
+    border-radius: 8px;
+    padding: 12px 16px;
+    background: #e7f3ff;
+    font-weight: bold;
+    text-align: center;
+    margin: 8px;
+  }
+  .decision-box {
+    border: 2px solid #ffc107;
+    border-radius: 50%;
+    width: 60px;
+    height: 60px;
+    background: #fff3cd;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: bold;
+    margin: 8px;
+  }
+  .rule-section {
+    background: white;
+    border-left: 4px solid #007bff;
+    padding: 16px 20px;
+    margin: 12px 0;
+    border-radius: 0 8px 8px 0;
+  }
+  .state-node {
+    padding: 10px 18px;
+    border-radius: 20px;
+    font-weight: bold;
+    display: inline-block;
+    margin: 5px;
+    border: 2px solid;
+  }
+  .normal { background: #d4edda; border-color: #28a745; color: #155724; }
+  .suspected { background: #fff3cd; border-color: #ffc107; color: #856404; }
+  .falling { background: #f8d7da; border-color: #dc3545; color: #721c24; }
+  .alarm { background: #dc3545; border-color: #dc3545; color: white; }
+  .recovering { background: #d1ecf1; border-color: #17a2b8; color: #0c5460; }
+  .arrow-text { color: #6c757d; font-size: 16px; margin: 0 8px; }
+</style>
 
-  <h3 style="color:#055160;">一、规则引擎（快速筛选 / 低算力持续运行）</h3>
-  <div style="background:#f1f8ff;padding:14px 18px;border-radius:8px;margin:10px 0;">
-    <p><strong>输入：</strong>连续 N 帧的 17 关键点 + Track 历史轨迹</p>
-    <p><strong>输出：</strong><code>S_rule ∈ [0, 1]</code>（疑似跌倒得分）。当 <code>S_rule ≥ T_trigger</code> 时，启动分类器二阶段验证。</p>
+<div style="max-width:900px;margin:20px auto;font-size:14px;line-height:1.6;">
+
+  <!-- 一、整体流程概览 -->
+  <h3 style="color:#007bff;margin-top:30px;">一、整体流程概览</h3>
+  
+  <div style="background:#f8f9fa;padding:20px;border-radius:10px;text-align:center;">
+    <div style="display:inline-block;">
+      <div class="flow-box">检测器 + 跟踪器</div>
+      <div class="arrow-text">↓ 输出人体bbox</div>
+    </div>
+    
+    <div style="display:inline-block;">
+      <div class="flow-box" style="border-color:#28a745;background:#d4edda;">姿态估计器</div>
+      <div class="arrow-text">↓ 输出17关键点</div>
+    </div>
+    
+    <div style="display:inline-block;">
+      <div class="flow-box" style="border-color:#ffc107;background:#fff3cd;">
+        规则引擎<br/><small style="font-weight:normal;">5规则快速筛选</small>
+      </div>
+      <div class="arrow-text">↓ S_rule ≥ 0.6?</div>
+    </div>
+    
+    <div style="display:inline-block;">
+      <div class="decision-box">判断</div>
+      <div style="display:inline-block;margin-left:15px;">
+        <div style="background:#dc3545;color:white;padding:6px 12px;border-radius:4px;font-size:11px;">
+          是 → 分类器
+        </div>
+        <div style="background:#28a745;color:white;padding:6px 12px;border-radius:4px;font-size:11px;margin-top:5px;">
+          否 → 跳过
+        </div>
+      </div>
+    </div>
+    
+    <div style="display:inline-block;margin-left:15px;">
+      <div class="flow-box" style="border-color:#dc3545;background:#f8d7da;">
+        融合决策器<br/><small style="font-weight:normal;">状态机防抖动</small>
+      </div>
+      <div class="arrow-text">↓ S_final ≥ 0.7?</div>
+    </div>
+    
+    <div style="display:inline-block;">
+      <div class="flow-box" style="border-color:#dc3545;background:#dc3545;color:white;">
+        跌倒告警
+      </div>
+    </div>
   </div>
 
-  <div style="margin:16px 0;">
-    <h4>A. 高度压缩判定</h4>
-    <ul>
-      <li><code>H_ratio = (head_y - ankle_y) / bbox_h</code>。正常站立时 H_ratio ≈ 0.85~0.95，跌倒时会大幅压缩</li>
-      <li>多点贴地：统计脚踝、膝盖、臀部、肩膀、手腕等关键点的 <code>y ≥ ground_y - ε</code> 的数量 <code>N_ground</code></li>
-      <li>条件：<code>H_ratio < 0.5</code> 且 <code>N_ground ≥ 3</code> → A 触发，贡献得分 0.35</li>
-    </ul>
-
-    <h4>B. 地面区域判定</h4>
-    <ul>
-      <li>地面区域由预设的梯形/四边形 ROI 标定（摄像头安装角度固定时一次配置）</li>
-      <li>条件：贴地关键点（ankles, knees, hips 中 y 最低的几个）的 (x, y) 必须落在地面 ROI 内</li>
-      <li>满足 → B 触发，贡献得分 0.25</li>
-    </ul>
-
-    <h4>C. 由动到静 + 持续静止</h4>
-    <ul>
-      <li>动：Track 质心在 T窗口 内的位移标准差 <code>σ_motion</code></li>
-      <li>由动到静：<code>σ_motion(前 0.5s) > δ1</code> 且 <code>σ_motion(后 1.0s) < δ2</code></li>
-      <li>持续静止：连续 ≥ M 帧（如 0.8s~1.5s）保持 <code>σ_motion < δ2</code></li>
-      <li>满足 → C 触发，贡献得分 0.40</li>
-    </ul>
+  <!-- 二、17关键点说明 -->
+  <h3 style="color:#007bff;margin-top:30px;">二、17关键点说明</h3>
+  
+  <div style="display:flex;gap:20px;background:#f8f9fa;padding:20px;border-radius:10px;">
+    <div style="flex:1;">
+      <h4 style="margin:0;color:#495057;">关键点分组</h4>
+      <table style="width:100%;margin-top:10px;border-collapse:collapse;font-size:13px;">
+        <tr style="background:#e9ecef;">
+          <td style="padding:8px;border:1px solid #dee2e6;font-weight:bold;">部位</td>
+          <td style="padding:8px;border:1px solid #dee2e6;font-weight:bold;">关键点编号</td>
+          <td style="padding:8px;border:1px solid #dee2e6;font-weight:bold;">用途</td>
+        </tr>
+        <tr>
+          <td style="padding:8px;border:1px solid #dee2e6;">头部</td>
+          <td style="padding:8px;border:1px solid #dee2e6;">0-4（鼻、眼、耳）</td>
+          <td style="padding:8px;border:1px solid #dee2e6;">计算head_y</td>
+        </tr>
+        <tr style="background:#f8f9fa;">
+          <td style="padding:8px;border:1px solid #dee2e6;">肩部</td>
+          <td style="padding:8px;border:1px solid #dee2e6;">5-6</td>
+          <td style="padding:8px;border:1px solid #dee2e6;">上身定位</td>
+        </tr>
+        <tr>
+          <td style="padding:8px;border:1px solid #dee2e6;">上肢</td>
+          <td style="padding:8px;border:1px solid #dee2e6;">7-10（肘、腕）</td>
+          <td style="padding:8px;border:1px solid #dee2e6;">贴地检测</td>
+        </tr>
+        <tr style="background:#f8f9fa;">
+          <td style="padding:8px;border:1px solid #dee2e6;">髋部</td>
+          <td style="padding:8px;border:1px solid #dee2e6;">11-12</td>
+          <td style="padding:8px;border:1px solid #dee2e6;">计算hip_y</td>
+        </tr>
+        <tr>
+          <td style="padding:8px;border:1px solid #dee2e6;">膝部</td>
+          <td style="padding:8px;border:1px solid #dee2e6;">13-14</td>
+          <td style="padding:8px;border:1px solid #dee2e6;">贴地检测</td>
+        </tr>
+        <tr style="background:#f8f9fa;">
+          <td style="padding:8px;border:1px solid #dee2e6;">踝部</td>
+          <td style="padding:8px;border:1px solid #dee2e6;">15-16</td>
+          <td style="padding:8px;border:1px solid #dee2e6;">计算lower_y</td>
+        </tr>
+      </table>
+    </div>
+    
+    <div style="flex:1;">
+      <h4 style="margin:0;color:#495057;">关键指标</h4>
+      <div style="background:white;padding:15px;border-radius:8px;margin-top:10px;border:2px solid #007bff;">
+        <div style="font-family:monospace;font-size:14px;margin:8px 0;">
+          <strong>h_ratio</strong> = (head_y - lower_y) / bbox_h
+        </div>
+        <div style="font-size:12px;color:#6c757d;margin:8px 0;">
+          • 站立时 ≈ 0.85~0.95<br/>
+          • 跌倒时 < 0.6（大幅压缩）
+        </div>
+        
+        <div style="font-family:monospace;font-size:14px;margin:15px 0 8px 0;">
+          <strong>hip_ratio</strong> = (head_y - hip_y) / bbox_h
+        </div>
+        <div style="font-size:12px;color:#6c757d;">
+          • 判断站立vs坐姿<br/>
+          • 辅助姿态分类
+        </div>
+      </div>
+    </div>
   </div>
 
-  <div style="background:#fff3cd;padding:12px 18px;border-radius:8px;margin:14px 0;">
-    <strong>规则总得分：</strong><br/>
-    <code>S_rule = 0.35·I(A) + 0.25·I(B) + 0.40·I(C)</code><br/>
-    <em>权重可配置。T_trigger 建议初始值 0.60（A+B 同触发即 0.60，或 A+C 同触发 0.75）。</em>
+  <!-- 三、5个判定规则（简化版） -->
+  <h3 style="color:#007bff;margin-top:30px;">三、5个判定规则</h3>
+  
+  <div style="background:#e7f3ff;padding:15px;border-radius:8px;margin:10px 0;">
+    <strong style="color:#007bff;">触发条件：</strong>
+    <span style="background:white;padding:8px 12px;border-radius:6px;margin-left:10px;">
+      S_rule ≥ 0.6（至少3个规则触发）
+    </span>
+  </div>
+  
+  <div style="display:grid;gap:15px;">
+    <!-- 规则A -->
+    <div class="rule-section">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <h4 style="color:#e83e8c;margin:0;">A. 高度压缩 + 多点贴地</h4>
+          <div style="font-size:12px;color:#6c757d;margin-top:5px;">
+            最核心的规则，检测人体高度压缩和关键点贴地
+          </div>
+        </div>
+        <div style="background:#e83e8c;color:white;padding:10px 20px;border-radius:6px;font-size:13px;">
+          权重: 1/5
+        </div>
+      </div>
+      
+      <div style="margin-top:12px;background:#f8f9fa;padding:12px;border-radius:6px;">
+        <table style="width:100%;font-size:13px;border-collapse:collapse;">
+          <tr>
+            <td style="padding:5px;border:1px solid #dee2e6;background:#fff3cd;font-weight:bold;">条件1</td>
+            <td style="padding:5px;border:1px solid #dee2e6;">h_ratio < 0.6</td>
+            <td style="padding:5px;border:1px solid #dee2e6;font-size:11px;color:#6c757d;">高度压缩明显</td>
+          </tr>
+          <tr>
+            <td style="padding:5px;border:1px solid #dee2e6;background:#fff3cd;font-weight:bold;">条件2</td>
+            <td style="padding:5px;border:1px solid #dee2e6;">n_ground ≥ 2</td>
+            <td style="padding:5px;border:1px solid #dee2e6;font-size:11px;color:#6c757d;">至少2点贴地</td>
+          </tr>
+          <tr>
+            <td style="padding:5px;border:1px solid #dee2e6;background:#fff3cd;font-weight:bold;">条件3</td>
+            <td style="padding:5px;border:1px solid #dee2e6;">visible_ratio ≥ 0.6</td>
+            <td style="padding:5px;border:1px solid #dee2e6;font-size:11px;color:#6c757d;">关键点可见性足够</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+    
+    <!-- 规则B -->
+    <div class="rule-section">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <h4 style="color:#6f42c1;margin:0;">B. 地面区域判定</h4>
+          <div style="font-size:12px;color:#6c757d;margin-top:5px;">
+            检测最低关键点是否在地面区域
+          </div>
+        </div>
+        <div style="background:#6f42c1;color:white;padding:10px 20px;border-radius:6px;font-size:13px;">
+          权重: 1/5
+        </div>
+      </div>
+      
+      <div style="margin-top:12px;background:#f8f9fa;padding:12px;border-radius:6px;">
+        <div style="display:flex;gap:15px;">
+          <div style="flex:1;">
+            <strong style="color:#28a745;">方案1（有预设ROI）</strong>
+            <div style="font-size:12px;margin-top:5px;">
+              最低3个关键点是否在预设地面梯形/四边形内
+            </div>
+          </div>
+          <div style="flex:1;">
+            <strong style="color:#17a2b8;">方案2（无ROI）</strong>
+            <div style="font-size:12px;margin-top:5px;">
+              最低关键点是否在bbox底部40%区域
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- 规则C -->
+    <div class="rule-section">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <h4 style="color:#20c997;margin:0;">C. 由动到静或持续静止</h4>
+          <div style="font-size:12px;color:#6c757d;margin-top:5px;">
+            检测运动停止或躺卧状态持续静止
+          </div>
+        </div>
+        <div style="background:#20c997;color:white;padding:10px 20px;border-radius:6px;font-size:13px;">
+          权重: 1/5
+        </div>
+      </div>
+      
+      <div style="margin-top:12px;background:#f8f9fa;padding:12px;border-radius:6px;">
+        <div style="display:flex;gap:15px;">
+          <div style="flex:1;padding:10px;background:#fff;border-radius:6px;border:2px solid #20c997;">
+            <strong>由动到静</strong>
+            <div style="font-size:12px;margin-top:8px;">
+              avg_early > 75px/s<br/>
+              avg_late < 20px/s
+            </div>
+          </div>
+          <div style="flex:1;padding:10px;background:#fff;border-radius:6px;border:2px solid #20c997;">
+            <strong>持续静止</strong>
+            <div style="font-size:12px;margin-top:8px;">
+              姿态 = lying<br/>
+              total_avg < 20px/s
+            </div>
+          </div>
+        </div>
+        <div style="font-size:11px;color:#6c757d;margin-top:10px;">
+          窗口：1.5秒（前后半段对比）
+        </div>
+      </div>
+    </div>
+    
+    <!-- 规则D -->
+    <div class="rule-section">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <h4 style="color:#fd7e14;margin:0;">D. 垂直快速下降</h4>
+          <div style="font-size:12px;color:#6c757d;margin-top:5px;">
+            检测垂直方向快速下落速度
+          </div>
+        </div>
+        <div style="background:#fd7e14;color:white;padding:10px 20px;border-radius:6px;font-size:13px;">
+          权重: 1/5
+        </div>
+      </div>
+      
+      <div style="margin-top:12px;background:#f8f9fa;padding:12px;border-radius:6px;">
+        <table style="width:100%;font-size:13px;border-collapse:collapse;">
+          <tr>
+            <td style="padding:5px;border:1px solid #dee2e6;background:#fff3cd;font-weight:bold;">条件1</td>
+            <td style="padding:5px;border:1px solid #dee2e6;">vy > 400 px/s</td>
+            <td style="padding:5px;border:1px solid #dee2e6;font-size:11px;color:#6c757d;">垂直下落速度大</td>
+          </tr>
+          <tr>
+            <td style="padding:5px;border:1px solid #dee2e6;background:#fff3cd;font-weight:bold;">条件2</td>
+            <td style="padding:5px;border:1px solid #dee2e6;">h_ratio < 0.6</td>
+            <td style="padding:5px;border:1px solid #dee2e6;font-size:11px;color:#6c757d;">同时高度压缩</td>
+          </tr>
+        </table>
+        <div style="font-size:11px;color:#6c757d;margin-top:10px;">
+          窗口：约5帧（0.2秒）
+        </div>
+      </div>
+    </div>
+    
+    <!-- 规则E -->
+    <div class="rule-section">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <h4 style="color:#17a2b8;margin:0;">E. 加速度辅助</h4>
+          <div style="font-size:12px;color:#6c757d;margin-top:5px;">
+            检测快速下落的加速度特征
+          </div>
+        </div>
+        <div style="background:#17a2b8;color:white;padding:10px 20px;border-radius:6px;font-size:13px;">
+          权重: 1/5
+        </div>
+      </div>
+      
+      <div style="margin-top:12px;background:#f8f9fa;padding:12px;border-radius:6px;">
+        <table style="width:100%;font-size:13px;border-collapse:collapse;">
+          <tr>
+            <td style="padding:5px;border:1px solid #dee2e6;background:#fff3cd;font-weight:bold;">条件1</td>
+            <td style="padding:5px;border:1px solid #dee2e6;">accel > 150 px/s²</td>
+            <td style="padding:5px;border:1px solid #dee2e6;font-size:11px;color:#6c757d;">向下加速度大</td>
+          </tr>
+          <tr>
+            <td style="padding:5px;border:1px solid #dee2e6;background:#fff3cd;font-weight:bold;">条件2</td>
+            <td style="padding:5px;border:1px solid #dee2e6;">h_ratio < 0.6</td>
+            <td style="padding:5px;border:1px solid #dee2e6;font-size:11px;color:#6c757d;">同时高度压缩</td>
+          </tr>
+        </table>
+        <div style="font-size:11px;color:#6c757d;margin-top:10px;">
+          窗口：最近4帧计算速度差
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- 规则得分计算 -->
+  <div style="background:#fff3cd;padding:18px;border-radius:8px;margin:20px 0;border:2px solid #ffc107;">
+    <h4 style="color:#856404;margin:0;">规则得分计算</h4>
+    <div style="background:white;padding:12px;border-radius:6px;margin-top:12px;">
+      <div style="font-family:monospace;font-size:16px;text-align:center;">
+        S_rule = (A + B + C + D + E) / 5
+      </div>
+    </div>
+    <div style="margin-top:12px;font-size:13px;">
+      <strong>示例：</strong>
+      <ul style="margin:5px 0;padding-left:20px;">
+        <li>A+B触发 → 2/5 = 0.4（未达标）</li>
+        <li>A+B+C触发 → 3/5 = 0.6（达标 ✓）</li>
+      </ul>
+      <strong>惩罚：</strong>visible_ratio < 0.6 → 得分减半
+    </div>
   </div>
 
-  <hr style="border:none;border-top:1px solid #ddd;margin:24px 0;"/>
-
-  <h3 style="color:#3d3d7a;">二、姿态分类器（二阶段验证 / 规则触发后运行）</h3>
-  <div style="background:#eeefff;padding:14px 18px;border-radius:8px;margin:10px 0;">
-    <p><strong>输入：</strong>三通道特征融合</p>
-    <ol>
-      <li><strong>图像特征</strong>：当前帧人体 ROI（96×96 或 128×128），经 2~3 层轻量 Conv → 32-d 向量</li>
-      <li><strong>关键点位姿特征</strong>：17 关键点坐标归一化到 [0,1] + 可见性得分 → 51-d 向量，经 1 层 FC → 32-d</li>
-      <li><strong>运动特征</strong>：Track 的速度、加速度、高度压缩比 H_ratio、N_ground 等 → 8-d 向量</li>
-    </ol>
-    <p><strong>融合：</strong>concat(32 + 32 + 8 = 72-d) → 2 层 FC（72→32→1） → Sigmoid → <code>S_cls ∈ [0,1]</code></p>
+  <!-- 四、姿态分类 -->
+  <h3 style="color:#007bff;margin-top:30px;">四、姿态分类</h3>
+  
+  <div style="background:#f8f9fa;padding:20px;border-radius:10px;">
+    <div style="text-align:center;font-weight:bold;font-size:15px;margin-bottom:15px;color:#495057;">
+      基于 h_ratio 的5类姿态
+    </div>
+    
+    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+      <div class="state-node normal">站立<br/><small>h > 0.75</small></div>
+      <div class="arrow-text">→</div>
+      <div class="state-node suspected">坐姿<br/><small>h > 0.5</small></div>
+      <div class="arrow-text">→</div>
+      <div class="state-node" style="background:#fff3cd;border-color:#fd7e14;color:#856404;">蹲姿<br/><small>h > 0.35</small></div>
+      <div class="arrow-text">→</div>
+      <div class="state-node falling">躺卧<br/><small>h ≤ 0.35</small></div>
+    </div>
+    
+    <div style="margin-top:15px;font-size:12px;text-align:center;color:#6c757d;">
+      visible_ratio < 0.4 → unknown（未知姿态）
+    </div>
   </div>
 
-  <hr style="border:none;border-top:1px solid #ddd;margin:24px 0;"/>
+  <!-- 五、融合得分计算 -->
+  <h3 style="color:#007bff;margin-top:30px;">五、融合得分计算</h3>
+  
+  <div style="background:#e7f3ff;padding:20px;border-radius:10px;">
+    <div style="text-align:center;font-weight:bold;font-size:15px;margin-bottom:15px;color:#007bff;">
+      三个得分加权融合
+    </div>
+    
+    <div style="background:white;padding:15px;border-radius:8px;">
+      <div style="display:flex;gap:15px;justify-content:center;align-items:center;flex-wrap:wrap;">
+        <div style="text-align:center;">
+          <div style="background:#ffc107;padding:10px;border-radius:6px;font-weight:bold;">
+            S_rule
+          </div>
+          <div style="font-size:12px;margin-top:5px;color:#856404;">
+            × α=0.35
+          </div>
+        </div>
+        
+        <div style="font-size:20px;color:#007bff;">+</div>
+        
+        <div style="text-align:center;">
+          <div style="background:#28a745;color:white;padding:10px;border-radius:6px;font-weight:bold;">
+            S_cls
+          </div>
+          <div style="font-size:12px;margin-top:5px;color:#155724;">
+            × β=0.45
+          </div>
+        </div>
+        
+        <div style="font-size:20px;color:#007bff;">+</div>
+        
+        <div style="text-align:center;">
+          <div style="background:#17a2b8;color:white;padding:10px;border-radius:6px;font-weight:bold;">
+            S_temporal
+          </div>
+          <div style="font-size:12px;margin-top:5px;color:#0c5460;">
+            × γ=0.20
+          </div>
+        </div>
+        
+        <div style="font-size:20px;color:#007bff;">=</div>
+        
+        <div style="text-align:center;">
+          <div style="background:#dc3545;color:white;padding:10px;border-radius:6px;font-weight:bold;">
+            S_final
+          </div>
+          <div style="font-size:12px;margin-top:5px;color:#721c24;">
+            ≥ 0.7 告警
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div style="background:#d1ecf1;padding:12px;border-radius:6px;margin-top:15px;font-size:12px;">
+      <strong>S_temporal说明：</strong>最近fps帧分类器得分的滑动平均，抑制单帧抖动
+    </div>
+  </div>
 
-  <h3 style="color:#212529;">三、融合决策器（最终判定）</h3>
-  <div style="background:#f8f9fa;padding:14px 18px;border-radius:8px;margin:10px 0;">
-    <p><strong>决策公式（示例）：</strong></p>
-    <pre style="background:#fff;padding:10px;border-radius:4px;border:1px solid #e1e4e8;">S_final = α * S_rule + β * S_cls + γ * S_temporal
-其中 α=0.35, β=0.45, γ=0.20（可配置）</pre>
-    <ul>
-      <li><code>S_temporal</code>：过去 K 帧（如 5~10 帧）分类器得分的滑动平均，抑制单帧抖动</li>
-      <li><strong>报警条件：</strong><code>S_final ≥ T_alarm</code>（建议初始 0.70）且连续满足 ≥ N_alarm 帧（建议 0.5s~1.0s）</li>
-      <li><strong>复位条件：</strong>连续 3s 内不满足报警条件，则清除跌倒状态</li>
-    </ul>
+  <!-- 六、状态机流程 -->
+  <h3 style="color:#007bff;margin-top:30px;">六、状态机流程</h3>
+  
+  <div style="background:#f8f9fa;padding:25px;border-radius:10px;">
+    <div style="text-align:center;font-weight:bold;font-size:16px;margin-bottom:20px;color:#495057;">
+      5状态防抖机制
+    </div>
+    
+    <!-- 状态流转 -->
+    <div style="display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;">
+      <div class="state-node normal" style="padding:12px 20px;">NORMAL</div>
+      <div style="font-size:18px;color:#28a745;">→</div>
+      <div style="background:#d4edda;padding:6px 10px;border-radius:4px;font-size:11px;">
+        S ≥ 0.7
+      </div>
+      <div style="font-size:18px;color:#ffc107;">→</div>
+      <div class="state-node suspected" style="padding:12px 20px;">SUSPECTED</div>
+      <div style="font-size:18px;color:#fd7e14;">→</div>
+      <div style="background:#fff3cd;padding:6px 10px;border-radius:4px;font-size:11px;">
+        连续5帧<br/>+序列检查
+      </div>
+      <div style="font-size:18px;color:#dc3545;">→</div>
+      <div class="state-node falling" style="padding:12px 20px;">FALLING</div>
+      <div style="font-size:18px;color:#dc3545;">→</div>
+      <div class="state-node alarm" style="padding:12px 20px;">ALARM_SENT</div>
+    </div>
+    
+    <!-- 恢复流程 -->
+    <div style="margin-top:20px;">
+      <div style="text-align:center;font-size:14px;color:#6c757d;margin-bottom:10px;">
+        ↓ S < 0.7 连续3秒
+      </div>
+      
+      <div style="display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;">
+        <div class="state-node recovering" style="padding:12px 20px;">RECOVERING</div>
+        <div style="font-size:18px;color:#17a2b8;">→</div>
+        <div style="background:#d1ecf1;padding:6px 10px;border-radius:4px;font-size:11px;">
+          连续2秒正常
+        </div>
+        <div style="font-size:18px;color:#28a745;">→</div>
+        <div class="state-node normal" style="padding:12px 20px;">NORMAL</div>
+      </div>
+    </div>
+    
+    <!-- 冷却期 -->
+    <div style="background:#f8d7da;padding:12px;border-radius:6px;margin-top:15px;border:2px solid #dc3545;">
+      <strong style="color:#721c24;font-size:14px;">冷却期机制（5秒）</strong>
+      <div style="font-size:12px;margin-top:8px;color:#721c24;">
+        进入ALARM_SENT后，5秒内不重复告警，防止同一事件多次触发
+      </div>
+    </div>
+  </div>
+
+  <!-- 七、姿态序列检查 -->
+  <h3 style="color:#007bff;margin-top:30px;">七、姿态序列检查</h3>
+  
+  <div style="background:#fff3cd;padding:20px;border-radius:10px;border:2px solid #ffc107;">
+    <div style="font-weight:bold;font-size:15px;color:#856404;margin-bottom:15px;">
+      检查最近8帧姿态历史
+    </div>
+    
+    <div style="display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;">
+      <div class="state-node normal" style="padding:8px 12px;font-size:12px;">站</div>
+      <div style="font-size:16px;color:#856404;">→</div>
+      <div class="state-node suspected" style="padding:8px 12px;font-size:12px;">坐</div>
+      <div style="font-size:16px;color:#856404;">→</div>
+      <div style="background:#fff3cd;border-color:#fd7e14;color:#856404;padding:8px 12px;border-radius:20px;font-size:12px;border:2px solid;font-weight:bold;">蹲</div>
+      <div style="font-size:16px;color:#856404;">→</div>
+      <div class="state-node falling" style="padding:8px 12px;font-size:12px;">躺 ✓</div>
+    </div>
+    
+    <div style="background:white;padding:12px;border-radius:6px;margin-top:15px;font-size:13px;">
+      <strong>检查要求：</strong>
+      <ul style="margin:5px 0;padding-left:20px;">
+        <li>必须有 <span style="color:#28a745;font-weight:bold;">站/坐 → 跌倒</span> 的转换</li>
+        <li>当前帧必须是跌倒姿态（蹲或躺）</li>
+      </ul>
+      <strong style="color:#dc3545;">防误判：</strong>一直躺着（无转换）→ 不告警
+    </div>
+  </div>
+
+  <!-- 八、分类器自适应权重 -->
+  <h3 style="color:#007bff;margin-top:30px;">八、分类器自适应权重</h3>
+  
+  <div style="display:flex;gap:15px;background:#f8f9fa;padding:20px;border-radius:10px;">
+    <div style="flex:1;background:white;padding:15px;border-radius:8px;border:2px solid #28a745;">
+      <h4 style="margin:0;color:#155724;font-size:14px;">融合分类器</h4>
+      <div style="margin-top:10px;font-size:13px;">
+        <div style="background:#f8f9fa;padding:8px;border-radius:4px;margin:5px 0;">
+          α = 0.35（规则权重）
+        </div>
+        <div style="background:#f8f9fa;padding:8px;border-radius:4px;margin:5px 0;">
+          β = 0.45（分类器权重）
+        </div>
+        <div style="background:#f8f9fa;padding:8px;border-radius:4px;margin:5px 0;">
+          alarm_thresh = 0.7
+        </div>
+      </div>
+    </div>
+    
+    <div style="flex:1;background:white;padding:15px;border-radius:8px;border:2px solid #17a2b8;">
+      <h4 style="margin:0;color:#0c5460;font-size:14px;">简单分类器</h4>
+      <div style="margin-top:10px;font-size:13px;">
+        <div style="background:#d1ecf1;padding:8px;border-radius:4px;margin:5px 0;">
+          α = 0.15（规则权重↓）
+        </div>
+        <div style="background:#d1ecf1;padding:8px;border-radius:4px;margin:5px 0;">
+          β = 0.60（分类器权重↑）
+        </div>
+        <div style="background:#d1ecf1;padding:8px;border-radius:4px;margin:5px 0;">
+          alarm_thresh = 0.4（阈值↓）
+        </div>
+      </div>
+      <div style="font-size:11px;color:#6c757d;margin-top:10px;">
+        简单分类器仅依赖图像，可靠性更高
+      </div>
+    </div>
+  </div>
+
+  <!-- 总结 -->
+  <div style="background:#d4edda;padding:20px;border-radius:10px;margin-top:30px;border:2px solid #28a745;">
+    <h4 style="color:#155724;margin:0;font-size:16px;">流程总结</h4>
+    <div style="margin-top:15px;font-size:14px;color:#155724;">
+      <ol style="margin:0;padding-left:25px;line-height:1.8;">
+        <li><strong>规则筛选</strong>：5规则等权平均 → S_rule ≥ 0.6触发分类器</li>
+        <li><strong>姿态分类</strong>：h_ratio判定站/坐/蹲/躺，辅助序列检查</li>
+        <li><strong>分类器验证</strong>：融合/简单分类器输出S_cls</li>
+        <li><strong>融合得分</strong>：加权融合 + 时序平滑 → S_final ≥ 0.7</li>
+        <li><strong>状态机决策</strong>：连续5帧 + 姿态序列 → FALLING告警</li>
+        <li><strong>冷却防抖</strong>：5秒冷却 + 2秒恢复 → 防止重复告警</li>
+      </ol>
+    </div>
   </div>
 
 </div>

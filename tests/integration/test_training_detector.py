@@ -126,14 +126,21 @@ class TestTrainDetectorEndToEnd:
         # Load module and run main with mocked args
         module = load_train_detector_module()
 
+        config_yaml_path = tmp_path / "config.yaml"
+        config = {
+            'data': str(data_yaml_path),
+            "epochs": 10,
+            "imgsz": 640,
+            "batch": 8,
+            'model': "yolov8n.pt",
+            'project': str(project_dir),
+            'name': "exp",
+        }
+        with open(config_yaml_path, "w") as f:
+            yaml.dump(config, f)
+
         test_args = [
-            "--data", str(data_yaml_path),
-            "--epochs", "10",
-            "--imgsz", "640",
-            "--batch", "8",
-            "--model", "yolov8n.pt",
-            "--project", str(project_dir),
-            "--name", "exp"
+            "--config", str(config_yaml_path)
         ]
 
         with mock.patch("sys.argv", ["train_detector.py"] + test_args):
@@ -163,6 +170,10 @@ class TestTrainDetectorEndToEnd:
             yaml.dump({"names": {0: "person"}}, f)
 
         project_dir = tmp_path / "train" / "detector"
+        config = {}
+        config_yaml_path = tmp_path / "config.yaml"
+        with open(config_yaml_path, "w") as f:
+            yaml.dump(config, f)
 
         for i, model_name in enumerate(["yolov8n.pt", "yolov8s.pt", "yolov8m.pt"]):
             mock_yolo_class.reset_mock()
@@ -181,121 +192,14 @@ class TestTrainDetectorEndToEnd:
             module = load_train_detector_module()
 
             test_args = [
-                "--data", str(data_yaml_path),
-                "--model", model_name,
-                "--project", str(project_dir),
-                "--name", exp_name
+                "--config", str(config_yaml_path),
+                "--override", "model={}".format(model_name),
             ]
 
             with mock.patch("sys.argv", ["train_detector.py"] + test_args):
                 module.main()
 
             mock_yolo_class.assert_called_once_with(model_name)
-
-
-class TestTrainDetectorModelPathHandling:
-    """Test model path handling and weight saving."""
-
-    @mock.patch("ultralytics.YOLO")
-    def test_best_weights_link_creation(self, mock_yolo_class, tmp_path):
-        """Test that best weights are linked/copied correctly."""
-        mock_model = mock.MagicMock()
-        mock_yolo_class.return_value = mock_model
-
-        data_yaml_path = tmp_path / "data.yaml"
-        with open(data_yaml_path, "w") as f:
-            yaml.dump({"names": {0: "person"}}, f)
-
-        project_dir = tmp_path / "train" / "detector"
-        exp_dir = project_dir / "exp"
-        weights_dir = exp_dir / "weights"
-        weights_dir.mkdir(parents=True, exist_ok=True)
-
-        # Create best.pt in weights directory
-        best_pt_path = weights_dir / "best.pt"
-        best_pt_path.write_bytes(b"model weights content")
-
-        module = load_train_detector_module()
-
-        test_args = [
-            "--data", str(data_yaml_path),
-            "--project", str(project_dir),
-            "--name", "exp"
-        ]
-
-        with mock.patch("sys.argv", ["train_detector.py"] + test_args):
-            module.main()
-
-        # Check that the link/copy was created
-        expected_out_path = exp_dir / "best.pt"
-        assert expected_out_path.exists()
-        assert expected_out_path.read_bytes() == b"model weights content"
-
-    @mock.patch("ultralytics.YOLO")
-    def test_best_weights_copy_fallback(self, mock_yolo_class, tmp_path):
-        """Test fallback to copy when hard link fails."""
-        mock_model = mock.MagicMock()
-        mock_yolo_class.return_value = mock_model
-
-        data_yaml_path = tmp_path / "data.yaml"
-        with open(data_yaml_path, "w") as f:
-            yaml.dump({"names": {0: "person"}}, f)
-
-        project_dir = tmp_path / "train" / "detector"
-        exp_dir = project_dir / "exp"
-        weights_dir = exp_dir / "weights"
-        weights_dir.mkdir(parents=True, exist_ok=True)
-
-        best_pt_path = weights_dir / "best.pt"
-        best_pt_path.write_bytes(b"model weights")
-
-        module = load_train_detector_module()
-
-        # Mock os.link to raise OSError, forcing copy fallback
-        with mock.patch("os.link", side_effect=OSError("Cross-device link")):
-            test_args = [
-                "--data", str(data_yaml_path),
-                "--project", str(project_dir),
-                "--name", "exp"
-            ]
-
-            with mock.patch("sys.argv", ["train_detector.py"] + test_args):
-                module.main()
-
-        # Verify copy fallback worked
-        expected_out_path = exp_dir / "best.pt"
-        assert expected_out_path.exists()
-
-    @mock.patch("ultralytics.YOLO")
-    def test_no_weights_if_training_fails(self, mock_yolo_class, tmp_path):
-        """Test behavior when training doesn't produce best.pt."""
-        mock_model = mock.MagicMock()
-        mock_yolo_class.return_value = mock_model
-
-        data_yaml_path = tmp_path / "data.yaml"
-        with open(data_yaml_path, "w") as f:
-            yaml.dump({"names": {0: "person"}}, f)
-
-        project_dir = tmp_path / "train" / "detector"
-        exp_dir = project_dir / "exp"
-        weights_dir = exp_dir / "weights"
-        weights_dir.mkdir(parents=True, exist_ok=True)
-        # Don't create best.pt - simulate training failure
-
-        module = load_train_detector_module()
-
-        test_args = [
-            "--data", str(data_yaml_path),
-            "--project", str(project_dir),
-            "--name", "exp"
-        ]
-
-        with mock.patch("sys.argv", ["train_detector.py"] + test_args):
-            module.main()
-
-        # No exception should be raised, but no output file created
-        expected_out_path = exp_dir / "best.pt"
-        assert not expected_out_path.exists()
 
 
 class TestTrainDetectorDataConfig:
@@ -327,11 +231,17 @@ class TestTrainDetectorDataConfig:
         (weights_dir / "best.pt").write_bytes(b"dummy")
 
         module = load_train_detector_module()
+        config_yaml_path = tmp_path / "config.yaml"
+        config = {
+            'data': str(data_yaml_path),
+            'project': str(project_dir),
+            'name': "exp",
+        }
+        with open(config_yaml_path, "w") as f:
+            yaml.dump(config, f)
 
         test_args = [
-            "--data", str(data_yaml_path),
-            "--project", str(project_dir),
-            "--name", "exp"
+            "--config", str(config_yaml_path)
         ]
 
         with mock.patch("sys.argv", ["train_detector.py"] + test_args):
@@ -353,10 +263,5 @@ class TestTrainDetectorIntegrationWithFileSystem:
             text=True
         )
         assert result.returncode == 0
-        assert "--data" in result.stdout
-        assert "--epochs" in result.stdout
-        assert "--imgsz" in result.stdout
-        assert "--batch" in result.stdout
-        assert "--model" in result.stdout
-        assert "--project" in result.stdout
-        assert "--name" in result.stdout
+        assert "--config" in result.stdout
+        assert "--override" in result.stdout

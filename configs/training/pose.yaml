@@ -49,3 +49,8 @@ save_period: 10  # 每N轮保存一次
 
 # 日志
 verbose: true  # 详细输出
+
+# torch.compile 配置 (PyTorch 2.0+)
+compile:
+  enabled: true  # 是否启用 torch.compile
+  mode: "reduce-overhead"  # 编译模式: "default", "reduce-overhead", "max-autotune"

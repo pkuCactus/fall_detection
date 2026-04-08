@@ -640,10 +640,5 @@ class TestIntegrationWithFileSystem:
             text=True
         )
         assert result.returncode == 0
-        assert "--cache-dir" in result.stdout
-        assert "--epochs" in result.stdout
-        assert "--batch-size" in result.stdout
-        assert "--lr" in result.stdout
-        assert "--val-ratio" in result.stdout
-        assert "--output-dir" in result.stdout
-        assert "--local-rank" in result.stdout
+        assert "--config" in result.stdout
+        assert "--override" in result.stdout

@@ -77,13 +77,18 @@
 ```
 fall_detection/
 ├── configs/                          # 配置文件
-│   ├── pipeline/                     # Pipeline配置
-│   │   └── default.yaml              # 系统默认配置
-│   └── training/                     # 训练配置
-│       ├── simple_classifier.yaml
-│       ├── simple_classifier_voc.yaml
-│       └── yolo_world.yaml
-│
+ │   ├── pipeline/                     # Pipeline配置
+ │   │   └── default.yaml              # 系统默认配置
+ │   ├── training/                     # 训练配置
+ │   │   ├── detector.yaml             # 检测器训练配置
+ │   │   ├── pose.yaml                 # 姿态估计训练配置
+ │   │   ├── classifier.yaml           # 融合分类器训练配置
+ │   │   ├── simple_classifier.yaml    # 简单分类器训练配置
+ │   │   ├── simple_classifier_voc.yaml # VOC数据集分类器配置
+ │   │   └── yolo_world.yaml           # YOLO-World训练配置
+ │   └── tools/                        # 工具配置
+ │       └── voc_to_yolo_example.yaml  # VOC转YOLO示例配置
+ │
 ├── src/fall_detection/               # 核心推理模块
 │   ├── core/                         # 核心推理组件
 │   │   ├── detector.py               # YOLOv8 人体检测器
@@ -100,47 +105,50 @@ fall_detection/
 │   │   ├── augmentation.py           # 数据增强
 │   │   └── datasets.py               # 数据集类
 │   └── utils/                        # 工具函数
-│       ├── visualization.py          # 可视化
-│       ├── export.py                 # 模型导出
-│       ├── scheduler.py              # 学习率调度器
-│       ├── geometry.py               # 几何计算
-│       └── common.py                 # 通用工具
+ │       ├── visualization.py          # 可视化
+ │       ├── export.py                 # 模型导出
+ │       ├── scheduler.py              # 学习率调度器
+ │       ├── geometry.py               # 几何计算
+ │       ├── training_common.py        # 训练通用工具
+ │       └── common.py                 # 通用工具
 │
 ├── scripts/                          # 脚本
-│   ├── shell/                        # Shell脚本
-│   │   ├── run_train_detector.sh
-│   │   ├── run_train_pose.sh
-│   │   ├── run_train_classifier.sh
-│   │   ├── run_train_simple_classifier.sh
-│   │   ├── run_train_yolo_world.sh
-│   │   ├── run_extract_features.sh
-│   │   ├── run_evaluate_pipeline.sh
-│   │   ├── run_tune_tracker.sh
-│   │   ├── run_pipeline_demo.sh
-│   │   ├── run_tracker_demo.sh
-│   │   └── run_tests.sh
-│   ├── train/                        # 训练脚本
-│   │   ├── train_detector.py
-│   │   ├── train_pose.py
-│   │   ├── train_classifier.py
-│   │   ├── train_simple_classifier.py
-│   │   ├── train_yolo_world.py
-│   │   ├── export_yolo_world.py
-│   │   ├── extract_features.py
-│   │   └── validate_yolo_world.py
-│   ├── eval/                         # 评估脚本
-│   │   ├── evaluate_pipeline.py
-│   │   ├── benchmark_speed.py
-│   │   └── tune_tracker.py
-│   ├── tools/                        # 数据处理工具
-│   │   ├── convert_voc_to_yolo.py
-│   │   ├── extract_and_detect.py
-│   │   ├── split_dataset.py
-│   │   └── generate_requirements.py
-│   └── demo/                         # 演示脚本
-│       ├── run_pipeline_demo.py
-│       ├── demo_tracker.py
-│       └── video_to_frames.py
+ │   ├── shell/                        # Shell脚本
+ │   │   ├── run_train_detector.sh
+ │   │   ├── run_train_pose.sh
+ │   │   ├── run_train_classifier.sh
+ │   │   ├── run_train_simple_classifier.sh
+ │   │   ├── run_extract_features.sh
+ │   │   ├── run_evaluate_pipeline.sh
+ │   │   ├── run_tune_tracker.sh
+ │   │   ├── run_pipeline_demo.sh
+ │   │   ├── run_tracker_demo.sh
+ │   │   ├── run_tests.sh
+ │   │   ├── run_all_training.sh
+ │   │   ├── run_export_yolo_world.sh
+ │   │   ├── run_validate_yolo_world.sh
+ │   │   ├── download_yolo_world_models.sh
+ │   │   └── install.sh
+ │   ├── train/                        # 训练脚本
+ │   │   ├── train_detector.py
+ │   │   ├── train_pose.py
+ │   │   ├── train_classifier.py
+ │   │   ├── train_simple_classifier.py
+ │   │   └── validate_yolo_world.py
+ │   ├── eval/                         # 评估脚本
+ │   │   ├── evaluate_pipeline.py
+ │   │   ├── benchmark_speed.py
+ │   │   └── tune_tracker.py
+ │   ├── tools/                        # 数据处理工具
+ │   │   ├── convert_voc_to_yolo.py
+ │   │   ├── extract_and_detect.py
+ │   │   ├── extract_features.py
+ │   │   ├── export_yolo_world.py
+ │   │   └── generate_requirements.py
+ │   └── demo/                         # 演示脚本
+ │       ├── run_pipeline_demo.py
+ │       ├── demo_tracker.py
+ │       └── video_to_frames.py
 │
 ├── tools/                            # 辅助工具
 │   └── annotate/                     # 标注工具
@@ -163,13 +171,13 @@ fall_detection/
 │   │   ├── test_scheduler.py
 │   │   └── test_utils_*.py
 │   ├── integration/                  # 集成测试
-│   │   ├── test_training_detector.py
-│   │   ├── test_training_pose.py
-│   │   ├── test_training_classifier.py
-│   │   ├── test_training_simple_classifier.py
-│   │   ├── test_training_yolo_world.py
-│   │   └── test_extract_features.py
-│   └── conftest.py                   # 测试配置
+ │   │   ├── test_training_detector.py
+ │   │   ├── test_training_pose.py
+ │   │   ├── test_training_classifier.py
+ │   │   ├── test_training_simple_classifier.py
+ │   │   ├── test_training_scripts.py
+ │   │   └── test_extract_features.py
+ │   └── conftest.py                   # 测试配置
 │
 ├── data/                             # 数据目录
 │   ├── mini/                         # 示例数据集
@@ -203,17 +211,23 @@ fall_detection/
 
 ### 1. 安装依赖
 
-```bash
-pip install -r requirements.txt
-```
-
-requirements.txt 主要依赖：
-- torch >= 2.0
-- ultralytics >= 8.0
-- opencv-python
-- numpy
-- pyyaml
-- pytest
+ ```bash
+ pip install -r requirements.txt
+ ```
+ 
+ requirements.txt 主要依赖：
+ - torch >= 2.0
+ - ultralytics >= 8.0
+ - opencv-python
+ - numpy
+ - pyyaml
+ - pytest
+ 
+ 如需生成特定CUDA版本的requirements：
+ ```bash
+ # 生成CUDA 12.4版本的requirements
+ python scripts/tools/generate_requirements.py --variant cu124
+ ```
 
 ### 2. 下载预训练权重
 
@@ -234,19 +248,19 @@ python scripts/demo/run_pipeline_demo.py --video 0
 
 ### 4. 运行测试
 
-```bash
-# 安装测试依赖
-pip install -r requirements/test.txt
-
-# 运行所有测试
-bash scripts/shell/run_tests.sh
-
-# 或指定测试文件
-PYTHONPATH=src pytest tests/unit/test_pipeline.py -v
-
-# 运行带覆盖率的测试
-PYTHONPATH=src pytest tests/ --cov=src/fall_detection --cov-fail-under=90
-```
+ ```bash
+ # 安装测试依赖
+ pip install -r requirements/test.txt
+ 
+ # 运行所有测试（共444个测试用例）
+ bash scripts/shell/run_tests.sh
+ 
+ # 或指定测试文件
+ PYTHONPATH=src pytest tests/unit/test_pipeline.py -v
+ 
+ # 运行带覆盖率的测试
+ PYTHONPATH=src pytest tests/ --cov=src/fall_detection --cov-fail-under=90
+ ```
 
 ## 分阶段训练流程
 
@@ -315,59 +329,42 @@ bash scripts/shell/run_extract_features.sh \
 
 ### 阶段5: 融合分类器训练
 
-```bash
-# 单卡训练
-bash scripts/shell/run_train_classifier.sh
+ ```bash
+ # 单卡训练
+ bash scripts/shell/run_train_classifier.sh
+ 
+ # 多卡DDP训练
+ bash scripts/shell/run_train_classifier.sh --ngpus 2 --batch-size 16
+ ```
+ 
+ 参数说明：
+ - `--cache-dir`: 特征缓存目录 (默认: outputs/cache)
+ - `--epochs`: 训练轮数 (默认: 100)
+ - `--batch-size`: 批次大小 (默认: 32)
+ - `--lr`: 学习率 (默认: 0.001)
+ - `--val-ratio`: 验证集比例 (默认: 0.2)
+ 
+ 最佳权重保存为 `outputs/classifier/best.pt`
+ 
+### 阶段6: 简单图像分类器训练
 
-# 多卡DDP训练
-bash scripts/shell/run_train_classifier.sh --ngpus 2 --batch-size 16
-```
-
-参数说明：
-- `--cache-dir`: 特征缓存目录 (默认: outputs/cache)
-- `--epochs`: 训练轮数 (默认: 100)
-- `--batch-size`: 批次大小 (默认: 32)
-- `--lr`: 学习率 (默认: 0.001)
-- `--val-ratio`: 验证集比例 (默认: 0.2)
-
-最佳权重保存为 `outputs/classifier/best.pt`
-
-### 阶段5b: YOLO-World 开放词汇检测器训练
-
-```bash
-# 单卡训练
-bash scripts/shell/run_train_yolo_world.sh
-
-# 多卡DDP训练
-bash scripts/shell/run_train_yolo_world.sh --ngpus 2
-```
-
-参数说明：
-- `--config`: 配置文件路径 (默认: configs/training/yolo_world.yaml)
-- `--ngpus`: GPU数量
-- `--epochs`: 训练轮数
-- `--batch`: 批次大小
-- `--imgsz`: 输入尺寸 (默认: 1280)
-
-### 阶段5c: 简单图像分类器训练
-
-```bash
-# 使用配置文件训练
-bash scripts/shell/run_train_simple_classifier.sh \
-  --config configs/training/simple_classifier.yaml
-
-# DDP多GPU训练
-bash scripts/shell/run_train_simple_classifier.sh \
-  --config configs/training/simple_classifier.yaml \
-  --ngpus 2
-
-# 覆盖配置参数
-bash scripts/shell/run_train_simple_classifier.sh \
-  --config configs/training/simple_classifier.yaml \
-  --override "lr=0.01,batch_size=128"
-```
-
-### 阶段6: 端到端评估与阈值搜索
+ ```bash
+ # 使用配置文件训练
+ bash scripts/shell/run_train_simple_classifier.sh \
+   --config configs/training/simple_classifier.yaml
+ 
+ # DDP多GPU训练
+ bash scripts/shell/run_train_simple_classifier.sh \
+   --config configs/training/simple_classifier.yaml \
+   --ngpus 2
+ 
+ # 覆盖配置参数
+ bash scripts/shell/run_train_simple_classifier.sh \
+   --config configs/training/simple_classifier.yaml \
+   --override "lr=0.01,batch_size=128"
+ ```
+ 
+ ### 阶段7: 端到端评估与阈值搜索
 
 ```bash
 bash scripts/shell/run_evaluate_pipeline.sh \
@@ -393,22 +390,40 @@ NGPUS=2 bash scripts/shell/run_all_training.sh
 
 ## 模型导出与部署
 
-### ONNX 导出
+ ### ONNX 导出
 
-```python
-from fall_detection.models import FallClassifier, SimpleFallClassifier
-from fall_detection.utils.export import export_classifier_onnx, export_simple_classifier_onnx
+ ```python
+ from fall_detection.models import FallClassifier, SimpleFallClassifier
+ from fall_detection.utils.export import export_classifier_onnx, export_simple_classifier_onnx
+ 
+ # 导出融合分类器
+ model = FallClassifier()
+ model.load_state_dict(torch.load('outputs/classifier/best.pt'))
+ export_classifier_onnx(model, 'fall_classifier.onnx')
+ 
+ # 导出简单分类器
+ model = SimpleFallClassifier()
+ model.load_state_dict(torch.load('outputs/simple_classifier/best.pt'))
+ export_simple_classifier_onnx(model, 'simple_fall_classifier.onnx')
+ ```
+ 
+ ### YOLO-World 模型导出与验证
 
-# 导出融合分类器
-model = FallClassifier()
-model.load_state_dict(torch.load('outputs/classifier/best.pt'))
-export_classifier_onnx(model, 'fall_classifier.onnx')
-
-# 导出简单分类器
-model = SimpleFallClassifier()
-model.load_state_dict(torch.load('outputs/simple_classifier/best.pt'))
-export_simple_classifier_onnx(model, 'simple_fall_classifier.onnx')
-```
+ ```bash
+ # 导出YOLO-World模型（支持非正方形分辨率）
+ bash scripts/shell/run_export_yolo_world.sh \
+   --weights outputs/yolo_world/best.pt \
+   --imgsz 832x448 \
+   --format onnx
+ 
+ # 验证YOLO-World模型性能
+ bash scripts/shell/run_validate_yolo_world.sh \
+   --weights outputs/yolo_world/best.pt \
+   --data data/yaml/fall_detection_yolo_world.yaml
+ 
+ # 下载预训练YOLO-World模型
+ bash scripts/shell/download_yolo_world_models.sh
+ ```
 
 ### 部署检查清单
 

@@ -5,7 +5,7 @@
 #   bash scripts/shell/run_superpowers_server.sh
 #   bash scripts/shell/run_superpowers_server.sh 8080
 
-PORT="${1:-8080}"
+PORT="${1:-8081}"
 SUPERPOWERS_DIR=".superpowers"
 
 if [ ! -d "${SUPERPOWERS_DIR}" ]; then

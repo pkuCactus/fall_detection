@@ -1,121 +1,211 @@
-<h2>测试流程 & 分阶段训练流程</h2>
-<p class="subtitle">整体测试覆盖：模块测试 + 集成测试 + 端到端 + 端侧模拟验证</p>
+<h2>测试流程 & 分阶段训练流程（实际实现）</h2>
+<p class="subtitle">444个测试用例 + 7阶段训练流程 + DDP多GPU支持</p>
 
 <div style="max-width:950px;margin:20px auto;font-size:14px;line-height:1.7;">
 
   <h3 style="color:#055160;">一、整体测试流程（Test Pipeline）</h3>
 
-  <div style="background:#f1f8ff;padding:14px 18px;border-radius:8px;margin:10px 0;">
-    <h4>阶段1：模块级单元测试（Module Tests）</h4>
+  <div style="background:#e7f3ff;padding:14px 18px;border-radius:8px;margin:10px 0;">
+    <h4>测试统计</h4>
     <ul>
-      <li><strong>检测器</strong>：mAP@0.5、mAP@0.5:0.95、Recall（针对小目标/遮挡人体单独评估）。输入：私有跌倒数据集的人体框标注</li>
-      <li><strong>跟踪器</strong>：IDF1、MOTA、ID Switch 次数。输入：检测器输出的伪标注序列</li>
-      <li><strong>关键点</strong>：PCK@0.2、OKS-AP（若用 COCO 预训练则先在 COCO val 上跑；若补充标注则在私有跌倒数据上测）。NPU/量化后：定点输出与浮点输出的平均 L2 误差</li>
-      <li><strong>分类器</strong>：Accuracy、Precision、Recall、F1、混淆矩阵（跌倒 vs 非跌倒：弯腰、蹲下、坐下等难例）。输入：跌倒数据集的 clip 段</li>
-      <li><strong>规则引擎</strong>：规则触发率、误触发率（在非跌倒动作上的触发比例）。通过 gtest/pytest 做逻辑覆盖</li>
+      <li><strong>总测试用例</strong>：444个（unit tests + integration tests）</li>
+      <li><strong>单元测试覆盖率</strong>：90%+（核心模块detector/tracker/pose/rules/fusion/classifier/pipeline）</li>
+      <li><strong>运行方式</strong>：<code>bash scripts/shell/run_tests.sh</code> 或 <code>PYTHONPATH=src pytest tests/ -v</code></li>
+      <li><strong>覆盖率检查</strong>：<code>PYTHONPATH=src pytest tests/ --cov=src/fall_detection --cov-fail-under=90</code></li>
+    </ul>
+  </div>
+
+  <div style="background:#f1f8ff;padding:14px 18px;border-radius:8px;margin:10px 0;">
+    <h4>阶段1：模块级单元测试（16个单元测试文件）</h4>
+    <ul>
+      <li><strong>检测器</strong>：test_detector.py - 检测输出格式、置信度阈值、模型加载</li>
+      <li><strong>跟踪器</strong>：test_tracker.py - ByteTrack-lite跟踪、ID分配、状态转换、卡尔曼滤波</li>
+      <li><strong>关键点</strong>：test_pose_estimator.py - 姿态估计输出、关键点匹配、IoU关联</li>
+      <li><strong>规则引擎</strong>：test_rules.py - 五个判定规则（A/B/C/D/E）、姿态分类、得分计算</li>
+      <li><strong>融合决策</strong>：test_fusion.py - 状态机流转、姿态序列检查、冷却期机制</li>
+      <li><strong>分类器</strong>：test_classifier.py、test_simple_classifier.py - 融合/简单分类器推理、权重加载</li>
+      <li><strong>Pipeline</strong>：test_pipeline.py - 抽帧逻辑、缓存机制、端到端处理</li>
+      <li><strong>数据处理</strong>：test_augmentation.py、test_datasets.py - 数据增强、数据集加载</li>
+      <li><strong>工具</strong>：test_convert_voc_to_yolo.py、test_export.py - VOC转换、模型导出</li>
+      <li><strong>辅助工具</strong>：test_utils_*.py、test_scheduler.py - 可视化、几何计算、调度器</li>
     </ul>
   </div>
 
   <div style="background:#fff3cd;padding:14px 18px;border-radius:8px;margin:10px 0;">
-    <h4>阶段2：集成测试（Integration Tests）</h4>
+    <h4>阶段2：集成测试（6个集成测试文件）</h4>
     <ul>
-      <li><strong>检测+跟踪</strong>：测试抽帧下跟踪的连贯性（ID 漂移、遮挡恢复）</li>
-      <li><strong>检测+跟踪+关键点</strong>：关键点对检测框偏移、尺度变化的鲁棒性</li>
-      <li><strong>规则+分类器</strong>：规则触发后，分类器能否正确纠正规则误触发（如蹲下被规则误判为跌倒）</li>
-      <li><strong>时序稳定性</strong>：同一段跌倒视频的多次运行结果方差（蒙特卡洛稳定性）</li>
+      <li><strong>训练脚本测试</strong>：test_training_detector.py、test_training_pose.py、test_training_classifier.py、test_training_simple_classifier.py - DDP训练、参数解析、模型保存</li>
+      <li><strong>工具脚本测试</strong>：test_training_scripts.py、test_extract_features.py - 特征提取、脚本help信息</li>
     </ul>
   </div>
 
   <div style="background:#d1ecf1;padding:14px 18px;border-radius:8px;margin:10px 0;">
     <h4>阶段3：端到端 Inference Pipeline 测试</h4>
     <ul>
-      <li><strong>视频级测试</strong>：给定 1080p 视频，输出完整结果（带可视化：框/跟踪 ID/关键点/跌倒状态）。对比 GT 标注计算：事件级 TP/FP/FN、漏报率、误报率/小时</li>
-      <li><strong>实时性能测试</strong>：在 x86（GPU）上测 FPS、延迟 P50/P99；记录不同抽帧率下的端到端延迟</li>
-      <li><strong>鲁棒性测试</strong>：光照变化、遮挡物（家具/其他人）、不同服装颜色、侧卧 vs 仰卧 vs 趴下</li>
+      <li><strong>视频级测试</strong>：<code>scripts/eval/evaluate_pipeline.py</code> - 给定1080p视频，输出跌倒事件检测结果</li>
+      <li><strong>评估指标</strong>：事件级TP/FP/FN、漏报率、误报率，对比<code>event_gt.json</code>标注</li>
+      <li><strong>实时性能</strong>：<code>scripts/eval/benchmark_speed.py</code> - FPS、延迟P50/P99、不同抽帧率下的端到端延迟</li>
+      <li><strong>阈值搜索</strong>：<code>scripts/shell/run_evaluate_pipeline.sh</code> - 网格搜索trigger_thresh/alarm_thresh最优组合</li>
     </ul>
   </div>
 
   <div style="background:#e2e3f5;padding:14px 18px;border-radius:8px;margin:10px 0;">
     <h4>阶段4：端侧模拟部署验证</h4>
     <ul>
-      <li><strong>模型转换链路</strong>：PyTorch → ONNX → 海思 wk/NNIE 格式（或 nnief/ruyi 工具链）。验证每一层输出与浮点一致（cosine similarity > 0.99）</li>
-      <li><strong>量化验证</strong>：INT8 量化前后精度对比（检测 mAP 掉点、关键点 PCK 掉点、分类器 accuracy 掉点）。量化校准数据集从训练集里抽取 100~200 张</li>
-      <li><strong>ARM 模拟/真机验证</strong>：若无法直接上海思，先用 ARM CPU（如 RK/树莓派）跑 ONNX/NCNN 做功能验证；再在交叉编译环境模拟后处理逻辑</li>
-      <li><strong>资源占用评估</strong>：峰值 DDR、模型加载 flash 大小、每帧前向耗时预估（用 FLOPs / 0.5T 做理论估算 + 实际子模块 benchmark）</li>
+      <li><strong>模型转换</strong>：PyTorch → ONNX，<code>src/fall_detection/utils/export.py</code>提供导出接口</li>
+      <li><strong>YOLO-World导出</strong>：<code>scripts/tools/export_yolo_world.py</code>支持非正方形分辨率（832x448）</li>
+      <li><strong>量化验证</strong>：INT8量化前后精度对比（检测mAP、关键点PCK、分类器accuracy）</li>
+      <li><strong>资源评估</strong>：峰值DDR、模型加载flash大小、每帧前向耗时benchmark</li>
     </ul>
   </div>
 
   <hr style="border:none;border-top:1px solid #ddd;margin:28px 0;"/>
 
-  <h3 style="color:#3d3d7a;">二、分阶段训练流程（Training Pipeline）</h3>
+  <h3 style="color:#3d3d7a;">二、7阶段训练流程（Training Pipeline）</h3>
 
   <div style="background:#f8f9fa;padding:14px 18px;border-radius:8px;margin:10px 0;">
-    <p><strong>核心原则：</strong>检测器和关键点先在公开数据集上做<strong>并行预训练</strong>；跟踪器基于检测结果做参数调优；分类器串行在（检测+关键点+私有数据）之后训练；最后端到端串联并冻结/corrective fine-tune。</p>
+    <p><strong>核心原则：</strong>检测器和姿态估计器独立预训练；跟踪器基于检测结果调参；分类器串行训练；最后端到端串联评估。</p>
+    <p><strong>DDP支持：</strong>所有训练脚本支持多GPU分布式训练，使用<code>--ngpus N</code>参数。</p>
+    <p><strong>配置文件：</strong><code>configs/training/*.yaml</code>提供训练参数配置（detector.yaml、pose.yaml、classifier.yaml、simple_classifier.yaml等）。</p>
   </div>
 
   <div style="display:flex;gap:12px;margin:16px 0;align-items:stretch;">
     <div style="flex:1;background:#e8f4e8;padding:14px;border-radius:8px;">
-      <h4><strong>阶段1：检测器</strong></h4>
-      <p><strong>数据集</strong>：MS COCO person + 私有跌倒人体框</p>
-      <p><strong>步骤</strong>：</p>
+      <h4><strong>阶段1：人体检测器训练</strong></h4>
+      <p><strong>数据集</strong>：YOLO格式（COCO person + 私有跌倒人体框）</p>
+      <p><strong>脚本</strong>：<code>scripts/train/train_detector.py</code></p>
+      <p><strong>Shell</strong>：<code>bash scripts/shell/run_train_detector.sh --ngpus 2</code></p>
+      <p><strong>配置</strong>：<code>configs/training/detector.yaml</code></p>
       <ol>
-        <li>COCO 预训练 80 epochs（人体类权重做初始化）</li>
-        <li>私有数据 fine-tune：调整 anchors（如果有）、数据增强（Mosaic、Mixup 可选，但端侧建议关掉重增强）、输入 832×448</li>
-        <li>量化感知训练（QAT）或 PTQ 准备：导出 ONNX</li>
+        <li>YOLOv8n预训练初始化</li>
+        <li>私有数据fine-tune，输入832×448</li>
+        <li>支持DDP多GPU训练</li>
       </ol>
-      <p><strong>验证</strong>：mAP/Recall → 通过</p>
+      <p><strong>输出</strong>：<code>outputs/detector/best.pt</code></p>
     </div>
     <div style="flex:1;background:#f8d7da;padding:14px;border-radius:8px;">
-      <h4><strong>阶段2：17关键点</strong></h4>
-      <p><strong>数据集</strong>：MS COCO keypoints（或 CrowdPose）</p>
-      <p><strong>步骤</strong>：</p>
+      <h4><strong>阶段2：姿态估计器微调</strong></h4>
+      <p><strong>数据集</strong>：YOLO格式（COCO keypoints 17点标注）</p>
+      <p><strong>脚本</strong>：<code>scripts/train/train_pose.py</code></p>
+      <p><strong>Shell</strong>：<code>bash scripts/shell/run_train_pose.sh --ngpus 2</code></p>
+      <p><strong>配置</strong>：<code>configs/training/pose.yaml</code></p>
       <ol>
-        <li>COCO 预训练：MobileNetV2/ShuffleNet backbone + SimHR / SimpleBaseline head（轻量版）</li>
-        <li>输入 256×192 或 128×96（权衡精度与 DDR）</li>
-        <li>若后续业务需要提升：补充跌倒场景的关键点标注做 domain adaptation（阶段4之后可选）</li>
+        <li>YOLOv8n-pose预训练初始化</li>
+        <li>输入128×96或256×192（权衡精度与DDR）</li>
+        <li>可补充跌倒场景关键点标注做domain adaptation</li>
       </ol>
-      <p><strong>验证</strong>：PCK@0.2 / OKS-AP → 通过</p>
+      <p><strong>输出</strong>：<code>outputs/pose/best.pt</code></p>
     </div>
   </div>
 
   <div style="display:flex;gap:12px;margin:16px 0;align-items:stretch;">
     <div style="flex:1;background:#d1ecf1;padding:14px;border-radius:8px;">
-      <h4><strong>阶段3：跟踪器</strong></h4>
-      <p><strong>方式</strong>：不训神经网络，纯调参</p>
+      <h4><strong>阶段3：跟踪器参数调优</strong></h4>
+      <p><strong>方式</strong>：纯调参，不训练神经网络</p>
+      <p><strong>脚本</strong>：<code>scripts/eval/tune_tracker.py</code></p>
+      <p><strong>Shell</strong>：<code>bash scripts/shell/run_tune_tracker.sh --video-dir data/videos</code></p>
       <ol>
-        <li>在阶段1检测器输出的私有视频序列上运行 ByteTrack-lite</li>
-        <li>调优：det_thresh、track_thresh、match_thresh、max_age、min_hits</li>
-        <li>评估 MOTA/IDF1，确认 ID Switch 在可接受范围</li>
+        <li>在阶段1检测器输出的视频序列上运行ByteTrack-lite</li>
+        <li>网格搜索：track_thresh/match_thresh/max_age/min_hits</li>
+        <li>评估MOTA/IDF1，确认ID Switch可接受</li>
       </ol>
+      <p><strong>输出</strong>：<code>outputs/tracker/tune_result.json</code></p>
     </div>
     <div style="flex:1;background:#eeefff;padding:14px;border-radius:8px;">
-      <h4><strong>阶段4：姿态分类器</strong></h4>
-      <p><strong>数据集</strong>：私有跌倒数据集（跌倒 / 非跌倒 clip）</p>
+      <h4><strong>阶段4：特征提取</strong></h4>
+      <p><strong>目的</strong>：为融合分类器准备训练数据</p>
+      <p><strong>脚本</strong>：<code>scripts/tools/extract_features.py</code></p>
+      <p><strong>Shell</strong>：<code>bash scripts/shell/run_extract_features.sh --video-dir data/videos --label-file data/labels.json</code></p>
       <ol>
-        <li>用阶段1检测器 + 阶段2关键点在训练视频上提取“真值特征”（ROI 图 + 关键点 + 运动轨迹）</li>
-        <li>构建融合分类器，训练 100~200 epochs，加 Dropout 防止过拟合</li>
-        <li>难例挖掘（混淆矩阵分析），补充非跌倒难例数据</li>
+        <li>用阶段1检测器 + 阶段2姿态估计器提取特征</li>
+        <li>ROI图像（96×96）+ 关键点坐标（17×3）+ 运动特征（8-d）</li>
+        <li>缓存为.npz文件，避免重复前向推理</li>
       </ol>
-      <p><strong>验证</strong>：Accuracy/F1 → 通过</p>
+      <p><strong>输出</strong>：<code>outputs/cache/*.npz</code></p>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:12px;margin:16px 0;align-items:stretch;">
+    <div style="flex:1;background:#e2e3f5;padding:14px;border-radius:8px;">
+      <h4><strong>阶段5：融合分类器训练</strong></h4>
+      <p><strong>数据</strong>：<code>outputs/cache/*.npz</code> + <code>data/labels.json</code></p>
+      <p><strong>脚本</strong>：<code>scripts/train/train_classifier.py</code></p>
+      <p><strong>Shell</strong>：<code>bash scripts/shell/run_train_classifier.sh --ngpus 2 --batch-size 16</code></p>
+      <p><strong>配置</strong>：<code>configs/training/classifier.yaml</code></p>
+      <ol>
+        <li>3分支网络（图像+关键点+运动）</li>
+        <li>训练100~200 epochs，Dropout防过拟合</li>
+        <li>难例挖掘，补充非跌倒难例数据</li>
+      </ol>
+      <p><strong>输出</strong>：<code>outputs/classifier/best.pt</code></p>
+    </div>
+    <div style="flex:1;background:#d4edda;padding:14px;border-radius:8px;">
+      <h4><strong>阶段6：简单分类器训练</strong></h4>
+      <p><strong>数据</strong>：COCO/VOC格式（跌倒/非跌倒图像bbox标注）</p>
+      <p><strong>脚本</strong>：<code>scripts/train/train_simple_classifier.py</code></p>
+      <p><strong>Shell</strong>：<code>bash scripts/shell/run_train_simple_classifier.sh --config configs/training/simple_classifier.yaml --ngpus 2</code></p>
+      <p><strong>配置</strong>：<code>configs/training/simple_classifier.yaml</code>或<code>simple_classifier_voc.yaml</code></p>
+      <ol>
+        <li>单分支轻量CNN（仅96×96图像输入）</li>
+        <li>2-class分类（normal/fall）</li>
+        <li>数据增强、早停、学习率warmup</li>
+      </ol>
+      <p><strong>输出</strong>：<code>outputs/simple_classifier/best.pt</code></p>
     </div>
   </div>
 
   <div style="background:#212529;color:#fff;padding:14px;border-radius:8px;margin:16px 0;">
-    <h4><strong>阶段5：端到端串联与整体微调</strong></h4>
+    <h4><strong>阶段7：端到端评估与阈值搜索</strong></h4>
+    <p><strong>脚本</strong>：<code>scripts/eval/evaluate_pipeline.py</code></p>
+    <p><strong>Shell</strong>：<code>bash scripts/shell/run_evaluate_pipeline.sh --video-dir data/videos --gt-file data/event_gt.json</code></p>
     <ol>
-      <li>冻结检测器、关键点、分类器权重，在私有验证集上跑整条 pipeline</li>
-      <li>若存在明显级联误差（如检测框抖动导致关键点不稳定、分类器对检测误差敏感），可做 <strong>corrective fine-tune</strong>：在端到端数据上微调检测器/分类器，但端侧小网络调整幅度要小</li>
-      <li>规则引擎阈值（T_trigger / T_alarm / 各权重）在验证集上做网格搜索</li>
+      <li>冻结所有模块权重，在验证集上跑完整pipeline</li>
+      <li>网格搜索阈值：trigger_thresh [0.5, 0.6, 0.7]、alarm_thresh [0.6, 0.7, 0.8]</li>
+      <li>评估事件级TP/FP/FN，计算最优阈值组合</li>
       <li>输出最终部署模型 + 配置文件</li>
     </ol>
+    <p><strong>输出</strong>：<code>outputs/eval/eval_result.json</code></p>
   </div>
 
   <div style="background:#f1f8ff;padding:12px 18px;border-radius:8px;margin:14px 0;">
-    <h4>训练时模型与数据接口约定</h4>
+    <h4>一键运行完整训练流程</h4>
+    <pre style="background:#fff;padding:10px;border-radius:4px;border:1px solid #e1e4e8;">NGPUS=2 bash scripts/shell/run_all_training.sh</pre>
+    <p>自动执行阶段1→7，输出所有训练产物。</p>
+  </div>
+
+  <hr style="border:none;border-top:1px solid #ddd;margin:28px 0;"/>
+
+  <h3 style="color:#3d3d7a;">三、数据格式与工具支持</h3>
+
+  <div style="display:flex;gap:12px;margin:16px 0;align-items:stretch;">
+    <div style="flex:1;background:#fff3cd;padding:14px;border-radius:8px;">
+      <h4><strong>数据格式</strong></h4>
+      <ul>
+        <li><strong>检测/姿态训练</strong>：YOLO格式（images/ + labels/*.txt + data.yaml）</li>
+        <li><strong>简单分类器训练</strong>：COCO/VOC格式（images/ + annotations/*.json/xml）</li>
+        <li><strong>融合分类器标签</strong>：<code>data/labels.json</code>（video_name → label + frames）</li>
+        <li><strong>端到端评估GT</strong>：<code>data/event_gt.json</code>（video_name → [start, end]时间段列表）</li>
+      </ul>
+    </div>
+    <div style="flex:1;background:#e7f3ff;padding:14px;border-radius:8px;">
+      <h4><strong>工具支持</strong></h4>
+      <ul>
+        <li><strong>VOC转YOLO</strong>：<code>scripts/tools/convert_voc_to_yolo.py</code> - 支持YOLO-World风格映射</li>
+        <li><strong>YOLO自动标注</strong>：<code>tools/annotate/yolo_annotate.py</code> - YOLOv8人体检测生成VOC标注</li>
+        <li><strong>VLM自动标注</strong>：<code>tools/annotate/vlm_annotate.py</code> - Claude/阿里百炼API分析图像生成标注</li>
+        <li><strong>YOLO-World工具</strong>：<code>scripts/shell/run_validate_yolo_world.sh</code>、<code>run_export_yolo_world.sh</code> - 验证/导出工具</li>
+        <li><strong>Requirements生成</strong>：<code>scripts/tools/generate_requirements.py</code> - 指定CUDA版本生成requirements.txt</li>
+      </ul>
+    </div>
+  </div>
+
+  <div style="background:#d1ecf1;padding:12px 18px;border-radius:8px;margin:14px 0;">
+    <h4>训练可复现性保障</h4>
     <ul>
-      <li><strong>统一数据格式</strong>：COCO JSON（人体框）+ 自定义 CSV/JSON（跌倒事件时间戳/标签）</li>
-      <li><strong>中间特征缓存</strong>：为阶段4分类器训练，自动缓存检测框、关键点、运动特征到 pickle/NPY，避免每次重跑前向</li>
-      <li><strong>可复现</strong>：每个阶段固定随机种子、保存训练配置 yaml、保留最佳 checkpoint</li>
+      <li><strong>配置文件</strong>：<code>configs/training/*.yaml</code>记录所有训练参数</li>
+      <li><strong>随机种子</strong>：所有训练脚本支持<code>seed</code>参数（默认666）</li>
+      <li><strong>Checkpoint保存</strong>：每个阶段保存<code>best.pt</code>和<code>last.pt</code></li>
+      <li><strong>训练日志</strong>：<code>outputs/*/train.log</code>记录loss/accuracy曲线</li>
     </ul>
   </div>
 
