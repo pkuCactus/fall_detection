@@ -382,20 +382,21 @@ def train_loop(
         remaining_time = avg_epoch_time * (epochs - epoch)
         remaining_str = format_time_remaining(int(remaining_time))
 
-        if rank == 0:
-            # Update learning rate
-            if scheduler is not None:
-                if isinstance(scheduler, WarmupScheduler):
-                    if val_loader and scheduler.scheduler is not None:
-                        scheduler.step(v_acc)
-                    else:
-                        scheduler.step()
-                elif scheduler_type == "plateau" and val_loader:
+        # Update learning rate (all ranks)
+        if scheduler is not None:
+            if isinstance(scheduler, WarmupScheduler):
+                if val_loader and scheduler.scheduler is not None:
                     scheduler.step(v_acc)
                 else:
                     scheduler.step()
+            elif scheduler_type == "plateau" and val_loader:
+                scheduler.step(v_acc)
+            else:
+                scheduler.step()
 
-            current_lr = optimizer.param_groups[0]["lr"]
+        current_lr = optimizer.param_groups[0]["lr"]
+
+        if rank == 0:
 
             if epoch % epoch_log_interval == 0 or epoch == epochs:
                 if val_loader:
@@ -412,18 +413,26 @@ def train_loop(
                         f"lr={current_lr:.6f}  remain={remaining_str}"
                     )
 
-            # Save model
-            if val_loader and v_acc > best_acc:
-                best_acc = v_acc
-                patience_counter = 0
-                save_path = os.path.join(
-                    output_cfg.get("dir", "outputs/simple_classifier"), "best.pt"
-                )
-                torch.save(
-                    model.module.state_dict() if ddp else model.state_dict(), save_path
-                )
-                if epoch % epoch_log_interval == 0:
-                    print(f"  -> Saved best model (val_acc={v_acc:.4f})")
+            # Early stopping & save model (rank 0 only)
+            if early_cfg.get("enabled", True) and val_loader:
+                if v_acc > best_acc + early_cfg.get("min_delta", 0.001):
+                    # Significant improvement: reset counter, save model
+                    patience_counter = 0
+                    best_acc = v_acc
+                    save_path = os.path.join(
+                        output_cfg.get("dir", "outputs/simple_classifier"), "best.pt"
+                    )
+                    torch.save(
+                        model.module.state_dict() if ddp else model.state_dict(), save_path
+                    )
+                    if epoch % epoch_log_interval == 0:
+                        print(f"  -> Saved best model (val_acc={v_acc:.4f})")
+                elif v_acc <= best_acc:
+                    # No improvement: increment counter
+                    patience_counter += 1
+                    if patience_counter >= early_cfg.get("patience", 20):
+                        print(f"Early stopping at epoch {epoch}")
+                # else: small improvement (within min_delta), do nothing
             elif not val_loader and epoch % output_cfg.get("save_every", 10) == 0:
                 save_path = os.path.join(
                     output_cfg.get("dir", "outputs/simple_classifier"), f"epoch_{epoch}.pt"
@@ -432,15 +441,6 @@ def train_loop(
                     model.module.state_dict() if ddp else model.state_dict(), save_path
                 )
                 print(f"  -> Saved checkpoint (epoch={epoch})")
-
-            # Early stopping check (rank 0 only)
-            if early_cfg.get("enabled", True) and val_loader:
-                if v_acc <= best_acc + early_cfg.get("min_delta", 0.001):
-                    patience_counter += 1
-                    if patience_counter >= early_cfg.get("patience", 20):
-                        print(f"Early stopping at epoch {epoch}")
-                else:
-                    patience_counter = 0
 
         if should_stop_early(cfg, rank, device, ddp, patience_counter):
             break
