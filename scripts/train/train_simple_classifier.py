@@ -521,15 +521,27 @@ def train_loop(
                 )
                 print(f"  -> Saved checkpoint (epoch={epoch})")
 
-            # Early stopping
+            # Early stopping check (rank 0 only)
             if early_cfg.get("enabled", True) and val_loader:
                 if v_acc <= best_acc + early_cfg.get("min_delta", 0.001):
                     patience_counter += 1
                     if patience_counter >= early_cfg.get("patience", 20):
                         print(f"Early stopping at epoch {epoch}")
-                        break
                 else:
                     patience_counter = 0
+
+        # Early stopping signal (all ranks)
+        should_stop = torch.tensor(0.0, device=device)
+        if rank == 0 and early_cfg.get("enabled", True) and val_loader:
+            if patience_counter >= early_cfg.get("patience", 20):
+                should_stop = torch.tensor(1.0, device=device)
+
+        # Broadcast stop signal to all ranks
+        if ddp:
+            dist.broadcast(should_stop, src=0)
+
+        if should_stop.item() > 0:
+            break
 
     return best_acc if val_loader else t_acc
 
