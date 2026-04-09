@@ -177,53 +177,28 @@ def create_model(
 ) -> nn.Module:
     """Create and setup model."""
     model_cfg = cfg.get("model", {})
-    ddp_cfg = cfg.get("ddp", {})
-
     dropout = model_cfg.get("dropout", 0.3)
     fall_class_idx = model_cfg.get("fall_class_idx", 1)
-    model = SimpleFallClassifier(dropout=dropout, fall_class_idx=fall_class_idx).to(
-        device
-    )
+    model = SimpleFallClassifier(dropout=dropout, fall_class_idx=fall_class_idx).to(device)
 
     # Apply torch.compile for PyTorch 2.0+ (before DDP wrapping)
-    # NOTE: torch.compile has known issues with DDP, especially cudagraphs
-    # Solution: Disable torch.compile for DDP training or use "default" mode
     compile_cfg = cfg.get("compile", {})
-    compile_enabled = compile_cfg.get("enabled", False)
+    compile_enabled = compile_cfg.get("enabled", False) and not ddp
 
-    # Auto-disable torch.compile for DDP training to avoid cudagraphs issues
-    if ddp and compile_enabled:
+    if compile_enabled and hasattr(torch, "compile"):
         compile_mode = compile_cfg.get("mode", "default")
-        if compile_mode == "reduce-overhead":
-            if rank == 0:
-                print(
-                    f"[{_timestamp()}] Warning: 'reduce-overhead' mode has known issues with DDP (cudagraphs)"
-                )
-                print(
-                    f"[{_timestamp()}] Auto-switching to 'default' mode for DDP compatibility"
-                )
-            compile_cfg_safe = {"enabled": True, "mode": "default"}
-        else:
-            compile_cfg_safe = compile_cfg
-    else:
-        compile_cfg_safe = compile_cfg
-
-    if compile_cfg_safe.get("enabled", False) and hasattr(torch, "compile"):
         if rank == 0:
-            print(
-                f"[{_timestamp()}] Compiling model with torch.compile (mode={compile_cfg_safe.get('mode', 'default')})..."
-            )
+            print(f"[{_timestamp()}] Compiling model with torch.compile (mode={compile_mode})...")
         try:
-            model = torch.compile(model, mode=compile_cfg_safe.get("mode", "default"))
+            model = torch.compile(model, mode=compile_mode)
             if rank == 0:
                 print(f"[{_timestamp()}] Model compiled successfully")
         except Exception as e:
             if rank == 0:
-                print(
-                    f"[{_timestamp()}] Warning: torch.compile failed ({e}), using uncompiled model"
-                )
+                print(f"[{_timestamp()}] Warning: torch.compile failed ({e}), using uncompiled model")
 
     if ddp:
+        ddp_cfg = cfg.get("ddp", {})
         find_unused = ddp_cfg.get("find_unused_parameters", False)
         # gradient_as_bucket_view=True helps avoid "Grad strides do not match bucket view strides" warning
         # and can improve DDP performance by reducing memory copies
