@@ -65,11 +65,9 @@ model:
 
 # 训练配置
 epochs: 100
-batch_size: 1024  # 全局batch size（所有GPU的总和）
-                  # DDP训练时，每个GPU的batch_size = batch_size / num_gpus
-                  # 例如：batch_size=64，2卡DDP时每个GPU实际使用32
-num_workers: 16  # 数据加载worker数量（建议: CPU核心数/每卡，或4-8）
-prefetch_factor: 32  # 每个worker预取的batch数量
+batch_size: 256  # 全局batch size（所有GPU的总和）
+num_workers: 4  # 数据加载worker数量（建议: CPU核心数/每卡，或4-8）
+prefetch_factor: 2  # 每个worker预取的batch数量
 
 # 优化器配置
 lr: 0.001
@@ -133,7 +131,7 @@ crop:
 # 缓存配置
 cache:
   dir: "outputs/cache"  # VOC格式样本列表缓存目录
-  image_cache_size: 5000  # LRU图像缓存大小（张），设为0禁用缓存
+  image_cache_size: 100  # LRU图像缓存大小（张），设为0禁用缓存
 
 # 输出配置
 output:
@@ -156,5 +154,5 @@ ddp:
 # 日志
 log:
   epoch_log_interval: 1  # 每N轮打印epoch日志
-  batch_log_interval: 50  # 每N个batch打印batch日志
+  batch_log_interval: 10  # 每N个batch打印batch日志
   verbose: true
