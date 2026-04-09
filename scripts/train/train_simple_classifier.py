@@ -625,10 +625,36 @@ def create_data_loaders(
     rank: int,
     ddp: bool,
 ):
-    """Create training and validation data loaders."""
-    batch_size = cfg.get("batch_size", 64)
+    """Create training and validation data loaders.
+
+    Note: The batch_size in config represents GLOBAL batch size across all GPUs.
+    For DDP training, per-GPU batch size is automatically calculated as:
+        per_gpu_batch_size = global_batch_size / world_size
+    """
+    global_batch_size = cfg.get("batch_size", 64)
     num_workers = cfg.get("num_workers", 4)
     prefetch_factor = cfg.get("prefetch_factor", 4) if num_workers > 0 else None
+
+    # Calculate per-GPU batch size
+    if ddp:
+        if global_batch_size % world_size != 0:
+            raise ValueError(
+                f"Global batch_size ({global_batch_size}) must be divisible by "
+                f"number of GPUs ({world_size})"
+            )
+        per_gpu_batch_size = global_batch_size // world_size
+    else:
+        per_gpu_batch_size = global_batch_size
+
+    # Log batch size configuration
+    if rank == 0:
+        print(f"\n{'=' * 60}")
+        print(f"Batch Size Configuration:")
+        print(f"  Global batch size: {global_batch_size}")
+        print(f"  Per-GPU batch size: {per_gpu_batch_size}")
+        if ddp:
+            print(f"  Number of GPUs: {world_size}")
+        print(f"{'=' * 60}\n")
 
     train_sampler = (
         DistributedSampler(
@@ -640,7 +666,7 @@ def create_data_loaders(
 
     train_loader = DataLoader(
         train_dataset,
-        batch_size=batch_size,
+        batch_size=per_gpu_batch_size,
         sampler=train_sampler,
         shuffle=(train_sampler is None),
         num_workers=num_workers,
@@ -661,7 +687,7 @@ def create_data_loaders(
         )
         val_loader = DataLoader(
             val_dataset,
-            batch_size=batch_size,
+            batch_size=per_gpu_batch_size,
             sampler=val_sampler,
             shuffle=False,
             num_workers=num_workers,
@@ -742,9 +768,11 @@ def main():
 
     # Create data loaders
     if rank == 0:
-        print(
-            f"Creating data loaders (batch={cfg.get('batch_size', 64)}, workers={cfg.get('num_workers', 4)})..."
-        )
+        print(f"[{_timestamp()}] Creating data loaders...")
+        print(f"[{_timestamp()}]   Global batch size: {cfg.get('batch_size', 64)}")
+        print(f"[{_timestamp()}]   Workers: {cfg.get('num_workers', 4)}")
+        if ddp:
+            print(f"[{_timestamp()}]   World size: {world_size}")
     train_loader, val_loader = create_data_loaders(
         train_dataset, val_dataset, cfg, world_size, rank, ddp
     )

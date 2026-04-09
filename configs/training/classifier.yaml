@@ -10,7 +10,8 @@ dropout: 0.3  # Dropout率
 
 # 训练配置
 epochs: 100
-batch_size: 32
+batch_size: 64  # 全局batch size（所有GPU的总和）
+                  # DDP训练时，每个GPU的batch_size = batch_size / num_gpus
 num_workers: 0  # 数据加载线程数 (0避免DataLoader问题)
 
 # 优化器配置

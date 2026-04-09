@@ -65,9 +65,11 @@ model:
 
 # 训练配置
 epochs: 100
-batch_size: 32  # 增大batch_size提高GPU利用率（每GPU 32，2卡总batch=64）
-num_workers: 4  # 减少worker数量避免CPU瓶颈（建议: CPU核心数/每卡，或4-8）
-prefetch_factor: 2  # 减少prefetch避免内存压力（推荐: 2）
+batch_size: 64  # 全局batch size（所有GPU的总和）
+                  # DDP训练时，每个GPU的batch_size = batch_size / num_gpus
+                  # 例如：batch_size=64，2卡DDP时每个GPU实际使用32
+num_workers: 4  # 数据加载worker数量（建议: CPU核心数/每卡，或4-8）
+prefetch_factor: 2  # 每个worker预取的batch数量
 
 # 优化器配置
 lr: 0.001
