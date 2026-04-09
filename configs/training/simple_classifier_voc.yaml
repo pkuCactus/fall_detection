@@ -65,9 +65,9 @@ model:
 
 # 训练配置
 epochs: 100
-batch_size: 4
-num_workers: 8  # 数据加载worker数量，建议根据CPU核心数设置4-16
-prefetch_factor: 4  # 每个worker预取的batch数量
+batch_size: 32  # 增大batch_size提高GPU利用率（每GPU 32，2卡总batch=64）
+num_workers: 4  # 减少worker数量避免CPU瓶颈（建议: CPU核心数/每卡，或4-8）
+prefetch_factor: 2  # 减少prefetch避免内存压力（推荐: 2）
 
 # 优化器配置
 lr: 0.001
@@ -141,13 +141,15 @@ output:
 
 # torch.compile 配置 (PyTorch 2.0+)
 compile:
-  enabled: true  # 是否启用 torch.compile
-  mode: "reduce-overhead"  # 编译模式: "default", "reduce-overhead", "max-autotune"
+  enabled: false  # DDP训练建议禁用torch.compile以避免cudagraphs问题
+  mode: "default"  # 编译模式: "default", "reduce-overhead", "max-autotune"
+  # 注意: "reduce-overhead"模式在DDP下会导致cudagraphs警告，自动降级为"default"
 
 # DDP配置
 ddp:
   backend: "nccl"
   find_unused_parameters: false
+  gradient_as_bucket_view: true  # 解决"Grad strides do not match"警告，提升性能
 
 # 日志
 log:
