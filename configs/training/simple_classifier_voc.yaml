@@ -65,11 +65,11 @@ model:
 
 # 训练配置
 epochs: 100
-batch_size: 64  # 全局batch size（所有GPU的总和）
+batch_size: 1024  # 全局batch size（所有GPU的总和）
                   # DDP训练时，每个GPU的batch_size = batch_size / num_gpus
                   # 例如：batch_size=64，2卡DDP时每个GPU实际使用32
-num_workers: 4  # 数据加载worker数量（建议: CPU核心数/每卡，或4-8）
-prefetch_factor: 2  # 每个worker预取的batch数量
+num_workers: 16  # 数据加载worker数量（建议: CPU核心数/每卡，或4-8）
+prefetch_factor: 32  # 每个worker预取的batch数量
 
 # 优化器配置
 lr: 0.001
@@ -133,7 +133,7 @@ crop:
 # 缓存配置
 cache:
   dir: "outputs/cache"  # VOC格式样本列表缓存目录
-  image_cache_size: 1000  # LRU图像缓存大小（张），设为0禁用缓存
+  image_cache_size: 5000  # LRU图像缓存大小（张），设为0禁用缓存
 
 # 输出配置
 output:
@@ -143,8 +143,8 @@ output:
 
 # torch.compile 配置 (PyTorch 2.0+)
 compile:
-  enabled: false  # DDP训练建议禁用torch.compile以避免cudagraphs问题
-  mode: "default"  # 编译模式: "default", "reduce-overhead", "max-autotune"
+  enabled: true  # DDP训练建议禁用torch.compile以避免cudagraphs问题
+  mode: "reduce-overhead"  # 编译模式: "default", "reduce-overhead", "max-autotune"
   # 注意: "reduce-overhead"模式在DDP下会导致cudagraphs警告，自动降级为"default"
 
 # DDP配置
