@@ -13,7 +13,7 @@ model: "data/models/pretrained/yolov8n.pt"  # 预训练权重路径（可选）
 # 训练配置
 epochs: 50
 imgsz: 832  # 训练图像尺寸 (YOLO训练只支持正方形整数)
-batch: 64
+batch: 256  # 全局batch size（所有GPU的总和）
 workers: 4  # 数据加载线程数
 project: "yolov8n"  # 训练输出目录 (Ultralytics会自动添加runs/detect/前缀)
 name: "person_detector"  # 实验名称
@@ -52,7 +52,7 @@ save_period: 10  # 每N轮保存一次
 verbose: true  # 详细输出
 
 # 设备配置
-device: 0         # 设备 (cuda=根据CUDA_VISIBLE_DEVICES环境变量选择, 0=GPU0, cpu=CPU)
+device: 4,5,6,7         # 设备 (cuda=根据CUDA_VISIBLE_DEVICES环境变量选择, 0=GPU0, cpu=CPU)
 
 # torch.compile 配置 (PyTorch 2.0+)
 compile:

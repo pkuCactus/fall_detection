@@ -20,14 +20,6 @@ def main():
 
     # Load model
     model = YOLO(cfg.get("model", "data/models/pretrained/yolov8n.pt"))  # 支持直接传路径或使用默认预训练权重
-    if cfg.get("compile", {}).get("enabled", False):
-        try:
-            print(f"Compiling model with mode: {cfg['compile']['mode']}...")
-            model = torch.compile(model, mode=cfg["compile"]["mode"])
-        except Exception as e:
-            print(f"Error during model compilation: {e}")
-            traceback.print_exc()
-            sys.exit(1)
 
     # Train
     try:
