@@ -7,6 +7,7 @@ Supports DDP, random seed, modular config sections, and warmup.
 import sys
 import traceback
 
+import torch
 from ultralytics import YOLO
 
 from fall_detection.utils import parse_args, load_config
@@ -22,7 +23,7 @@ def main():
     if cfg.get("compile", {}).get("enabled", False):
         try:
             print(f"Compiling model with mode: {cfg['compile']['mode']}...")
-            model.compile(mode=cfg["compile"]["mode"])
+            model = torch.compile(model, mode=cfg["compile"]["mode"])
         except Exception as e:
             print(f"Error during model compilation: {e}")
             traceback.print_exc()
