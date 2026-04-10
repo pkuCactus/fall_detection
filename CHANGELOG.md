@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - pyproject.toml for modern Python packaging
 - MIT LICENSE file
 - CHANGELOG.md and CONTRIBUTING.md documentation
+- INSTALL.md with detailed installation guide
+- Comprehensive troubleshooting documentation
 
 ### Changed
 - Reorganized docs directory structure:
@@ -18,7 +20,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Design documents moved to `docs/design/`
   - Development guides moved to `docs/development/`
 - Renamed `data/yaml/` to `data/configs/` for clarity
-- Updated data configuration paths in training configs
+- Renamed all `yolo_world` to `yoloworld` for consistency
+- Consolidated dependency management:
+  - Removed redundant `requirements/` directory
+  - Simplified `requirements.txt` as quick install entry point
+  - Updated `install.sh` to use pyproject.toml
+  - Removed `generate_requirements.py`
+- Added CLIP to dependencies in pyproject.toml
+- Updated documentation to reflect new installation methods
+
+### Removed
+- `requirements/` directory (consolidated into pyproject.toml)
+- `scripts/tools/generate_requirements.py` (no longer needed)
 
 ## [0.1.0] - 2024-04-03
 

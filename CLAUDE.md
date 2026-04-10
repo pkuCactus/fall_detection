@@ -75,11 +75,11 @@ fall_detection/
 ## Common commands
 
 - Install dependencies: `bash scripts/shell/install.sh`
-- Run all tests: `bash scripts/shell/run_tests.sh`
+- Install with specific CUDA: `pip install -e ".[torch-cu124,dev]"`
+- Run all tests: `PYTHONPATH=src pytest tests/ -v`
 - Run a single test file: `PYTHONPATH=src pytest tests/unit/test_pipeline.py -v`
-- Run pipeline demo on a video: `python scripts/demo/run_pipeline_demo.py --video data/sample.mp4 --output output.mp4`
-- Benchmark speed: `python scripts/eval/benchmark_speed.py --video data/videos/test.mp4 --num-frames 100`
-- End-to-end evaluation with threshold grid search: `bash scripts/shell/run_evaluate_pipeline.sh --video-dir data/videos --gt-file data/event_gt.json`
+- Run pipeline demo: `PYTHONPATH=src python scripts/demo/run_pipeline_demo.py --video data/video/test.mp4`
+- Benchmark speed: `PYTHONPATH=src python scripts/eval/benchmark_speed.py --video data/video/test.mp4`
 
 ### Training stages (convenience wrappers in `scripts/shell/`):
 

@@ -195,16 +195,23 @@ fall_detection/
 │
 ├── docs/                             # 文档
 │   ├── api/                          # API文档
-│   └── superpowers/                  # 开发计划
+│   ├── design/                       # 设计文档
+│   ├── development/                  # 开发指南
+│   └── troubleshooting/              # 故障排查
 │
+├── INSTALL.md                        # 详细安装指南
 ├── requirements.txt                  # 快速安装入口（CUDA 12.4）
 ├── pyproject.toml                    # 项目配置和依赖定义
 ├── README.md                         # 项目说明
 ├── CLAUDE.md                         # AI助手指引
+├── CONTRIBUTING.md                   # 贡献指南
+├── CHANGELOG.md                      # 版本历史
 └── LICENSE
 ```
 
 ## 快速开始
+
+> 📖 **详细安装步骤请参考 [INSTALL.md](INSTALL.md)**
 
 ### 1. 安装依赖
 
@@ -215,50 +222,30 @@ bash scripts/shell/install.sh
 # 或指定CUDA版本
 pip install -e ".[torch-cu124,dev]"
 
-# 或使用requirements.txt（CUDA 12.4）
-pip install -r requirements.txt
+# CPU only
+pip install -e ".[torch-cpu,dev]"
 ```
 
-依赖包括：
-- torch >= 2.5
-- ultralytics >= 8.4
-- opencv-python
-- numpy
-- pyyaml
-- pytest
-
-### 2. 下载预训练权重
+### 2. 验证安装
 
 ```bash
-# 自动下载（首次运行时会自动下载）
-python -c "from ultralytics import YOLO; YOLO('yolov8n.pt'); YOLO('yolov8n-pose.pt')"
+# 检查依赖
+python -c "import torch, ultralytics; print('✓ Dependencies OK')"
+
+# 运行测试
+PYTHONPATH=src pytest tests/unit/test_detector.py -v
 ```
 
 ### 3. 运行演示
 
 ```bash
-# 单视频演示
-python scripts/demo/run_pipeline_demo.py --video data/videos/test.mp4 --output output.mp4
+# 视频演示
+PYTHONPATH=src python scripts/demo/run_pipeline_demo.py \
+    --video data/video/test.mp4 --output output.mp4
 
 # 摄像头实时演示
-python scripts/demo/run_pipeline_demo.py --video 0
+PYTHONPATH=src python scripts/demo/run_pipeline_demo.py --video 0
 ```
-
-### 4. 运行测试
-
- ```bash
- # 安装测试依赖
- pip install -e ".[dev]"
- 
- # 运行所有测试（共444个测试用例）
- bash scripts/shell/run_tests.sh
- 
- # 或指定测试文件
- PYTHONPATH=src pytest tests/unit/test_pipeline.py -v
- 
- # 运行带覆盖率的测试
- PYTHONPATH=src pytest tests/ --cov=src/fall_detection --cov-fail-under=90
- ```
 
 ## 分阶段训练流程
 
@@ -649,11 +636,22 @@ class FallClassifier(nn.Module):
 - 减小 `detector.imgsz` 降低输入分辨率
 - 使用更小的 YOLO 模型
 
-## 许可证
+## 📚 文档资源
 
-MIT License
+| 文档 | 说明 |
+|------|------|
+| [INSTALL.md](INSTALL.md) | 详细安装指南和故障排查 |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | 贡献指南和开发设置 |
+| [CHANGELOG.md](CHANGELOG.md) | 版本历史和变更记录 |
+| [CLAUDE.md](CLAUDE.md) | AI助手指引和编码规范 |
+| [docs/api/](docs/api/) | API使用文档 |
+| [docs/troubleshooting/](docs/troubleshooting/) | 故障排查指南 |
 
-## 致谢
+## 📄 许可证
+
+MIT License - 详见 [LICENSE](LICENSE)
+
+## 🙏 致谢
 
 - [Ultralytics YOLOv8](https://github.com/ultralytics/ultralytics)
 - [ByteTrack](https://github.com/ifzhang/ByteTrack)
