@@ -1,11 +1,11 @@
 # YOLOWorld人体检测器训练配置
-# 使用: bash scripts/shell/run_train_detector.sh --config configs/training/yolo_world.yaml
+# 使用: bash scripts/shell/run_train_detector.sh --config configs/training/yoloworld.yaml
 
 # 随机种子（可选，用于可复现性）
 seed: 666
 
 # 数据配置
-data: "data/configs/fall_detection_yolo_world.yaml"  # YOLO-World格式数据配置文件路径
+data: "data/configs/fall_detection_yoloworld.yaml"  # YOLOWorld格式数据配置文件路径
 
 # 模型配置
 model: "data/models/pretrained/yolov8s-worldv2.pt"  # 预训练YOLOWorld v2模型路径

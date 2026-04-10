@@ -27,3 +27,4 @@ skills-lock.json
 outputs/*
 *.cache
 runs/
+.ruff_cache/

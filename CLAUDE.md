@@ -45,10 +45,10 @@ fall_detection/
 │   │   ├── train_pose.py
 │   │   ├── train_classifier.py
 │   │   ├── train_simple_classifier.py
-│   │   ├── train_yolo_world.py
-│   │   ├── export_yolo_world.py
+│   │   ├── train_yoloworld.py
+│   │   ├── export_yoloworld.py
 │   │   ├── extract_features.py
-│   │   └── validate_yolo_world.py
+│   │   └── validate_yoloworld.py
 │   ├── eval/                  # Evaluation scripts
 │   │   ├── evaluate_pipeline.py
 │   │   ├── benchmark_speed.py
@@ -169,7 +169,7 @@ All thresholds and training paths are in `configs/default.yaml`. Key sections: `
 
 - `configs/training/simple_classifier.yaml`: Simple image classifier training config
 - `configs/training/simple_classifier_voc.yaml`: Simple classifier config for VOC format
-- `configs/training/yolo_world.yaml`: YOLO-World training config
+- `configs/training/yoloworld.yaml`: YOLOWorld training config
 
 ## Important conventions
 
@@ -236,7 +236,7 @@ tests/
 │   ├── test_training_pose.py
 │   ├── test_training_classifier.py
 │   ├── test_training_simple_classifier.py
-│   ├── test_training_yolo_world.py
+│   ├── test_training_yoloworld.py
 │   └── test_extract_features.py
 └── conftest.py        # Shared fixtures
 ```

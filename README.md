@@ -85,7 +85,7 @@ fall_detection/
  │   │   ├── classifier.yaml           # 融合分类器训练配置
  │   │   ├── simple_classifier.yaml    # 简单分类器训练配置
  │   │   ├── simple_classifier_voc.yaml # VOC数据集分类器配置
- │   │   └── yolo_world.yaml           # YOLO-World训练配置
+ │   │   └── yoloworld.yaml            # YOLOWorld训练配置
  │   └── tools/                        # 工具配置
  │       └── voc_to_yolo_example.yaml  # VOC转YOLO示例配置
  │
@@ -125,16 +125,16 @@ fall_detection/
  │   │   ├── run_tracker_demo.sh
  │   │   ├── run_tests.sh
  │   │   ├── run_all_training.sh
- │   │   ├── run_export_yolo_world.sh
- │   │   ├── run_validate_yolo_world.sh
- │   │   ├── download_yolo_world_models.sh
+│   │   ├── run_export_yoloworld.sh
+│   │   ├── run_validate_yoloworld.sh
+│   │   ├── download_yoloworld_models.sh
  │   │   └── install.sh
  │   ├── train/                        # 训练脚本
  │   │   ├── train_detector.py
  │   │   ├── train_pose.py
  │   │   ├── train_classifier.py
  │   │   ├── train_simple_classifier.py
- │   │   └── validate_yolo_world.py
+ │   │   └── validate_yoloworld.py
  │   ├── eval/                         # 评估脚本
  │   │   ├── evaluate_pipeline.py
  │   │   ├── benchmark_speed.py
@@ -143,7 +143,7 @@ fall_detection/
  │   │   ├── convert_voc_to_yolo.py
  │   │   ├── extract_and_detect.py
  │   │   ├── extract_features.py
- │   │   ├── export_yolo_world.py
+ │   │   ├── export_yoloworld.py
  │   │   └── generate_requirements.py
  │   └── demo/                         # 演示脚本
  │       ├── run_pipeline_demo.py
@@ -407,23 +407,23 @@ NGPUS=2 bash scripts/shell/run_all_training.sh
  export_simple_classifier_onnx(model, 'simple_fall_classifier.onnx')
  ```
  
- ### YOLO-World 模型导出与验证
+### YOLOWorld 模型导出与验证
 
- ```bash
- # 导出YOLO-World模型（支持非正方形分辨率）
- bash scripts/shell/run_export_yolo_world.sh \
-   --weights outputs/yolo_world/best.pt \
-   --imgsz 832x448 \
-   --format onnx
- 
- # 验证YOLO-World模型性能
- bash scripts/shell/run_validate_yolo_world.sh \
-   --weights outputs/yolo_world/best.pt \
-   --data data/configs/fall_detection_yolo_world.yaml
- 
- # 下载预训练YOLO-World模型
- bash scripts/shell/download_yolo_world_models.sh
- ```
+```bash
+# 导出YOLOWorld模型（支持非正方形分辨率）
+bash scripts/shell/run_export_yoloworld.sh \
+  --weights outputs/yoloworld/best.pt \
+  --imgsz 832x448 \
+  --format onnx
+
+# 验证YOLOWorld模型性能
+bash scripts/shell/run_validate_yoloworld.sh \
+  --weights outputs/yoloworld/best.pt \
+  --data data/configs/fall_detection_yoloworld.yaml
+
+# 下载预训练YOLOWorld模型
+bash scripts/shell/download_yoloworld_models.sh
+```
 
 ### 部署检查清单
 

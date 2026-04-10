@@ -25,7 +25,7 @@
 - `scripts/train/train_pose.py` (YOLO-pose)
 - `scripts/train/train_classifier.py` (fusion classifier)
 - `scripts/train/train_simple_classifier.py` (simple classifier)
-- `scripts/train_yolo_world.py` (YOLO-World)
+- `scripts/train_yoloworld.py` (YOLOWorld)
 - `scripts/train/extract_features.py`
 
 ---
@@ -90,7 +90,7 @@ tests/
 │   ├── test_training_pose.py
 │   ├── test_training_classifier.py
 │   ├── test_training_simple_classifier.py
-│   ├── test_training_yolo_world.py
+│   ├── test_training_yoloworld.py
 │   └── test_extract_features.py
 └── conftest.py        # Shared fixtures
 ```
@@ -1745,15 +1745,15 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 
 ---
 
-### Task 15: Create test_training_yolo_world.py
+### Task 15: Create test_training_yoloworld.py
 
 **Files:**
-- Create: `tests/integration/test_training_yolo_world.py`
+- Create: `tests/integration/test_training_yoloworld.py`
 
 - [ ] **Step 1: Test YOLO-World training**
 
 ```python
-def test_train_yolo_world_e2e(mocker, tmp_path):
+def test_train_yoloworld_e2e(mocker, tmp_path):
     """Test YOLO-World training end-to-end."""
     import sys
     from unittest.mock import patch, MagicMock
@@ -1767,7 +1767,7 @@ def test_train_yolo_world_e2e(mocker, tmp_path):
     data_yaml.write_text('train: images/train\nval: images/val\nnc: 1\nnames: {0: person}\n')
     
     test_args = [
-        'scripts/train_yolo_world.py',
+        'scripts/train_yoloworld.py',
         '--data', str(data_yaml),
         '--epochs', '1',
         '--batch', '2',
@@ -1777,9 +1777,9 @@ def test_train_yolo_world_e2e(mocker, tmp_path):
     
     with patch.object(sys, 'argv', test_args):
         sys.path.insert(0, 'scripts')
-        import train_yolo_world
+        import train_yoloworld
         try:
-            train_yolo_world.main()
+            train_yoloworld.main()
         except SystemExit:
             pass
     
@@ -1790,7 +1790,7 @@ def test_train_yolo_world_e2e(mocker, tmp_path):
 - [ ] **Step 2: Test YOLO-World class loading**
 
 ```python
-def test_yolo_world_class_loading(mocker, tmp_path):
+def test_yoloworld_class_loading(mocker, tmp_path):
     """Test YOLO-World loads classes from data config."""
     import sys
     from unittest.mock import patch, MagicMock
@@ -1804,7 +1804,7 @@ def test_yolo_world_class_loading(mocker, tmp_path):
     data_yaml.write_text('train: images/train\nval: images/val\nnc: 2\nnames: [person, fall]\n')
     
     test_args = [
-        'scripts/train_yolo_world.py',
+        'scripts/train_yoloworld.py',
         '--data', str(data_yaml),
         '--epochs', '1',
         '--project', str(tmp_path / 'train'),
@@ -1814,19 +1814,19 @@ def test_yolo_world_class_loading(mocker, tmp_path):
     with patch.object(sys, 'argv', test_args):
         sys.path.insert(0, 'scripts')
         import importlib
-        importlib.reload(sys.modules.get('train_yolo_world', sys.modules[__name__]))
+        importlib.reload(sys.modules.get('train_yoloworld', sys.modules[__name__]))
 ```
 
 - [ ] **Step 3: Run YOLO-World tests**
 
 ```bash
-PYTHONPATH=src python -m pytest tests/integration/test_training_yolo_world.py -v
+PYTHONPATH=src python -m pytest tests/integration/test_training_yoloworld.py -v
 ```
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add tests/integration/test_training_yolo_world.py
+git add tests/integration/test_training_yoloworld.py
 git commit -m "test(integration): add YOLO-World training tests
 
 - Test end-to-end training with mocked YOLO
@@ -2311,7 +2311,7 @@ This plan covers:
 4. **Data tests** - augmentation, datasets (90%+ coverage)
 5. **Utils tests** - geometry, common, export, visualization (90%+ coverage)
 6. **Training tests** - scheduler (95%+ coverage)
-7. **Integration tests** - All 6 training scripts (detector, pose, classifier, simple_classifier, yolo_world, extract_features)
+7. **Integration tests** - All 6 training scripts (detector, pose, classifier, simple_classifier, yoloworld, extract_features)
 
 **Total estimated tasks**: 21 major tasks with ~120 individual steps
 
