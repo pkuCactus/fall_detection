@@ -496,7 +496,10 @@ def train_loop(
     rank: int,
 ) -> float:
     """Main training loop."""
-    criterion = nn.CrossEntropyLoss()
+    label_smooth = cfg.get("label_smooth", 0.0)
+    criterion = nn.CrossEntropyLoss(label_smoothing=label_smooth)
+    if rank == 0 and label_smooth > 0:
+        print(f"[{_timestamp()}] Label smoothing enabled: {label_smooth}")
     epochs = cfg.get("epochs", 100)
     log_cfg = cfg.get("log", {})
     lr_cfg = cfg.get("lr_scheduler", {})

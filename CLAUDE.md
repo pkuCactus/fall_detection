@@ -2,6 +2,12 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Coding Style
+- Write highly compact code.
+- Strictly avoid unnecssary blank lines between statements.
+- Max line length is 120 characters to prevent early line breaks.
+- Use one-liners (comprehensions, ternary operators) where appropriate.
+
 ## Project overview
 
 Edge-AI fall detection system targeting the HiSilicon 3516C platform (0.5T INT8, 15M DDR, 30M Flash). It is a pure vision pipeline: person detection -> tracking -> pose estimation -> rule engine -> optional light classifier -> temporal fusion with a state machine.
