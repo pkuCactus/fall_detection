@@ -144,7 +144,7 @@ fall_detection/
  │   │   ├── extract_and_detect.py
  │   │   ├── extract_features.py
  │   │   ├── export_yoloworld.py
- │   │   └── generate_requirements.py
+ │   │   └── export_yoloworld.py
  │   └── demo/                         # 演示脚本
  │       ├── run_pipeline_demo.py
  │       ├── demo_tracker.py
@@ -197,11 +197,8 @@ fall_detection/
 │   ├── api/                          # API文档
 │   └── superpowers/                  # 开发计划
 │
-├── requirements.txt                  # 依赖
-├── requirements/                     # 详细依赖
-│   ├── base.txt
-│   ├── test.txt
-│   └── torch-*.txt                   # PyTorch版本依赖
+├── requirements.txt                  # 快速安装入口（CUDA 12.4）
+├── pyproject.toml                    # 项目配置和依赖定义
 ├── README.md                         # 项目说明
 ├── CLAUDE.md                         # AI助手指引
 └── LICENSE
@@ -211,23 +208,24 @@ fall_detection/
 
 ### 1. 安装依赖
 
- ```bash
- pip install -r requirements.txt
- ```
- 
- requirements.txt 主要依赖：
- - torch >= 2.0
- - ultralytics >= 8.0
- - opencv-python
- - numpy
- - pyyaml
- - pytest
- 
- 如需生成特定CUDA版本的requirements：
- ```bash
- # 生成CUDA 12.4版本的requirements
- python scripts/tools/generate_requirements.py --variant cu124
- ```
+```bash
+# 推荐：自动检测CUDA版本安装
+bash scripts/shell/install.sh
+
+# 或指定CUDA版本
+pip install -e ".[torch-cu124,dev]"
+
+# 或使用requirements.txt（CUDA 12.4）
+pip install -r requirements.txt
+```
+
+依赖包括：
+- torch >= 2.5
+- ultralytics >= 8.4
+- opencv-python
+- numpy
+- pyyaml
+- pytest
 
 ### 2. 下载预训练权重
 
@@ -250,7 +248,7 @@ python scripts/demo/run_pipeline_demo.py --video 0
 
  ```bash
  # 安装测试依赖
- pip install -r requirements/test.txt
+ pip install -e ".[dev]"
  
  # 运行所有测试（共444个测试用例）
  bash scripts/shell/run_tests.sh

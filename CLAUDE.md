@@ -57,7 +57,7 @@ fall_detection/
 │   │   ├── convert_voc_to_yolo.py
 │   │   ├── extract_and_detect.py
 │   │   ├── split_dataset.py
-│   │   └── generate_requirements.py
+│   │   └── split_dataset.py
 │   ├── demo/                  # Demo scripts
 │   │   ├── run_pipeline_demo.py
 │   │   ├── demo_tracker.py
@@ -74,7 +74,7 @@ fall_detection/
 
 ## Common commands
 
-- Install dependencies: `pip install -r requirements.txt`
+- Install dependencies: `bash scripts/shell/install.sh`
 - Run all tests: `bash scripts/shell/run_tests.sh`
 - Run a single test file: `PYTHONPATH=src pytest tests/unit/test_pipeline.py -v`
 - Run pipeline demo on a video: `python scripts/demo/run_pipeline_demo.py --video data/sample.mp4 --output output.mp4`
@@ -184,8 +184,8 @@ All thresholds and training paths are in `configs/default.yaml`. Key sections: `
 ### Running Tests
 
 ```bash
-# Install test dependencies
-pip install -r requirements/test.txt
+# Install with test dependencies
+pip install -e ".[dev]"
 
 # Run all tests with coverage
 PYTHONPATH=src python -m pytest tests/ -v --cov=src/fall_detection --cov-report=term-missing
