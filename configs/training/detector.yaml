@@ -21,7 +21,7 @@ exist_ok: true  # 是否覆盖已有实验目录
 
 # 优化器配置
 lr0: 0.01  # 初始学习率
-lrf: 0.0001  # 最终学习率 (lr0 * lrf)
+lrf: 0.01  # 最终学习率 (lr0 * lrf)
 momentum: 0.937  # SGD动量
 weight_decay: 0.0005  # 权重衰减
 warmup_epochs: 3.0  # warmup轮数

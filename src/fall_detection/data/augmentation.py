@@ -1,11 +1,9 @@
 """Data augmentation utilities for fall detection training."""
 
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 
 import cv2
 import numpy as np
-
-
 
 
 class RandomMask:
@@ -23,8 +21,8 @@ class RandomMask:
         mask_h = int(h * self.mask_ratio)
         mask_w = int(w * self.mask_ratio)
 
-        cx = np.random.randint(w // 4, 3 * w // 4)
-        cy = np.random.randint(h // 4, 3 * h // 4)
+        cx = np.random.randint(0, w)
+        cy = np.random.randint(0, h)
 
         x1 = max(0, cx - mask_w // 2)
         y1 = max(0, cy - mask_h // 2)
