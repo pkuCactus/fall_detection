@@ -105,55 +105,50 @@ fall_detection/
 │   │   ├── augmentation.py           # 数据增强
 │   │   └── datasets.py               # 数据集类
 │   └── utils/                        # 工具函数
- │       ├── visualization.py          # 可视化
- │       ├── export.py                 # 模型导出
- │       ├── scheduler.py              # 学习率调度器
- │       ├── geometry.py               # 几何计算
- │       ├── training_common.py        # 训练通用工具
- │       └── common.py                 # 通用工具
+│       ├── visualization.py          # 可视化
+│       ├── export.py                 # 模型导出
+│       ├── scheduler.py              # 学习率调度器
+│       ├── geometry.py               # 几何计算
+│       ├── training_common.py        # 训练通用工具
+│       └── common.py                 # 通用工具
 │
 ├── scripts/                          # 脚本
- │   ├── shell/                        # Shell脚本
- │   │   ├── run_train_detector.sh
- │   │   ├── run_train_pose.sh
- │   │   ├── run_train_classifier.sh
- │   │   ├── run_train_simple_classifier.sh
- │   │   ├── run_extract_features.sh
- │   │   ├── run_evaluate_pipeline.sh
- │   │   ├── run_tune_tracker.sh
- │   │   ├── run_pipeline_demo.sh
- │   │   ├── run_tracker_demo.sh
- │   │   ├── run_tests.sh
- │   │   ├── run_all_training.sh
-│   │   ├── run_export_yoloworld.sh
-│   │   ├── run_validate_yoloworld.sh
-│   │   ├── download_yoloworld_models.sh
- │   │   └── install.sh
- │   ├── train/                        # 训练脚本
- │   │   ├── train_detector.py
- │   │   ├── train_pose.py
- │   │   ├── train_classifier.py
- │   │   ├── train_simple_classifier.py
- │   │   └── validate_yoloworld.py
- │   ├── eval/                         # 评估脚本
- │   │   ├── evaluate_pipeline.py
- │   │   ├── benchmark_speed.py
- │   │   └── tune_tracker.py
- │   ├── tools/                        # 数据处理工具
- │   │   ├── convert_voc_to_yolo.py
- │   │   ├── extract_and_detect.py
- │   │   ├── extract_features.py
- │   │   ├── export_yoloworld.py
- │   │   └── export_yoloworld.py
- │   └── demo/                         # 演示脚本
- │       ├── run_pipeline_demo.py
- │       ├── demo_tracker.py
- │       └── video_to_frames.py
-│
-├── tools/                            # 辅助工具
-│   └── annotate/                     # 标注工具
-│       ├── yolo_annotate.py          # YOLO自动标注
-│       └── vlm_annotate.py           # VLM自动标注
+│   ├── shell/                        # Shell脚本
+│   │   ├── install.sh
+│   │   ├── run_all_training.sh
+│   │   ├── run_train_detector.sh
+│   │   ├── run_train_pose.sh
+│   │   ├── run_train_classifier.sh
+│   │   ├── run_train_simple_classifier.sh
+│   │   ├── run_extract_features.sh
+│   │   ├── run_evaluate_pipeline.sh
+│   │   ├── run_tune_tracker.sh
+│   │   ├── run_pipeline_demo.sh
+│   │   └── run_superpowers_server.sh
+│   ├── train/                        # 训练脚本
+│   │   ├── train_detector.py
+│   │   ├── train_pose.py
+│   │   ├── train_classifier.py
+│   │   └── train_simple_classifier.py
+│   ├── eval/                         # 评估脚本
+│   │   ├── evaluate_pipeline.py
+│   │   ├── benchmark_speed.py
+│   │   └── tune_tracker.py
+│   ├── tools/                        # 数据处理工具
+│   │   ├── convert_voc_to_yolo.py
+│   │   ├── extract_and_detect.py
+│   │   ├── extract_features.py
+│   │   ├── find_noisy_labels.py
+│   │   ├── check_bbox_stats.py
+│   │   ├── dedup_by_md5.py
+│   │   └── export_yolo_world.py
+│   ├── demo/                         # 演示脚本
+│   │   ├── run_pipeline_demo.py
+│   │   ├── demo_tracker.py
+│   │   └── video_to_frames.py
+│   └── tools/annotate/               # 标注工具
+│       ├── yolo_annotate.py
+│       └── vlm_annotate.py
 │
 ├── tests/                            # 测试用例
 │   ├── unit/                         # 单元测试
@@ -171,12 +166,12 @@ fall_detection/
 │   │   ├── test_scheduler.py
 │   │   └── test_utils_*.py
 │   ├── integration/                  # 集成测试
- │   │   ├── test_training_detector.py
- │   │   ├── test_training_pose.py
- │   │   ├── test_training_classifier.py
- │   │   ├── test_training_simple_classifier.py
- │   │   ├── test_training_scripts.py
- │   │   └── test_extract_features.py
+│   │   ├── test_training_detector.py
+│   │   ├── test_training_pose.py
+│   │   ├── test_training_classifier.py
+│   │   ├── test_training_simple_classifier.py
+│   │   ├── test_training_scripts.py
+│   │   └── test_extract_features.py
  │   └── conftest.py                   # 测试配置
 │
 ├── data/                             # 数据目录
@@ -390,24 +385,24 @@ NGPUS=2 bash scripts/shell/run_all_training.sh
  model = SimpleFallClassifier()
  model.load_state_dict(torch.load('outputs/simple_classifier/best.pt'))
  export_simple_classifier_onnx(model, 'simple_fall_classifier.onnx')
- ```
- 
-### YOLOWorld 模型导出与验证
+```
+
+### YOLOWorld 模型导出
 
 ```bash
 # 导出YOLOWorld模型（支持非正方形分辨率）
-bash scripts/shell/run_export_yoloworld.sh \
+PYTHONPATH=src python scripts/tools/export_yolo_world.py \
   --weights outputs/yoloworld/best.pt \
   --imgsz 832x448 \
   --format onnx
 
-# 验证YOLOWorld模型性能
-bash scripts/shell/run_validate_yoloworld.sh \
+# 其他导出选项
+PYTHONPATH=src python scripts/tools/export_yolo_world.py \
   --weights outputs/yoloworld/best.pt \
-  --data data/configs/fall_detection_yoloworld.yaml
-
-# 下载预训练YOLOWorld模型
-bash scripts/shell/download_yoloworld_models.sh
+  --imgsz 832x448 \
+  --format onnx \
+  --half True \
+  --int8 True
 ```
 
 ### 部署检查清单

@@ -1,8 +1,10 @@
 # TDD Development for Fall Detection System - 90%+ Coverage
 
+> **Status**: Partially implemented. YOLOWorld training scripts (`scripts/train_yoloworld.py`, `scripts/validate_yoloworld.py`) are not yet implemented. Tasks related to these scripts are marked as pending.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Achieve 90%+ line coverage for all source modules and comprehensive TDD for training scripts including YOLO, YOLO-World, and both classifier trainers.
+**Goal:** Achieve 90%+ line coverage for all source modules and comprehensive TDD for training scripts including YOLO, YOLOWorld (pending), and both classifier trainers.
 
 **Architecture:** Use pytest with mocking for external dependencies (YOLO models, CUDA). Organize tests into unit tests for individual components and integration tests for training workflows.
 
@@ -25,8 +27,8 @@
 - `scripts/train/train_pose.py` (YOLO-pose)
 - `scripts/train/train_classifier.py` (fusion classifier)
 - `scripts/train/train_simple_classifier.py` (simple classifier)
-- `scripts/train_yoloworld.py` (YOLOWorld)
 - `scripts/train/extract_features.py`
+- `scripts/train_yoloworld.py` (YOLOWorld) - **NOT YET IMPLEMENTED**
 
 ---
 

@@ -44,11 +44,7 @@ fall_detection/
 │   │   ├── train_detector.py
 │   │   ├── train_pose.py
 │   │   ├── train_classifier.py
-│   │   ├── train_simple_classifier.py
-│   │   ├── train_yoloworld.py
-│   │   ├── export_yoloworld.py
-│   │   ├── extract_features.py
-│   │   └── validate_yoloworld.py
+│   │   └── train_simple_classifier.py
 │   ├── eval/                  # Evaluation scripts
 │   │   ├── evaluate_pipeline.py
 │   │   ├── benchmark_speed.py
@@ -56,13 +52,27 @@ fall_detection/
 │   ├── tools/                 # Data processing tools
 │   │   ├── convert_voc_to_yolo.py
 │   │   ├── extract_and_detect.py
-│   │   ├── split_dataset.py
-│   │   └── split_dataset.py
+│   │   ├── extract_features.py
+│   │   ├── find_noisy_labels.py
+│   │   ├── export_yolo_world.py
+│   │   ├── check_bbox_stats.py
+│   │   └── dedup_by_md5.py
 │   ├── demo/                  # Demo scripts
 │   │   ├── run_pipeline_demo.py
 │   │   ├── demo_tracker.py
 │   │   └── video_to_frames.py
 │   └── shell/                 # Shell convenience wrappers
+│       ├── install.sh
+│       ├── run_all_training.sh
+│       ├── run_train_detector.sh
+│       ├── run_train_pose.sh
+│       ├── run_train_classifier.sh
+│       ├── run_train_simple_classifier.sh
+│       ├── run_extract_features.sh
+│       ├── run_evaluate_pipeline.sh
+│       ├── run_tune_tracker.sh
+│       ├── run_pipeline_demo.sh
+│       └── run_superpowers_server.sh
 ├── tests/                     # Test cases
 │   ├── unit/                  # Unit tests
 │   └── integration/           # Integration tests
