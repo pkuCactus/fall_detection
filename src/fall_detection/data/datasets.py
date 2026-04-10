@@ -305,12 +305,8 @@ class VOCFallDataset(Dataset):
             with open(image_set_file, 'r', encoding='utf-8') as f:
                 image_ids = [line.rstrip('\n\r') for line in f if line.rstrip('\n\r')]
         else:
-            print(f"Warning: Image set file not found: {image_set_file}, scanning all XML files")
-            image_ids = [
-                os.path.splitext(f)[0]
-                for f in os.listdir(anno_dir)
-                if f.endswith('.xml')
-            ]
+            print(f"Warning: Image set file not found: {image_set_file}, skipping this directory")
+            return
 
         # 解析每个图像的标注
         for img_id in image_ids:
