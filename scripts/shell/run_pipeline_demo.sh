@@ -106,6 +106,8 @@ else
         video_basename=$(basename "$VIDEO")
         video_name="${video_basename%.*}"
         OUTPUT="$video_dir/${video_name}_output.mp4"
+    else
+        OUTPUT="$OUTPUT/$(basename "${VIDEO%.*}_output.mp4")"
     fi
 
     echo "=========================================="

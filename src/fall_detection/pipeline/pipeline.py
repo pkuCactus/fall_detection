@@ -6,7 +6,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from fall_detection.core import PersonDetector, ByteTrackLite, Detection, PoseEstimator, RuleEngine, FusionDecision
+from fall_detection.core import PersonDetector, ByteTrackLite, Detection, PoseEstimator, RuleEngine, FusionDecision, SimpleKeypointTracker
 from fall_detection.models import FallClassifier, SimpleFallClassifier
 
 
@@ -49,6 +49,16 @@ class FallDetectionPipeline:
         else:
             self.pose_estimator = PoseEstimator(model_name="yolov8n-pose")
         self.rule_engine = RuleEngine(rules_cfg, fps=self.fps)
+
+        # 初始化关键点跟踪器
+        kpt_cfg = self.cfg.get("keypoint_tracker", {})
+        self.kpt_tracker = SimpleKeypointTracker(
+            n_kpts=17,
+            smooth_alpha=kpt_cfg.get("smooth_alpha", 0.7),
+            velocity_decay=kpt_cfg.get("velocity_decay", 0.9),
+            max_history=kpt_cfg.get("max_history", 5),
+            use_optical_flow=kpt_cfg.get("use_optical_flow", False),
+        )
         # 加载分类器模型，支持从配置指定类型和路径
         cls_type = cls_cfg.get("type", "fusion")  # "fusion" 或 "simple"
         cls_model_path = cls_cfg.get("model_path")
@@ -107,7 +117,13 @@ class FallDetectionPipeline:
             for track in self.tracker.tracks:
                 track.predict()
             active_tracks = [t for t in self.tracker.tracks if t.time_since_update <= self.skip_frames]
-            track_kpts = self._last_track_kpts
+            # 使用关键点跟踪器预测关键点位置
+            track_kpts = {}
+            for track in active_tracks:
+                tid = track.track_id
+                predicted_kpts = self.kpt_tracker.predict(tid, frame, n_frames=1)
+                track_kpts[tid] = predicted_kpts
+                self._last_track_kpts[tid] = predicted_kpts
             cls_scores = self._last_cls_scores
 
         self._update_track_history(active_tracks)
@@ -116,9 +132,18 @@ class FallDetectionPipeline:
         if run_detection:
             self._last_cls_scores = cls_scores.copy()
 
+        # 更新帧缓存用于光流跟踪
+        self.kpt_tracker.update_frame_cache(frame)
+
         result["is_detection_frame"] = run_detection
         result["detections"] = raw_detections if run_detection else []
         self._last_active_tracks = active_tracks
+
+        # 清理关键点跟踪器中不活跃的track
+        active_tids = {t.track_id for t in active_tracks}
+        for tid in list(self.kpt_tracker._track_states.keys()):
+            if tid not in active_tids:
+                self.kpt_tracker.remove_track(tid)
         return result
 
     def _estimate_keypoints(

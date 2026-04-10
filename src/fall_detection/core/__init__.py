@@ -5,6 +5,7 @@ from .tracker import ByteTrackLite, Detection, Track
 from .pose_estimator import PoseEstimator
 from .rules import RuleEngine
 from .fusion import FusionDecision, FallState
+from .keypoint_tracker import SimpleKeypointTracker
 
 __all__ = [
     "PersonDetector",
@@ -15,4 +16,5 @@ __all__ = [
     "RuleEngine",
     "FusionDecision",
     "FallState",
+    "SimpleKeypointTracker",
 ]

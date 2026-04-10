@@ -55,6 +55,4 @@ verbose: true  # 详细输出
 device: 4,5,6,7         # 设备 (cuda=根据CUDA_VISIBLE_DEVICES环境变量选择, 0=GPU0, cpu=CPU)
 
 # torch.compile 配置 (PyTorch 2.0+)
-compile:
-  enabled: true  # 是否启用 torch.compile
-  mode: "default"  # 编译模式: "default", "reduce-overhead", "max-autotune"
+compile: true

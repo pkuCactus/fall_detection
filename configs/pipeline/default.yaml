@@ -1,6 +1,6 @@
 detector:
   conf_thresh: 0.3
-  model_path: "runs/detect/person_detector/weights/yolov8n.pt"  # 检测器模型路径，null则使用默认yolov8n.pt
+  model_path: "runs/detect/yolov8n/person_detector/weights/best.pt"  # 检测器模型路径，null则使用默认yolov8n.pt
   classes: null      # 开放词汇检测器文本提示，如 ["person"]
 
 pose_estimator:

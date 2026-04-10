@@ -35,7 +35,6 @@ class RandomMask:
         return img
 
 
-
 class RandomCropWithPadding:
     """随机crop，支持内缩和外扩."""
 

@@ -117,7 +117,7 @@ data_augmentation:
     p: 0.3
   random_mask:
     enabled: true
-    mask_ratio: 0.15
+    mask_ratio: 0.1
     p: 0.3
   horizontal_flip:
     enabled: false
@@ -126,7 +126,7 @@ data_augmentation:
 # 随机Crop配置
 crop:
   shrink_max: 3
-  expand_max: 25
+  expand_max: 10
 
 # 缓存配置
 cache:
