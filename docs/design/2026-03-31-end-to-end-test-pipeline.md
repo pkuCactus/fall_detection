@@ -96,7 +96,7 @@ git commit -m "chore: init project skeleton with deps and config"
 - [ ] **Step 1: 写失败测试 test_detector.py**
 
 ```python
-from fall_detection.detector import PersonDetector
+from fall_detection.core.detector import PersonDetector
 
 def test_detector_loads():
     det = PersonDetector(model_name='yolov8n')
@@ -140,7 +140,7 @@ git commit -m "feat: add person detector wrapper with yolov8n"
 - [ ] **Step 1: 写失败测试 test_tracker.py**
 
 ```python
-from fall_detection.tracker import ByteTrackLite, Detection
+from fall_detection.core.tracker import ByteTrackLite, Detection
 
 def test_tracker_update():
     tracker = ByteTrackLite()
@@ -188,7 +188,7 @@ git commit -m "feat: add byte-track-lite tracker"
 - [ ] **Step 1: 写失败测试 test_pose_estimator.py**
 
 ```python
-from fall_detection.pose_estimator import PoseEstimator
+from fall_detection.core.pose_estimator import PoseEstimator
 import numpy as np
 
 def test_pose_inference():
@@ -239,7 +239,7 @@ git commit -m "feat: add pose estimator wrapper with yolov8n-pose"
 3. 蹲下但未跌倒（H_ratio 低但无持续静止）→ S_rule 不够触发
 
 ```python
-from fall_detection.rules import RuleEngine
+from fall_detection.core.rules import RuleEngine
 import numpy as np
 
 def test_fall_detected():
@@ -287,7 +287,7 @@ git commit -m "feat: add rule engine for fall detection"
 - [ ] **Step 1: 写失败测试 test_classifier.py**
 
 ```python
-from fall_detection.classifier import FallClassifier
+from fall_detection.models.classifier import FallClassifier
 import numpy as np
 
 def test_classifier_forward():
@@ -335,7 +335,7 @@ git commit -m "feat: add lightweight fall classifier network"
 - [ ] **Step 1: 写失败测试 test_fusion.py**
 
 ```python
-from fall_detection.fusion import FusionDecision
+from fall_detection.core.fusion import FusionDecision
 
 def test_alarm_triggered():
     fd = FusionDecision()
@@ -466,7 +466,7 @@ git commit -m "feat: add end-to-end pipeline and demo script"
 - [ ] **Step 2: 写 test_export.py**
 
 ```python
-from fall_detection.export import export_classifier_onnx
+from fall_detection.utils.export import export_classifier_onnx
 import onnxruntime as ort
 import numpy as np
 

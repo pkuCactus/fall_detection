@@ -1538,7 +1538,7 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 def test_warmup_scheduler_init():
     """Test WarmupScheduler initialization."""
     import torch
-    from fall_detection.training import WarmupScheduler
+    from fall_detection.utils.scheduler import WarmupScheduler
     
     optimizer = torch.optim.SGD([torch.randn(10)], lr=0.01)
     scheduler = WarmupScheduler(
@@ -1560,7 +1560,7 @@ def test_warmup_scheduler_init():
 def test_warmup_scheduler_linear():
     """Test linear warmup strategy."""
     import torch
-    from fall_detection.training import WarmupScheduler
+    from fall_detection.utils.scheduler import WarmupScheduler
     
     optimizer = torch.optim.SGD([torch.randn(10)], lr=0.01)
     scheduler = WarmupScheduler(
@@ -1588,7 +1588,7 @@ def test_warmup_scheduler_linear():
 def test_warmup_scheduler_constant():
     """Test constant warmup strategy."""
     import torch
-    from fall_detection.training import WarmupScheduler
+    from fall_detection.utils.scheduler import WarmupScheduler
     
     optimizer = torch.optim.SGD([torch.randn(10)], lr=0.01)
     scheduler = WarmupScheduler(
@@ -1612,7 +1612,7 @@ def test_warmup_scheduler_constant():
 def test_warmup_scheduler_completion():
     """Test warmup completion transitions to base scheduler."""
     import torch
-    from fall_detection.training import WarmupScheduler
+    from fall_detection.utils.scheduler import WarmupScheduler
     
     base_scheduler = torch.optim.lr_scheduler.StepLR(
         torch.optim.SGD([torch.randn(10)], lr=0.01),

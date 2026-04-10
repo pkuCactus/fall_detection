@@ -12,10 +12,11 @@
 ## 安装依赖
 
 ```bash
-pip install ultralytics opencv-python pillow numpy
+# 推荐方式：安装项目依赖
+bash scripts/shell/install.sh
 
-# 或安装项目全部依赖
-pip install -r requirements.txt
+# 或手动安装YOLO标注所需依赖
+pip install ultralytics opencv-python pillow numpy
 ```
 
 ## 使用方式
@@ -24,12 +25,12 @@ pip install -r requirements.txt
 
 ```bash
 # 仅生成标注（默认）
-python scripts/tools/annotate/yolo_annotate.py \
+PYTHONPATH=src python scripts/tools/annotate/yolo_annotate.py \
     --input data/my_image.jpg \
     --output-dir outputs/Annotations
 
 # 生成标注 + 可视化
-python scripts/tools/annotate/yolo_annotate.py \
+PYTHONPATH=src python scripts/tools/annotate/yolo_annotate.py \
     --input data/my_image.jpg \
     --output-dir outputs/Annotations \
     --vis-dir outputs/Visualizations
@@ -39,12 +40,12 @@ python scripts/tools/annotate/yolo_annotate.py \
 
 ```bash
 # 仅生成标注（默认）
-python scripts/tools/annotate/yolo_annotate.py \
+PYTHONPATH=src python scripts/tools/annotate/yolo_annotate.py \
     --input data/images/ \
     --output-dir outputs/Annotations
 
 # 生成标注 + 可视化
-python scripts/tools/annotate/yolo_annotate.py \
+PYTHONPATH=src python scripts/tools/annotate/yolo_annotate.py \
     --input data/images/ \
     --output-dir outputs/Annotations \
     --vis-dir outputs/Visualizations
@@ -54,10 +55,10 @@ python scripts/tools/annotate/yolo_annotate.py \
 
 ```bash
 # 使用不同大小的 YOLOv8 模型
-python scripts/tools/annotate/yolo_annotate.py -i data/ -o outputs/ --model yolov8n.pt  # Nano - 最快
-python scripts/tools/annotate/yolo_annotate.py -i data/ -o outputs/ --model yolov8s.pt  # Small - 平衡
-python scripts/tools/annotate/yolo_annotate.py -i data/ -o outputs/ --model yolov8m.pt  # Medium - 更准
-python scripts/tools/annotate/yolo_annotate.py -i data/ -o outputs/ --model yolov8l.pt  # Large - 最准但慢
+PYTHONPATH=src python scripts/tools/annotate/yolo_annotate.py -i data/ -o outputs/ --model yolov8n.pt  # Nano - 最快
+PYTHONPATH=src python scripts/tools/annotate/yolo_annotate.py -i data/ -o outputs/ --model yolov8s.pt  # Small - 平衡
+PYTHONPATH=src python scripts/tools/annotate/yolo_annotate.py -i data/ -o outputs/ --model yolov8m.pt  # Medium - 更准
+PYTHONPATH=src python scripts/tools/annotate/yolo_annotate.py -i data/ -o outputs/ --model yolov8l.pt  # Large - 最准但慢
 ```
 
 模型会自动下载到当前目录。
@@ -65,7 +66,7 @@ python scripts/tools/annotate/yolo_annotate.py -i data/ -o outputs/ --model yolo
 ### 调整检测阈值
 
 ```bash
-python scripts/tools/annotate/yolo_annotate.py \
+PYTHONPATH=src python scripts/tools/annotate/yolo_annotate.py \
     --input data/images/ \
     --output-dir outputs/Annotations \
     --conf-threshold 0.5 \  # 只保留置信度 > 0.5 的检测结果
@@ -76,14 +77,14 @@ python scripts/tools/annotate/yolo_annotate.py \
 
 ```bash
 # 自动选择 (默认)
-python scripts/tools/annotate/yolo_annotate.py -i data/ -o outputs/ --device auto
+PYTHONPATH=src python scripts/tools/annotate/yolo_annotate.py -i data/ -o outputs/ --device auto
 
 # 强制 CPU
-python scripts/tools/annotate/yolo_annotate.py -i data/ -o outputs/ --device cpu
+PYTHONPATH=src python scripts/tools/annotate/yolo_annotate.py -i data/ -o outputs/ --device cpu
 
 # 指定 GPU
-python scripts/tools/annotate/yolo_annotate.py -i data/ -o outputs/ --device cuda
-python scripts/tools/annotate/yolo_annotate.py -i data/ -o outputs/ --device 0
+PYTHONPATH=src python scripts/tools/annotate/yolo_annotate.py -i data/ -o outputs/ --device cuda
+PYTHONPATH=src python scripts/tools/annotate/yolo_annotate.py -i data/ -o outputs/ --device 0
 ```
 
 ## 输出结构
@@ -102,13 +103,13 @@ outputs/
 
 ```bash
 # 1. 视频拆帧
-python scripts/demo/video_to_frames.py \
+PYTHONPATH=src python scripts/demo/video_to_frames.py \
     --input videos/ \
     --output frames/ \
     --fps 1
 
 # 2. YOLO自动标注 (无需API密钥，默认不生成可视化)
-python scripts/tools/annotate/yolo_annotate.py \
+PYTHONPATH=src python scripts/tools/annotate/yolo_annotate.py \
     --input frames/ \
     --output-dir outputs/Annotations \
     --model yolov8n.pt \
@@ -119,7 +120,7 @@ mkdir -p outputs/JPEGImages
 cp frames/*.jpg outputs/JPEGImages/
 
 # 4. 划分数据集
-python scripts/tools/split_dataset.py \
+PYTHONPATH=src python scripts/tools/split_dataset.py \
     --image-dir outputs/JPEGImages \
     --anno-dir outputs/Annotations \
     --output data/VOC_fall \

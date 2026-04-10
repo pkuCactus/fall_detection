@@ -14,10 +14,11 @@
 ## 安装依赖
 
 ```bash
-pip install anthropic openai pillow requests opencv-python numpy
+# 推荐方式：安装项目依赖
+bash scripts/shell/install.sh
 
-# 或安装项目全部依赖
-pip install -r requirements.txt
+# 或手动安装VLM标注所需依赖
+pip install anthropic openai pillow requests opencv-python numpy
 ```
 
 ## 使用步骤
@@ -51,14 +52,14 @@ export BAILIAN_MODEL="qwen-vl-max"
 #### 单张图像
 ```bash
 # 使用 Claude
-python scripts/tools/annotate/vlm_annotate.py \
+PYTHONPATH=src python scripts/tools/annotate/vlm_annotate.py \
     --input data/my_image.jpg \
     --output-dir outputs/Annotations \
     --vis-dir outputs/Visualizations \
     --model claude
 
 # 使用 阿里百炼 (Bailian)
-python scripts/tools/annotate/vlm_annotate.py \
+PYTHONPATH=src python scripts/tools/annotate/vlm_annotate.py \
     --input data/my_image.jpg \
     --output-dir outputs/Annotations \
     --vis-dir outputs/Visualizations \
@@ -68,21 +69,21 @@ python scripts/tools/annotate/vlm_annotate.py \
 #### 批量处理目录
 ```bash
 # 使用 Claude
-python scripts/tools/annotate/vlm_annotate.py \
+PYTHONPATH=src python scripts/tools/annotate/vlm_annotate.py \
     --input data/images/ \
     --output-dir outputs/Annotations \
     --vis-dir outputs/Visualizations \
     --model claude
 
 # 使用 阿里百炼 (国内推荐) - 默认 qwen-vl-max
-python scripts/tools/annotate/vlm_annotate.py \
+PYTHONPATH=src python scripts/tools/annotate/vlm_annotate.py \
     --input data/images/ \
     --output-dir outputs/Annotations \
     --vis-dir outputs/Visualizations \
     --model bailian
 
 # 使用百炼其他模型 (如 qwen-vl-plus)
-python scripts/tools/annotate/vlm_annotate.py \
+PYTHONPATH=src python scripts/tools/annotate/vlm_annotate.py \
     --input data/images/ \
     --output-dir outputs/Annotations \
     --vis-dir outputs/Visualizations \
@@ -106,7 +107,7 @@ outputs/
 将标注好的数据划分为 train/val/test:
 
 ```bash
-python scripts/tools/split_dataset.py \
+PYTHONPATH=src python scripts/tools/split_dataset.py \
     --image-dir outputs/JPEGImages \
     --anno-dir outputs/Annotations \
     --output data/VOC_fall \
@@ -158,7 +159,7 @@ cp /path/to/your/images/*.jpg outputs/raw_images/
 
 # 3. VLM自动标注
 export ANTHROPIC_API_KEY="sk-xxx"
-python scripts/tools/annotate/vlm_annotate.py \
+PYTHONPATH=src python scripts/tools/annotate/vlm_annotate.py \
     -i outputs/raw_images \
     -o outputs/vlm_annotations/Annotations \
     -v outputs/vlm_annotations/JPEGImages \
@@ -169,7 +170,7 @@ mkdir -p outputs/vlm_annotations/JPEGImages
 cp outputs/raw_images/*.jpg outputs/vlm_annotations/JPEGImages/
 
 # 5. 划分数据集
-python scripts/tools/split_dataset.py \
+PYTHONPATH=src python scripts/tools/split_dataset.py \
     -i outputs/vlm_annotations/JPEGImages \
     -a outputs/vlm_annotations/Annotations \
     -o data/VLM_fall \
@@ -286,5 +287,5 @@ cp outputs/vlm_annotations/Annotations/*.xml data/combined/Annotations/
 cp manual_annotations/*.xml data/combined/Annotations/
 
 # 重新划分
-python scripts/tools/split_dataset.py -i ... -a data/combined/Annotations -o data/combined
+PYTHONPATH=src python scripts/tools/split_dataset.py -i ... -a data/combined/Annotations -o data/combined
 ```

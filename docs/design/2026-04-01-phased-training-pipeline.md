@@ -307,7 +307,7 @@ import numpy as np
 
 import sys
 sys.path.insert(0, "src")
-from fall_detection.tracker import ByteTrackLite, Detection
+from fall_detection.core.tracker import ByteTrackLite, Detection
 
 
 def evaluate_tracker(video_path, detector_fn, cfg):
@@ -474,7 +474,7 @@ import cv2
 import numpy as np
 
 sys.path.insert(0, "src")
-from fall_detection.pipeline import FallDetectionPipeline
+from fall_detection.pipeline.pipeline import FallDetectionPipeline
 
 
 def parse_label(label_path, video_name, frame_idx):
@@ -627,7 +627,7 @@ import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader, random_split
 
 sys.path.insert(0, "src")
-from fall_detection.classifier import FallClassifier
+from fall_detection.models.classifier import FallClassifier
 
 
 class FeatureDataset(Dataset):
@@ -771,7 +771,7 @@ import cv2
 import numpy as np
 
 sys.path.insert(0, "src")
-from fall_detection.pipeline import FallDetectionPipeline
+from fall_detection.pipeline.pipeline import FallDetectionPipeline
 
 
 def evaluate_video(pipeline, video_path, gt_segments, cfg):
