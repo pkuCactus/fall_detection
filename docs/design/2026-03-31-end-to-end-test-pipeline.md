@@ -533,7 +533,7 @@ git commit -m "fix: all tests green for end-to-end pipeline"
 - [ ] **Step 2: 运行 benchmark**
 
 ```bash
-python scripts/benchmark_speed.py
+PYTHONPATH=src python scripts/benchmark_speed.py
 ```
 
 Expected: 成功输出 benchmark 结果到终端。

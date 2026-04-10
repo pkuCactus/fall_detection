@@ -944,7 +944,7 @@ for i in range(20):
 - [ ] **Step 2: 跑分类器训练**
 
 ```bash
-python scripts/train_classifier.py --cache-dir train/cache --epochs 2 --batch-size 4 --output-dir train/classifier
+PYTHONPATH=src python scripts/train_classifier.py --cache-dir train/cache --epochs 2 --batch-size 4 --output-dir train/classifier
 ```
 
 Expected: 成功跑完 2 个 epoch，输出 `train/classifier/best.pt`

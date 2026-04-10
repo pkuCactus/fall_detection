@@ -406,7 +406,7 @@ Global batch size = 64
 
 ```bash
 # 在训练脚本中添加日志输出
-python scripts/train/train_simple_classifier.py \
+PYTHONPATH=src python scripts/train/train_simple_classifier.py \
   --config configs/training/simple_classifier_voc.yaml \
   --ngpus 2
 
