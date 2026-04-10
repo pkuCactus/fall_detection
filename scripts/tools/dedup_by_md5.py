@@ -11,6 +11,12 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Set, Tuple
 
+try:
+    from tqdm import tqdm
+    TQDM_AVAILABLE = True
+except ImportError:
+    TQDM_AVAILABLE = False
+
 
 def calculate_md5(file_path: Path, chunk_size: int = 8192) -> str:
     """计算文件的 MD5 哈希值.
@@ -90,8 +96,17 @@ def dedup_directory(
     md5_map: Dict[str, List[Tuple[Path, int]]] = {}
 
     # 计算所有文件的 MD5
-    for file_path in files:
+    if TQDM_AVAILABLE and verbose:
+        pbar = tqdm(files, desc="Calculating MD5", unit="files")
+    else:
+        pbar = files
+
+    for i, file_path in enumerate(pbar):
         file_size = file_path.stat().st_size
+
+        # 更新进度条描述
+        if TQDM_AVAILABLE and verbose and isinstance(pbar, tqdm):
+            pbar.set_postfix_str(f"{file_path.name[:30]}")
 
         # 快速跳过：如果已经有一个相同大小的文件，才计算 MD5
         md5_key = None
@@ -111,10 +126,26 @@ def dedup_directory(
             md5_map[md5_key] = []
         md5_map[md5_key].append((file_path, file_size))
 
+        # 显示进度
+        if not TQDM_AVAILABLE and verbose and (i + 1) % 100 == 0:
+            print(f"  Progress: {i + 1}/{len(files)} files processed...")
+
+    if TQDM_AVAILABLE and verbose:
+        pbar.close()
+
     # 去重：保留每个 MD5 组的第一个文件，删除其余
     kept = 0
     deleted = 0
     deleted_dirs: Set[Path] = set()
+
+    # 统计需要处理的重复组
+    duplicate_groups = [(k, v) for k, v in md5_map.items() if len(v) > 1]
+    total_duplicates = sum(len(v) - 1 for _, v in duplicate_groups)
+
+    if TQDM_AVAILABLE and verbose and duplicate_groups:
+        del_pbar = tqdm(total=total_duplicates, desc="Removing duplicates", unit="files")
+    else:
+        del_pbar = None
 
     for md5_key, file_list in md5_map.items():
         if len(file_list) > 1:
@@ -136,9 +167,17 @@ def dedup_directory(
                 else:
                     deleted += 1
 
+                if del_pbar:
+                    del_pbar.update(1)
+
+            if verbose and not del_pbar:
+                print(f"  Deleted {len(file_list) - 1} duplicate(s)")
             kept += 1
         else:
             kept += 1
+
+    if del_pbar:
+        del_pbar.close()
 
     # 检查并删除空目录
     empty_dirs_to_remove: List[Path] = []
@@ -153,7 +192,12 @@ def dedup_directory(
         # 加上根目录
         all_dirs.append(directory)
 
-        for dir_path in all_dirs:
+        if TQDM_AVAILABLE and verbose and all_dirs:
+            dir_pbar = tqdm(all_dirs, desc="Checking empty dirs", unit="dirs")
+        else:
+            dir_pbar = all_dirs
+
+        for dir_path in dir_pbar:
             # 检查目录是否为空（或只包含空子目录）
             try:
                 remaining = list(dir_path.iterdir())
@@ -173,6 +217,9 @@ def dedup_directory(
                             print(f"Warning: Cannot remove dir {dir_path}: {e}")
             except OSError:
                 pass
+
+        if isinstance(dir_pbar, tqdm):
+            dir_pbar.close()
 
     if verbose:
         print(f"\n{'=' * 50}")
@@ -204,6 +251,12 @@ def main():
 
   # 保留空目录
   python dedup_by_md5.py --keep-empty-dirs data/images
+
+  # 静默模式（无进度条）
+  python dedup_by_md5.py --quiet data/images
+
+依赖:
+  安装 tqdm 可获得进度条显示: pip install tqdm
         """,
     )
 
