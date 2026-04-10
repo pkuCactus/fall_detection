@@ -411,8 +411,8 @@ def convert_dataset_split(
         if use_imagesets:
             image_ids = read_imageset_split(data_dir, split_name)
             if image_ids is None:
-                print(f"    Warning: ImageSets/{split_name}.txt not found, using all XMLs")
-                image_ids = set(get_xml_files_from_dir(data_dir).keys())
+                print(f"    Warning: ImageSets/{split_name}.txt not found, skipping this directory")
+                continue
         else:
             # Use all XMLs in the directory
             image_ids = set(get_xml_files_from_dir(data_dir).keys())
