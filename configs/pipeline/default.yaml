@@ -1,6 +1,6 @@
 detector:
   conf_thresh: 0.3
-  model_path: "data/models/pretrained/yolov8n.pt"  # 检测器模型路径，null则使用默认yolov8n.pt
+  model_path: "runs/detect/person_detector/weights/yolov8n.pt"  # 检测器模型路径，null则使用默认yolov8n.pt
   classes: null      # 开放词汇检测器文本提示，如 ["person"]
 
 pose_estimator:
@@ -8,7 +8,7 @@ pose_estimator:
 
 classifier:
   type: "simple"                                  # 分类器类型: "fusion" (3分支) 或 "simple" (仅图像)
-  model_path: "outputs/simple_classifier/best.pt" # 模型路径, null则使用默认路径
+  model_path: "runs/simple_classifier/best.pt" # 模型路径, null则使用默认路径
   fall_class_idx: 1                               # 跌倒类别索引（0或1），simple分类器使用
 
 tracker:
