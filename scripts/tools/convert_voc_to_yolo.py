@@ -205,32 +205,32 @@ def load_config(config_path: Path) -> Dict[str, Any]:
     return config
 
 
-def get_class_mapping(config: Dict[str, Any]) -> Tuple[Dict[str, str], Dict[str, int]]:
-    """Get class name mapping and class name to ID mapping from config.
+def get_class_mapping(config: Dict[str, Any], yolo_name_to_id: Dict[str, int]) -> Dict[str, str]:
+    """Get VOC to YOLO class name mapping from config.
 
     Args:
         config: Configuration dictionary
+        yolo_name_to_id: Mapping from YOLO class name to class ID (from data YAML)
 
     Returns:
-        Tuple of (voc_to_yolo_name, yolo_name_to_id)
-        - voc_to_yolo_name: {voc_class_name: yolo_class_name}
-        - yolo_name_to_id: {yolo_class_name: class_id}
+        voc_to_yolo_name: {voc_class_name: yolo_class_name}
     """
     class_mapping = config.get('class_mapping', {})
 
     # Convert to lowercase for case-insensitive matching
     voc_to_yolo_name = {k.lower(): v for k, v in class_mapping.items()}
 
-    # Build YOLO name to ID mapping from names list
-    names = config.get('names', [])
-    if not names:
-        # If no names list, extract unique yolo class names from class_mapping
-        unique_names = sorted(set(voc_to_yolo_name.values()))
-        names = unique_names
+    # Validate that all mapped YOLO classes exist in data_yaml names
+    valid_yolo_classes = set(yolo_name_to_id.keys())
+    for voc_class, yolo_class in voc_to_yolo_name.items():
+        if yolo_class not in valid_yolo_classes:
+            raise ValueError(
+                f"Class mapping error: VOC class '{voc_class}' maps to "
+                f"YOLO class '{yolo_class}' which is not in data_yaml names. "
+                f"Valid classes: {valid_yolo_classes}"
+            )
 
-    yolo_name_to_id = {name: idx for idx, name in enumerate(names)}
-
-    return voc_to_yolo_name, yolo_name_to_id
+    return voc_to_yolo_name
 
 
 def get_output_config(config: Dict[str, Any]) -> Dict[str, Path]:
@@ -247,14 +247,51 @@ def get_output_config(config: Dict[str, Any]) -> Dict[str, Path]:
     output_dir = Path(output_cfg.get('dir', 'data/yolo'))
     images_dir = output_cfg.get('images_dir', 'images')
     labels_dir = output_cfg.get('labels_dir', 'labels')
-    yaml_path = Path(output_cfg.get('yaml_path', output_dir / 'data.yaml'))
 
     return {
         'output_dir': output_dir,
         'images_dir': images_dir,
         'labels_dir': labels_dir,
-        'yaml_path': yaml_path,
     }
+
+
+def load_data_yaml(data_yaml_path: Path) -> Dict[str, Any]:
+    """Load existing YOLO data YAML file for class mapping.
+
+    Args:
+        data_yaml_path: Path to YOLO data YAML file
+
+    Returns:
+        Dictionary with names (class name to ID mapping)
+    """
+    if not data_yaml_path.exists():
+        raise FileNotFoundError(f"Data YAML file not found: {data_yaml_path}")
+
+    with open(data_yaml_path, 'r') as f:
+        data = yaml.safe_load(f)
+
+    return data
+
+
+def get_names_from_data_yaml(data_yaml: Dict[str, Any]) -> Dict[str, int]:
+    """Extract class name to ID mapping from data YAML.
+
+    Args:
+        data_yaml: Loaded data YAML dictionary
+
+    Returns:
+        Dictionary mapping class name to class ID
+    """
+    names = data_yaml.get('names', [])
+
+    if isinstance(names, list):
+        # List format: ["class0", "class1", ...]
+        return {name: idx for idx, name in enumerate(names)}
+    elif isinstance(names, dict):
+        # Dict format: {0: "class0", 1: "class1", ...}
+        return {str(name): int(idx) for idx, name in names.items()}
+    else:
+        raise ValueError(f"Invalid 'names' format in data YAML: {type(names)}")
 
 
 def read_imageset_split(data_dir: Path, split_name: str) -> Optional[Set[str]]:
@@ -467,62 +504,14 @@ def convert_dataset_split(
     return converted, skipped, no_label_count
 
 
-def create_yolo_yaml(
-    config: Dict[str, Any],
-    output_cfg: Dict[str, Path],
-) -> Path:
-    """Create YOLO dataset YAML configuration file.
-
-    Args:
-        config: Configuration dictionary
-        output_cfg: Output configuration dictionary
-
-    Returns:
-        Path to created YAML file
-    """
-    names = config.get('names', [])
-    if not names:
-        # Extract from class_mapping values
-        class_mapping = config.get('class_mapping', {})
-        names = sorted(set(class_mapping.values()))
-
-    names_str = '\n'.join([f"  {k}: {v}" for k, v in enumerate(names)])
-    nc = len(names)
-
-    output_dir = output_cfg['output_dir']
-    images_dir = output_cfg['images_dir']
-    yaml_path = output_cfg['yaml_path']
-
-    yaml_content = f"""# YOLO dataset configuration
-# Auto-generated from VOC conversion
-
-path: {os.path.abspath(output_dir)}  # Dataset root directory
-
-train: {images_dir}/train
-val: {images_dir}/val
-test: {images_dir}/test
-
-# Class definitions
-names:
-{names_str}
-
-nc: {nc}
-"""
-
-    yaml_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(yaml_path, 'w') as f:
-        f.write(yaml_content)
-
-    print(f"\nCreated: {yaml_path}")
-    return yaml_path
-
-
 def main():
     parser = argparse.ArgumentParser(
         description='Convert PASCAL VOC to YOLO format for YOLO-World training'
     )
     parser.add_argument('--config', '-c', type=Path, required=True,
                        help='YAML config file (see configs/tools/voc_to_yolo_example.yaml)')
+    parser.add_argument('--data-yaml', '-d', type=Path, required=True,
+                       help='YOLO data YAML file for class name to ID mapping (e.g., data/fall_detection.yaml)')
     parser.add_argument('--output-dir', '-o', type=Path,
                        help='Override output directory from config')
     parser.add_argument('--dry-run', action='store_true',
@@ -537,16 +526,28 @@ def main():
 
     config = load_config(args.config)
 
-    # Get class mappings
-    voc_to_yolo_name, yolo_name_to_id = get_class_mapping(config)
+    # Load data YAML for class name to ID mapping
+    try:
+        data_yaml = load_data_yaml(args.data_yaml)
+        yolo_name_to_id = get_names_from_data_yaml(data_yaml)
+    except FileNotFoundError as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+    except ValueError as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+
+    # Get class mappings (VOC name -> YOLO name), validating against data_yaml
+    try:
+        voc_to_yolo_name = get_class_mapping(config, yolo_name_to_id)
+    except ValueError as e:
+        print(f"Error: {e}")
+        sys.exit(1)
 
     # Get output configuration
     output_cfg = get_output_config(config)
     if args.output_dir:
         output_cfg['output_dir'] = args.output_dir
-        # Update yaml_path if it was using default
-        if output_cfg['yaml_path'] == output_cfg['output_dir'] / 'data.yaml':
-            output_cfg['yaml_path'] = args.output_dir / 'data.yaml'
 
     # Get dataset directories
     datasets_cfg = config.get('datasets', {})
@@ -562,6 +563,11 @@ def main():
     print("=" * 60)
     print("VOC to YOLO Conversion Configuration")
     print("=" * 60)
+    print(f"\nData YAML: {args.data_yaml}")
+    print(f"Available classes in data YAML:")
+    for name, idx in sorted(yolo_name_to_id.items(), key=lambda x: x[1]):
+        print(f"  {idx}: {name}")
+
     print(f"\nClass Mapping (VOC -> YOLO -> ID):")
     for voc_name, yolo_name in sorted(voc_to_yolo_name.items()):
         class_id = yolo_name_to_id.get(yolo_name, '?')
@@ -576,7 +582,6 @@ def main():
     print(f"  Output Dir: {output_cfg['output_dir']}")
     print(f"  Images Dir: {output_cfg['images_dir']}")
     print(f"  Labels Dir: {output_cfg['labels_dir']}")
-    print(f"  YAML Path:  {output_cfg['yaml_path']}")
 
     print(f"\nProcessing Options:")
     print(f"  Use ImageSets: {use_imagesets}")
@@ -653,9 +658,6 @@ def main():
             copy_images=copy_images,
         )
 
-    # Create YOLO YAML
-    yaml_path = create_yolo_yaml(config, output_cfg)
-
     # Print summary
     print(f"\n{'='*60}")
     print("Conversion Summary")
@@ -680,7 +682,7 @@ def main():
     print(f"\nOutput directory: {output_cfg['output_dir']}")
     print(f"  Labels: {output_cfg['output_dir'] / output_cfg['labels_dir']}")
     print(f"  Images: {output_cfg['output_dir'] / output_cfg['images_dir']}")
-    print(f"  Config: {yaml_path}")
+    print(f"\nUse with data YAML: {args.data_yaml}")
 
 
 if __name__ == '__main__':
