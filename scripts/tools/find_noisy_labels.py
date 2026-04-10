@@ -18,6 +18,14 @@ import yaml
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
+try:
+    from cleanlab.filter import find_label_issues
+except ImportError:
+    print("Error: cleanlab is not installed.")
+    print("Please install it with: pip install cleanlab")
+    sys.exit(1)
+
+
 sys.path.insert(0, "src")
 from fall_detection.data import VOCFallDataset
 from fall_detection.models import SimpleFallClassifier
@@ -127,7 +135,6 @@ def create_dataset(config: Dict, split: str) -> Optional[VOCFallDataset]:
     """根据配置创建数据集."""
     voc_cfg = config.get("voc", {})
     input_cfg = config.get("input", {})
-    crop_cfg = config.get("crop", {})
 
     # 获取目录列表
     if split == "train":
@@ -152,9 +159,9 @@ def create_dataset(config: Dict, split: str) -> Optional[VOCFallDataset]:
         fill_value=input_cfg.get("fill_value", 114),
         fall_classes=fall_classes,
         normal_classes=normal_classes,
-        shrink_max=crop_cfg.get("shrink_max", 3),
-        expand_max=crop_cfg.get("expand_max", 25),
         cache_size=0,  # 禁用缓存
+        inference_mode=True,  # 启用推理模式：固定10px外扩，无随机增强
+        inference_expand_px=10,  # 固定外扩10px
     )
 
     return dataset
@@ -236,15 +243,6 @@ def analyze_with_cleanlab(
         - confidence: 预测置信度
         - label_quality_score: 标签质量分数（越低越可能是噪声）
     """
-    try:
-        import cleanlab
-    except ImportError:
-        print("Error: cleanlab is not installed.")
-        print("Please install it with: pip install cleanlab")
-        sys.exit(1)
-
-    from cleanlab.filter import find_label_issues
-
     print("\nAnalyzing with Cleanlab...")
 
     # 使用 cleanlab 查找标签问题

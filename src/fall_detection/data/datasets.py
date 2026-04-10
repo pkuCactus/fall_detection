@@ -13,7 +13,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-from .augmentation import RandomCropWithPadding, LetterBoxResize
+from .augmentation import RandomCropWithPadding, FixedExpandCrop, LetterBoxResize
 
 
 class LRUImageCache:
@@ -84,14 +84,23 @@ class CocoFallDataset(Dataset):
         shrink_max: int = 3,
         expand_max: int = 25,
         cache_size: int = 1000,
+        inference_mode: bool = False,
+        inference_expand_px: int = 10,
     ):
         self.image_dir = image_dir
-        self.transform = transform
         self.target_size = target_size
         self.use_letterbox = use_letterbox
         self.person_category_id = person_category_id
+        self.inference_mode = inference_mode
 
-        self.cropper = RandomCropWithPadding(shrink_max=shrink_max, expand_max=expand_max)
+        # 推理模式下禁用所有数据增强，使用固定外扩crop
+        if inference_mode:
+            self.transform = None
+            self.cropper = FixedExpandCrop(expand_px=inference_expand_px)
+        else:
+            self.transform = transform
+            self.cropper = RandomCropWithPadding(shrink_max=shrink_max, expand_max=expand_max)
+
         self.letterbox = LetterBoxResize(target_size=target_size, fill_value=fill_value) if use_letterbox else None
 
         # 加载COCO格式数据
@@ -163,7 +172,7 @@ class CocoFallDataset(Dataset):
         # 加载完整图像
         img = self._get_image(img_id)
 
-        # 随机crop ROI
+        # crop ROI (训练时随机，推理时固定)
         roi = self.cropper(img, bbox)
 
         # 数据增强
@@ -214,6 +223,8 @@ class VOCFallDataset(Dataset):
         expand_max: int = 25,
         cache_dir: Optional[str] = None,
         cache_size: int = 1000,
+        inference_mode: bool = False,
+        inference_expand_px: int = 10,
     ):
         """
         Args:
@@ -229,18 +240,27 @@ class VOCFallDataset(Dataset):
             expand_max: 最大外扩像素
             cache_dir: 缓存目录，如果指定则尝试从缓存加载samples
             cache_size: LRU图像缓存大小，默认1000张图像，设为0禁用缓存
+            inference_mode: 推理模式，禁用所有随机增强，使用固定外扩crop
+            inference_expand_px: 推理时固定外扩像素数，默认10px
         """
         self.data_dirs = data_dirs if isinstance(data_dirs, list) else [data_dirs]
         self.split = split
-        self.transform = transform
         self.target_size = target_size
         self.use_letterbox = use_letterbox
+        self.inference_mode = inference_mode
 
         # 类别映射配置
         self.fall_classes = set(c.lower() for c in (fall_classes or ["fall"]))
         self.normal_classes = set(c.lower() for c in normal_classes) if normal_classes else None
 
-        self.cropper = RandomCropWithPadding(shrink_max=shrink_max, expand_max=expand_max)
+        # 推理模式下禁用所有数据增强，使用固定外扩crop
+        if inference_mode:
+            self.transform = None
+            self.cropper = FixedExpandCrop(expand_px=inference_expand_px)
+        else:
+            self.transform = transform
+            self.cropper = RandomCropWithPadding(shrink_max=shrink_max, expand_max=expand_max)
+
         self.letterbox = LetterBoxResize(target_size=target_size, fill_value=fill_value) if use_letterbox else None
 
         # 构建样本列表: (image_path, bbox, label)
@@ -477,7 +497,7 @@ class VOCFallDataset(Dataset):
         # 加载图像（带LRU缓存）
         img = self._get_image(image_path)
 
-        # 随机crop ROI
+        # crop ROI (训练时随机，推理时固定)
         roi = self.cropper(img, bbox)
 
         # 数据增强

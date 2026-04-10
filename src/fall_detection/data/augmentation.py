@@ -60,6 +60,34 @@ class RandomCropWithPadding:
         return img[y1_new:y2_new, x1_new:x2_new]
 
 
+class FixedExpandCrop:
+    """固定外扩crop，用于推理时."""
+
+    def __init__(self, expand_px: int = 10):
+        """
+        Args:
+            expand_px: 外扩像素数，默认为10px
+        """
+        self.expand_px = expand_px
+
+    def __call__(self, img: np.ndarray, bbox: List[float]) -> np.ndarray:
+        h, w = img.shape[:2]
+        x1, y1, x2, y2 = bbox
+
+        # 固定外扩
+        margin = self.expand_px
+
+        x1_new = max(0, int(x1 - margin))
+        y1_new = max(0, int(y1 - margin))
+        x2_new = min(w, int(x2 + margin))
+        y2_new = min(h, int(y2 + margin))
+
+        if x2_new <= x1_new or y2_new <= y1_new:
+            return img[int(y1):int(y2), int(x1):int(x2)]
+
+        return img[y1_new:y2_new, x1_new:x2_new]
+
+
 class LetterBoxResize:
     """保持长宽比的resize，短边padding到目标大小."""
 
