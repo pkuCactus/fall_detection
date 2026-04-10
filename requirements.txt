@@ -1,11 +1,16 @@
 # Quick install (CUDA 12.4)
-# Recommended: pip install -e ".[torch-cu124,dev]"
-# Alternative: pip install -r requirements.txt
+# IMPORTANT: Must use --extra-index-url to get CUDA version!
+# 
+# Recommended: bash scripts/shell/install.sh (auto-detects CUDA version)
+#
+# Or manual install:
+# pip install --extra-index-url https://download.pytorch.org/whl/cu124 -e ".[torch-cu124,dev]"
 
 --extra-index-url https://download.pytorch.org/whl/cu124
-torch>=2.5.0+cu124
-torchvision>=0.20.0+cu124
 
-# Core dependencies are defined in pyproject.toml
-# pip install -e ".[torch-cu124]" will install them automatically
-# For development: pip install -e ".[torch-cu124,dev]"
+# PyTorch CUDA 12.4
+torch>=2.5.0
+torchvision>=0.20.0
+
+# Core dependencies are in pyproject.toml
+# The above torch install from PyTorch wheel index ensures CUDA version

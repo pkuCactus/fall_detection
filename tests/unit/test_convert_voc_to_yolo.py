@@ -21,7 +21,6 @@ from convert_voc_to_yolo import (
     get_image_path,
     get_xml_files_from_dir,
     convert_dataset_split,
-    create_yolo_yaml,
 )
 
 
@@ -239,14 +238,12 @@ class TestGetClassMapping:
             },
             "names": ["person", "fall"],
         }
-        voc_to_yolo, yolo_to_id = get_class_mapping(config)
+        yolo_name_to_id = {"person": 0, "fall": 1}
+        voc_to_yolo = get_class_mapping(config, yolo_name_to_id)
 
         assert voc_to_yolo["stand"] == "person"
         assert voc_to_yolo["sit"] == "person"
         assert voc_to_yolo["fall_down"] == "fall"
-
-        assert yolo_to_id["person"] == 0
-        assert yolo_to_id["fall"] == 1
 
     def test_no_names_list(self):
         """Test extracting names from class_mapping values."""
@@ -257,11 +254,13 @@ class TestGetClassMapping:
                 "fall_down": "fall",
             },
         }
-        voc_to_yolo, yolo_to_id = get_class_mapping(config)
+        yolo_name_to_id = {"person": 0, "fall": 1}
+        voc_to_yolo = get_class_mapping(config, yolo_name_to_id)
 
-        # Should extract unique values and sort them
-        assert "person" in yolo_to_id
-        assert "fall" in yolo_to_id
+        # Should return valid mappings
+        assert voc_to_yolo["stand"] == "person"
+        assert voc_to_yolo["sit"] == "person"
+        assert voc_to_yolo["fall_down"] == "fall"
 
     def test_case_insensitive(self):
         """Test that VOC class names are case-insensitive."""
@@ -272,7 +271,8 @@ class TestGetClassMapping:
             },
             "names": ["person"],
         }
-        voc_to_yolo, _ = get_class_mapping(config)
+        yolo_name_to_id = {"person": 0}
+        voc_to_yolo = get_class_mapping(config, yolo_name_to_id)
 
         assert voc_to_yolo["stand"] == "person"
         assert voc_to_yolo["sit"] == "person"
@@ -297,7 +297,6 @@ class TestGetOutputConfig:
                 "dir": "custom/output",
                 "images_dir": "imgs",
                 "labels_dir": "lbls",
-                "yaml_path": "custom/data.yaml",
             }
         }
         output_cfg = get_output_config(config)
@@ -305,7 +304,6 @@ class TestGetOutputConfig:
         assert output_cfg["output_dir"] == Path("custom/output")
         assert output_cfg["images_dir"] == "imgs"
         assert output_cfg["labels_dir"] == "lbls"
-        assert output_cfg["yaml_path"] == Path("custom/data.yaml")
 
 
 class TestReadImagesetSplit:
@@ -518,61 +516,6 @@ class TestConvertDatasetSplit:
         assert converted == 4
 
 
-class TestCreateYoloYaml:
-    """Tests for create_yolo_yaml function."""
-
-    def test_create_yaml(self, tmp_path):
-        """Test creating data.yaml file."""
-        config = {
-            "names": ["person", "fall"],
-        }
-        output_cfg = {
-            "output_dir": tmp_path / "output",
-            "images_dir": "images",
-            "labels_dir": "labels",
-            "yaml_path": tmp_path / "output" / "data.yaml",
-        }
-        output_cfg["output_dir"].mkdir()
-
-        yaml_path = create_yolo_yaml(config, output_cfg)
-
-        assert yaml_path.exists()
-
-        # Read and verify content
-        with open(yaml_path, "r") as f:
-            content = f.read()
-
-        assert "person" in content
-        assert "fall" in content
-        assert "nc: 2" in content
-        assert str(output_cfg["output_dir"].absolute()) in content
-
-    def test_extract_names_from_class_mapping(self, tmp_path):
-        """Test extracting names from class_mapping when names not provided."""
-        config = {
-            "class_mapping": {
-                "stand": "person",
-                "fall_down": "fall",
-            },
-            # No 'names' list
-        }
-        output_cfg = {
-            "output_dir": tmp_path / "output",
-            "images_dir": "images",
-            "labels_dir": "labels",
-            "yaml_path": tmp_path / "output" / "data.yaml",
-        }
-        output_cfg["output_dir"].mkdir()
-
-        yaml_path = create_yolo_yaml(config, output_cfg)
-
-        with open(yaml_path, "r") as f:
-            content = f.read()
-
-        assert "person" in content
-        assert "fall" in content
-
-
 class TestIntegration:
     """Integration tests for the full conversion pipeline."""
 
@@ -607,7 +550,8 @@ class TestIntegration:
 
         # Load and process
         loaded_config = load_config(config_path)
-        voc_to_yolo, yolo_to_id = get_class_mapping(loaded_config)
+        yolo_name_to_id = {"person": 0}
+        voc_to_yolo = get_class_mapping(loaded_config, yolo_name_to_id)
         output_cfg = get_output_config(loaded_config)
 
         output_cfg["output_dir"].mkdir(parents=True, exist_ok=True)
@@ -619,7 +563,7 @@ class TestIntegration:
             output_dir=output_cfg["output_dir"],
             split_name="train",
             voc_to_yolo_name=voc_to_yolo,
-            yolo_name_to_id=yolo_to_id,
+            yolo_name_to_id=yolo_name_to_id,
             use_imagesets=True,
             copy_images=True,
         )
@@ -631,7 +575,7 @@ class TestIntegration:
             output_dir=output_cfg["output_dir"],
             split_name="val",
             voc_to_yolo_name=voc_to_yolo,
-            yolo_name_to_id=yolo_to_id,
+            yolo_name_to_id=yolo_name_to_id,
             use_imagesets=True,
             copy_images=True,
         )
@@ -648,15 +592,6 @@ class TestIntegration:
             content = f.read().strip()
         parts = content.split()
         assert parts[0] == "0"  # person -> class 0
-
-        # Create YAML and verify
-        yaml_path = create_yolo_yaml(loaded_config, output_cfg)
-        assert yaml_path.exists()
-
-        with open(yaml_path, "r") as f:
-            yaml_content = f.read()
-        assert "person" in yaml_content
-        assert "nc: 1" in yaml_content
 
     def test_label_file_format(self, sample_voc_dataset, tmp_path):
         """Test that label files have correct YOLO format."""
@@ -714,7 +649,8 @@ class TestIntegration:
             "copy_images": True,
         }
 
-        voc_to_yolo, yolo_to_id = get_class_mapping(config)
+        yolo_name_to_id = {"person": 0}
+        voc_to_yolo = get_class_mapping(config, yolo_name_to_id)
         output_cfg = get_output_config(config)
         output_cfg["output_dir"].mkdir(parents=True, exist_ok=True)
 
@@ -724,7 +660,7 @@ class TestIntegration:
             output_dir=output_cfg["output_dir"],
             split_name="train",
             voc_to_yolo_name=voc_to_yolo,
-            yolo_name_to_id=yolo_to_id,
+            yolo_name_to_id=yolo_name_to_id,
             use_imagesets=True,
             copy_images=True,
         )

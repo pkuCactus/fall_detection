@@ -63,18 +63,16 @@ bash scripts/shell/install.sh
 ### 方法2: 指定CUDA版本
 
 ```bash
-# 克隆仓库
-git clone https://github.com/pkuCactus/fall_detection.git
-cd fall_detection
+# ⚠️ 重要：必须使用 --extra-index-url 才能获取 CUDA 版本！
+pip install --extra-index-url https://download.pytorch.org/whl/cu124 -e ".[torch-cu124,dev]"
 
-# 安装特定CUDA版本
-pip install -e ".[torch-cu124,dev]"  # CUDA 12.4
-
-# 其他版本
-# pip install -e ".[torch-cu121,dev]"  # CUDA 12.1
-# pip install -e ".[torch-cu118,dev]"  # CUDA 11.8
-# pip install -e ".[torch-cpu,dev]"    # CPU only
+# 其他CUDA版本
+# pip install --extra-index-url https://download.pytorch.org/whl/cu121 -e ".[torch-cu121,dev]"  # CUDA 12.1
+# pip install --extra-index-url https://download.pytorch.org/whl/cu118 -e ".[torch-cu118,dev]"  # CUDA 11.8
+# pip install -e ".[torch-cpu,dev]"  # CPU only (不需要 --extra-index-url)
 ```
+
+**注意：** 直接 `pip install -e ".[torch-cu124]"` 会安装 CPU 版本！必须加 `--extra-index-url`。
 
 ### 方法3: 传统方式
 
@@ -105,25 +103,28 @@ conda create -n fall_detection python=3.10
 conda activate fall_detection
 ```
 
-### 步骤2: 安装PyTorch
+**步骤2: 安装PyTorch**
 
 根据你的CUDA版本选择：
 
 ```bash
-# CUDA 12.4
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
+# CUDA 12.4 (推荐)
+pip install --extra-index-url https://download.pytorch.org/whl/cu124 \
+    torch torchvision
 
 # CUDA 12.1
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+pip install --extra-index-url https://download.pytorch.org/whl/cu121 \
+    torch torchvision
 
 # CUDA 11.8
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+pip install --extra-index-url https://download.pytorch.org/whl/cu118 \
+    torch torchvision
 
 # CPU only
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+pip install torch torchvision
 ```
 
-### 步骤3: 安装项目依赖
+**步骤3: 安装项目依赖**
 
 ```bash
 # 安装项目包（包含所有核心依赖）
@@ -133,7 +134,7 @@ pip install -e "."
 pip install -e ".[dev]"
 ```
 
-### 步骤4: 验证安装
+**步骤4: 验证安装**
 
 ```bash
 # 检查Python版本

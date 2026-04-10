@@ -36,7 +36,6 @@ dependencies = [
     "onnx>=1.14.0",
     "onnxruntime>=1.15.0",
     "cleanlab>=2.5.0",
-    "clip @ git+https://github.com/openai/CLIP.git",
 ]
 
 [project.optional-dependencies]
@@ -47,25 +46,51 @@ dev = [
     "ruff>=0.1.0",
     "black>=23.0.0",
 ]
+# PyTorch CUDA variants - requires --extra-index-url during installation
+# See: https://pytorch.org/get-started/locally/
+# Install with: pip install --extra-index-url https://download.pytorch.org/whl/cu124 -e ".[torch-cu124,dev]"
 torch-cpu = [
     "torch>=2.5.0",
     "torchvision>=0.20.0",
 ]
 torch-cu118 = [
-    "torch>=2.5.0+cu118",
-    "torchvision>=0.20.0+cu118",
+    "torch>=2.5.0",
+    "torchvision>=0.20.0",
 ]
 torch-cu121 = [
-    "torch>=2.5.0+cu121",
-    "torchvision>=0.20.0+cu121",
+    "torch>=2.5.0",
+    "torchvision>=0.20.0",
 ]
 torch-cu124 = [
-    "torch>=2.5.0+cu124",
-    "torchvision>=0.20.0+cu124",
+    "torch>=2.5.0",
+    "torchvision>=0.20.0",
 ]
 torch-cu128 = [
-    "torch>=2.5.0+cu128",
-    "torchvision>=0.20.0+cu128",
+    "torch>=2.5.0",
+    "torchvision>=0.20.0",
+]
+clip = [
+    "git+https://github.com/openai/CLIP.git",
+]
+torch-cpu = [
+    "torch>=2.5.0",
+    "torchvision>=0.20.0",
+]
+torch-cu118 = [
+    "torch>=2.5.0",
+    "torchvision>=0.20.0",
+]
+torch-cu121 = [
+    "torch>=2.5.0",
+    "torchvision>=0.20.0",
+]
+torch-cu124 = [
+    "torch>=2.5.0",
+    "torchvision>=0.20.0",
+]
+torch-cu128 = [
+    "torch>=2.5.0",
+    "torchvision>=0.20.0",
 ]
 
 [project.urls]

@@ -74,13 +74,21 @@ echo "=========================================="
 echo ""
 
 # Install using pyproject.toml
+# The --extra-index-url ensures we get the correct CUDA version of PyTorch
 if [ -n "$EXTRA_INDEX_URL" ]; then
+    echo "Installing PyTorch with CUDA $VARIANT from PyTorch wheel index..."
     pip install $EXTRA_INDEX_URL "$INSTALL_OPTS" \
         --trusted-host download.pytorch.org \
         --trusted-host download-r2.pytorch.org
 else
+    echo "Installing PyTorch CPU version..."
     pip install "$INSTALL_OPTS"
 fi
+
+# Install CLIP separately (not on PyPI)
+echo ""
+echo "Installing CLIP from GitHub..."
+pip install git+https://github.com/openai/CLIP.git
 
 echo ""
 echo "Installation complete!"
