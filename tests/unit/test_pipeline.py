@@ -2,11 +2,14 @@
 
 import numpy as np
 from unittest.mock import Mock, patch
-from fall_detection.pipeline.pipeline import FallDetectionPipeline
+import pytest
 
+# Module-level patches for all tests in this file
+@pytest.fixture(autouse=True)
+def mock_models():
+    """Mock all model loading for pipeline tests."""
+    import torch
 
-def create_mock_pipeline():
-    """创建带有mocked模型加载的Pipeline."""
     with patch("fall_detection.pipeline.pipeline.PersonDetector") as mock_detector_cls, \
          patch("fall_detection.pipeline.pipeline.PoseEstimator") as mock_pose_cls, \
          patch("fall_detection.pipeline.pipeline.FallClassifier") as mock_clf_cls, \
@@ -15,11 +18,19 @@ def create_mock_pipeline():
         # 设置mock实例
         mock_detector_cls.return_value = Mock()
         mock_pose_cls.return_value = Mock()
-        mock_clf_cls.return_value = Mock()
-        mock_simple_clf_cls.return_value = Mock()
 
-        pipe = FallDetectionPipeline("configs/pipeline/default.yaml")
-        return pipe
+        # Fusion classifier mock - returns tensor for direct use
+        mock_fusion_clf = Mock()
+        mock_fusion_clf.return_value = 0.5  # Direct float return for fusion
+        mock_clf_cls.return_value = mock_fusion_clf
+
+        # Simple classifier mock - returns tensor logits
+        mock_simple_clf = Mock()
+        mock_simple_clf.fall_class_idx = 1
+        mock_simple_clf.return_value = torch.tensor([[0.1, 0.9]])  # logits for 2 classes
+        mock_simple_clf_cls.return_value = mock_simple_clf
+
+        yield
 
 
 class TestPipelineInit:
@@ -27,7 +38,8 @@ class TestPipelineInit:
 
     def test_default_config_init(self):
         """测试使用默认配置初始化."""
-        pipe = create_mock_pipeline()
+        from fall_detection.pipeline.pipeline import FallDetectionPipeline
+        pipe = FallDetectionPipeline("configs/pipeline/default.yaml")
 
         assert pipe.detector is not None
         assert pipe.tracker is not None
@@ -43,7 +55,8 @@ class TestProcessFrame:
 
     def test_process_single_frame_with_detection(self):
         """测试处理单帧（检测帧）."""
-        pipe = create_mock_pipeline()
+        from fall_detection.pipeline.pipeline import FallDetectionPipeline
+        pipe = FallDetectionPipeline("configs/pipeline/default.yaml")
 
         # Mock detector
         pipe.detector = Mock(
@@ -71,7 +84,8 @@ class TestProcessFrame:
 
     def test_process_skip_frame(self):
         """测试处理跳帧（非检测帧）."""
-        pipe = create_mock_pipeline()
+        from fall_detection.pipeline.pipeline import FallDetectionPipeline
+        pipe = FallDetectionPipeline("configs/pipeline/default.yaml")
 
         # Mock detector
         pipe.detector = Mock(
@@ -104,7 +118,8 @@ class TestProcessFrame:
 
     def test_process_multiple_tracks(self):
         """测试处理多目标跟踪."""
-        pipe = create_mock_pipeline()
+        from fall_detection.pipeline.pipeline import FallDetectionPipeline
+        pipe = FallDetectionPipeline("configs/pipeline/default.yaml")
 
         # Mock detector返回多个检测框
         pipe.detector = Mock(
@@ -139,8 +154,9 @@ class TestClassifierIntegration:
     def test_fusion_classifier_triggered(self):
         """测试融合分类器触发."""
         import torch
+        from fall_detection.pipeline.pipeline import FallDetectionPipeline
 
-        pipe = create_mock_pipeline()
+        pipe = FallDetectionPipeline("configs/pipeline/default.yaml")
         pipe.use_simple_classifier = False
 
         # Mock detector
@@ -178,8 +194,9 @@ class TestClassifierIntegration:
     def test_simple_classifier_triggered(self):
         """测试简单分类器触发."""
         import torch
+        from fall_detection.pipeline.pipeline import FallDetectionPipeline
 
-        pipe = create_mock_pipeline()
+        pipe = FallDetectionPipeline("configs/pipeline/default.yaml")
         pipe.use_simple_classifier = True
 
         # Mock detector
@@ -215,7 +232,9 @@ class TestFallDetection:
 
     def test_fall_detected_with_alarm(self):
         """测试跌倒检测并触发告警."""
-        pipe = create_mock_pipeline()
+        from fall_detection.pipeline.pipeline import FallDetectionPipeline
+
+        pipe = FallDetectionPipeline("configs/pipeline/default.yaml")
         # 明确设置为融合分类器
         pipe.use_simple_classifier = False
 
@@ -251,7 +270,9 @@ class TestFallDetection:
 
     def test_normal_not_fall(self):
         """测试正常站立不触发跌倒."""
-        pipe = create_mock_pipeline()
+        from fall_detection.pipeline.pipeline import FallDetectionPipeline
+
+        pipe = FallDetectionPipeline("configs/pipeline/default.yaml")
 
         # Mock detector
         pipe.detector = Mock(
@@ -281,7 +302,9 @@ class TestEdgeCases:
 
     def test_no_detection(self):
         """测试无检测结果."""
-        pipe = create_mock_pipeline()
+        from fall_detection.pipeline.pipeline import FallDetectionPipeline
+
+        pipe = FallDetectionPipeline("configs/pipeline/default.yaml")
 
         pipe.detector = Mock(return_value=[])
         pipe.pose_estimator = Mock(return_value=[])
@@ -294,7 +317,9 @@ class TestEdgeCases:
 
     def test_empty_frame(self):
         """测试空帧."""
-        pipe = create_mock_pipeline()
+        from fall_detection.pipeline.pipeline import FallDetectionPipeline
+
+        pipe = FallDetectionPipeline("configs/pipeline/default.yaml")
 
         pipe.detector = Mock(return_value=[])
         pipe.pose_estimator = Mock(return_value=[])
@@ -306,7 +331,9 @@ class TestEdgeCases:
 
     def test_large_number_of_tracks(self):
         """测试大量目标."""
-        pipe = create_mock_pipeline()
+        from fall_detection.pipeline.pipeline import FallDetectionPipeline
+
+        pipe = FallDetectionPipeline("configs/pipeline/default.yaml")
 
         # Mock detector返回10个检测框
         detections = []
