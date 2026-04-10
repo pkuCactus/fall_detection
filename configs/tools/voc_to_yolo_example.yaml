@@ -1,5 +1,5 @@
 # VOC to YOLO Conversion Configuration Example
-# 用法: python scripts/tools/convert_voc_to_yolo.py --config configs/tools/voc_to_yolo_example.yaml --data-yaml data/yaml/fall_detection.yaml -o data/yolo
+# 用法: python scripts/tools/convert_voc_to_yolo.py --config configs/tools/voc_to_yolo_example.yaml --data-yaml data/configs/fall_detection.yaml -o data/yolo
 
 # 数据集列表 - 支持多个VOC数据集
 # 每个数据集应包含 Annotations/ 和 JPEGImages/ 目录

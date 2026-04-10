@@ -419,7 +419,7 @@ NGPUS=2 bash scripts/shell/run_all_training.sh
  # 验证YOLO-World模型性能
  bash scripts/shell/run_validate_yolo_world.sh \
    --weights outputs/yolo_world/best.pt \
-   --data data/yaml/fall_detection_yolo_world.yaml
+   --data data/configs/fall_detection_yolo_world.yaml
  
  # 下载预训练YOLO-World模型
  bash scripts/shell/download_yolo_world_models.sh

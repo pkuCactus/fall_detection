@@ -5,7 +5,7 @@
 seed: 666
 
 # 数据配置
-data: "data/yaml/fall_detection.yaml"  # 数据集配置文件路径
+data: "data/configs/fall_detection.yaml"  # 数据集配置文件路径
 
 # 模型配置
 model: "data/models/pretrained/yolov8n.pt"  # 预训练权重路径（可选）

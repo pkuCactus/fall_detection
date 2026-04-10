@@ -5,7 +5,7 @@
 seed: 666
 
 # 数据配置
-data: "data/yaml/fall_detection_yolo_world.yaml"  # YOLO-World格式数据配置文件路径
+data: "data/configs/fall_detection_yolo_world.yaml"  # YOLO-World格式数据配置文件路径
 
 # 模型配置
 model: "data/models/pretrained/yolov8s-worldv2.pt"  # 预训练YOLOWorld v2模型路径
