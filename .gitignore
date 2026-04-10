@@ -28,3 +28,6 @@ outputs/*
 *.cache
 runs/
 .ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
