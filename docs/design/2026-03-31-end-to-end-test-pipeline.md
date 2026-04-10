@@ -60,7 +60,11 @@ fall_detection/
 - [ ] **Step 2: 安装依赖**
 
 ```bash
-pip install -r requirements.txt
+# 推荐：自动检测CUDA版本
+bash scripts/shell/install.sh
+
+# 或指定CUDA版本
+pip install -e ".[torch-cu124,dev]"
 ```
 
 Expected: 成功安装，无报错。
