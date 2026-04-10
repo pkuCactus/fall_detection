@@ -51,14 +51,14 @@ export BAILIAN_MODEL="qwen-vl-max"
 #### 单张图像
 ```bash
 # 使用 Claude
-python tools/annotate/vlm_annotate.py \
+python scripts/tools/annotate/vlm_annotate.py \
     --input data/my_image.jpg \
     --output-dir outputs/Annotations \
     --vis-dir outputs/Visualizations \
     --model claude
 
 # 使用 阿里百炼 (Bailian)
-python tools/annotate/vlm_annotate.py \
+python scripts/tools/annotate/vlm_annotate.py \
     --input data/my_image.jpg \
     --output-dir outputs/Annotations \
     --vis-dir outputs/Visualizations \
@@ -68,21 +68,21 @@ python tools/annotate/vlm_annotate.py \
 #### 批量处理目录
 ```bash
 # 使用 Claude
-python tools/annotate/vlm_annotate.py \
+python scripts/tools/annotate/vlm_annotate.py \
     --input data/images/ \
     --output-dir outputs/Annotations \
     --vis-dir outputs/Visualizations \
     --model claude
 
 # 使用 阿里百炼 (国内推荐) - 默认 qwen-vl-max
-python tools/annotate/vlm_annotate.py \
+python scripts/tools/annotate/vlm_annotate.py \
     --input data/images/ \
     --output-dir outputs/Annotations \
     --vis-dir outputs/Visualizations \
     --model bailian
 
 # 使用百炼其他模型 (如 qwen-vl-plus)
-python tools/annotate/vlm_annotate.py \
+python scripts/tools/annotate/vlm_annotate.py \
     --input data/images/ \
     --output-dir outputs/Annotations \
     --vis-dir outputs/Visualizations \
@@ -158,7 +158,7 @@ cp /path/to/your/images/*.jpg outputs/raw_images/
 
 # 3. VLM自动标注
 export ANTHROPIC_API_KEY="sk-xxx"
-python tools/annotate/vlm_annotate.py \
+python scripts/tools/annotate/vlm_annotate.py \
     -i outputs/raw_images \
     -o outputs/vlm_annotations/Annotations \
     -v outputs/vlm_annotations/JPEGImages \

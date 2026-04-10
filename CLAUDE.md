@@ -57,10 +57,6 @@ fall_detection/
 │   │   ├── demo_tracker.py
 │   │   └── video_to_frames.py
 │   └── shell/                 # Shell convenience wrappers
-├── tools/                     # Auxiliary tools
-│   └── annotate/              # Annotation tools
-│       ├── yolo_annotate.py
-│       └── vlm_annotate.py
 ├── tests/                     # Test cases
 │   ├── unit/                  # Unit tests
 │   └── integration/           # Integration tests
