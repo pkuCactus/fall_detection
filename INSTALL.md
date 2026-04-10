@@ -60,7 +60,15 @@ bash scripts/shell/install.sh
 2. 自动选择合适的PyTorch变体
 3. 安装所有依赖
 
-### 方法2: 指定CUDA版本
+### 方法2: 使用 requirements.txt（最简洁）
+
+```bash
+pip install -r requirements.txt
+```
+
+requirements.txt 已配置好 CUDA 12.4 和 `--extra-index-url`，开箱即用。
+
+### 方法3: 手动指定CUDA版本
 
 ```bash
 # ⚠️ 重要：必须使用 --extra-index-url 才能获取 CUDA 版本！
