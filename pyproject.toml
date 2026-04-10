@@ -36,6 +36,7 @@ dependencies = [
     "onnx>=1.14.0",
     "onnxruntime>=1.15.0",
     "cleanlab>=2.5.0",
+    "clip @ git+https://github.com/openai/CLIP.git",
 ]
 
 [project.optional-dependencies]
