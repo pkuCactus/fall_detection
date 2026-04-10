@@ -8,6 +8,8 @@ import argparse
 import hashlib
 import os
 import sys
+from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Dict, List, Set, Tuple
 
@@ -16,6 +18,13 @@ try:
     TQDM_AVAILABLE = True
 except ImportError:
     TQDM_AVAILABLE = False
+
+# Global lock for thread-safe progress bar updates
+try:
+    from threading import Lock
+    _lock = Lock()
+except ImportError:
+    _lock = None
 
 
 def calculate_md5(file_path: Path, chunk_size: int = 8192) -> str:
@@ -55,11 +64,32 @@ def get_files_recursive(directory: Path) -> List[Path]:
     return sorted(files)
 
 
+def calculate_md5_wrapper(
+    file_info: Tuple[Path, int],
+    progress_cb=None
+) -> Tuple[str, Path, int]:
+    """包装函数用于并行计算 MD5.
+
+    Args:
+        file_info: (file_path, file_size) 元组
+        progress_cb: 进度回调函数
+
+    Returns:
+        (md5_hash, file_path, file_size)
+    """
+    file_path, file_size = file_info
+    md5_hash = calculate_md5(file_path)
+    if progress_cb:
+        progress_cb()
+    return md5_hash, file_path, file_size
+
+
 def dedup_directory(
     directory: Path,
     dry_run: bool = False,
     remove_empty_dirs: bool = True,
     verbose: bool = True,
+    workers: int = 1,
 ) -> Tuple[int, int, int, List[Path]]:
     """对目录进行 MD5 去重.
 
@@ -68,6 +98,7 @@ def dedup_directory(
         dry_run: 是否只显示而不实际删除
         remove_empty_dirs: 是否删除空目录
         verbose: 是否打印详细信息
+        workers: 并行工作线程数，默认为1（串行）
 
     Returns:
         (保留文件数, 删除文件数, 删除目录数, 空目录列表)
@@ -91,47 +122,83 @@ def dedup_directory(
 
     if verbose:
         print(f"Scanning {len(files)} files in: {directory}")
+        if workers > 1:
+            print(f"Using {workers} workers for parallel processing")
 
     # MD5 -> (文件路径, 文件大小) 列表
     md5_map: Dict[str, List[Tuple[Path, int]]] = {}
 
-    # 计算所有文件的 MD5
-    if TQDM_AVAILABLE and verbose:
-        pbar = tqdm(files, desc="Calculating MD5", unit="files")
-    else:
-        pbar = files
+    # 收集文件信息 (path, size)
+    file_infos = [(f, f.stat().st_size) for f in files]
 
-    for i, file_path in enumerate(pbar):
-        file_size = file_path.stat().st_size
+    # 按大小分组，找出可能需要计算MD5的文件（大小相同的文件才需要计算MD5）
+    size_map: Dict[int, List[Path]] = defaultdict(list)
+    for fp, size in file_infos:
+        size_map[size].append(fp)
 
-        # 更新进度条描述
-        if TQDM_AVAILABLE and verbose and isinstance(pbar, tqdm):
-            pbar.set_postfix_str(f"{file_path.name[:30]}")
-
-        # 快速跳过：如果已经有一个相同大小的文件，才计算 MD5
-        md5_key = None
-        for existing_md5, existing_files in md5_map.items():
-            if existing_files and existing_files[0][1] == file_size:
-                # 潜在重复，计算 MD5
-                md5_key = calculate_md5(file_path)
-                break
+    # 只需要对大小相同的文件计算MD5
+    files_to_hash = []
+    for size, paths in size_map.items():
+        if len(paths) > 1:  # 大小相同才需要计算MD5
+            files_to_hash.extend([(p, size) for p in paths])
         else:
-            # 没有相同大小的文件，计算 MD5
-            md5_key = calculate_md5(file_path)
+            # 唯一大小的文件，直接分配唯一MD5（用路径+大小作为key）
+            unique_key = f"unique_{paths[0]}_{size}"
+            md5_map[unique_key] = [(paths[0], size)]
 
-        if not md5_key:
-            continue
+    if not files_to_hash:
+        if verbose:
+            print("No potential duplicates found (all files have unique sizes)")
+    else:
+        # 计算需要计算MD5的文件的哈希
+        if workers > 1:
+            # 并行处理
+            if TQDM_AVAILABLE and verbose:
+                pbar = tqdm(total=len(files_to_hash), desc="Calculating MD5", unit="files")
+            else:
+                pbar = None
 
-        if md5_key not in md5_map:
-            md5_map[md5_key] = []
-        md5_map[md5_key].append((file_path, file_size))
+            def update_progress():
+                if pbar:
+                    pbar.update(1)
 
-        # 显示进度
-        if not TQDM_AVAILABLE and verbose and (i + 1) % 100 == 0:
-            print(f"  Progress: {i + 1}/{len(files)} files processed...")
+            with ThreadPoolExecutor(max_workers=workers) as executor:
+                future_to_file = {
+                    executor.submit(calculate_md5_wrapper, fi, update_progress): fi
+                    for fi in files_to_hash
+                }
 
-    if TQDM_AVAILABLE and verbose:
-        pbar.close()
+                for future in as_completed(future_to_file):
+                    md5_hash, file_path, file_size = future.result()
+                    if md5_hash:
+                        if md5_hash not in md5_map:
+                            md5_map[md5_hash] = []
+                        md5_map[md5_hash].append((file_path, file_size))
+
+            if pbar:
+                pbar.close()
+        else:
+            # 串行处理
+            if TQDM_AVAILABLE and verbose:
+                pbar = tqdm(files_to_hash, desc="Calculating MD5", unit="files")
+            else:
+                pbar = files_to_hash
+
+            for i, (file_path, file_size) in enumerate(pbar):
+                if TQDM_AVAILABLE and verbose and isinstance(pbar, tqdm):
+                    pbar.set_postfix_str(f"{file_path.name[:30]}")
+
+                md5_hash = calculate_md5(file_path)
+                if md5_hash:
+                    if md5_hash not in md5_map:
+                        md5_map[md5_hash] = []
+                    md5_map[md5_hash].append((file_path, file_size))
+
+                if not TQDM_AVAILABLE and verbose and (i + 1) % 100 == 0:
+                    print(f"  Progress: {i + 1}/{len(files_to_hash)} files processed...")
+
+            if TQDM_AVAILABLE and verbose and isinstance(pbar, tqdm):
+                pbar.close()
 
     # 去重：保留每个 MD5 组的第一个文件，删除其余
     kept = 0
@@ -255,6 +322,14 @@ def main():
   # 静默模式（无进度条）
   python dedup_by_md5.py --quiet data/images
 
+  # 并行处理（4线程，适合SSD）
+  python dedup_by_md5.py -j 4 data/images
+
+性能建议:
+  - 机械硬盘: 保持默认 -j 1（串行）
+  - SSD: 可设置 -j 4 到 -j 8
+  - NVMe: 可设置 -j 8 到 -j 16
+
 依赖:
   安装 tqdm 可获得进度条显示: pip install tqdm
         """,
@@ -287,6 +362,14 @@ def main():
         help="静默模式，只输出 summary",
     )
 
+    parser.add_argument(
+        "--workers",
+        "-j",
+        type=int,
+        default=1,
+        help="并行计算 MD5 的工作线程数 (默认: 1，建议根据磁盘 I/O 能力设置，如 SSD 可设 4-8)",
+    )
+
     args = parser.parse_args()
 
     total_kept = 0
@@ -302,6 +385,7 @@ def main():
             dry_run=args.dry_run,
             remove_empty_dirs=not args.keep_empty_dirs,
             verbose=not args.quiet,
+            workers=args.workers,
         )
 
         total_kept += kept
