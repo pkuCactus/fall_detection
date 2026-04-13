@@ -85,10 +85,20 @@ def main():
 
     # Setup YOLO-World specific settings
     if model_type == "yoloworld":
-        # Load data config to get class names
+        # Load data config to get class names and path
         data_path = cfg.get("data", "")
         if data_path and os.path.exists(data_path):
             data_cfg = load_data_config(data_path)
+
+            # Delete cached text embeddings before training
+            # YOLO and YOLO-World have different embeddings, need to regenerate
+            dataset_path = data_cfg.get("path", "")
+            if dataset_path:
+                embed_cache = os.path.join(dataset_path, "images", "text_embeddings_clip_ViT-B-32.pt")
+                if os.path.exists(embed_cache):
+                    print(f"Removing cached text embeddings: {embed_cache}")
+                    os.remove(embed_cache)
+
             setup_yolo_world(model, data_cfg, cfg)
         else:
             print(f"Warning: Data config not found: {data_path}")
