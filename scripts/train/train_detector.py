@@ -10,7 +10,7 @@ import sys
 import traceback
 
 import yaml
-from ultralytics import YOLO
+from ultralytics import YOLO, YOLOWorld
 
 from fall_detection.utils import parse_args, load_config
 
@@ -77,7 +77,7 @@ def main():
 
     # Load model
     try:
-        model = YOLO(model_path)
+        model = YOLO(model_path) if model_type == "yolo" else YOLOWorld(model_path)
     except Exception as e:
         print(f"\nError loading model: {e}")
         traceback.print_exc()
