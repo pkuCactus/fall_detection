@@ -55,7 +55,7 @@ class_mapping:
 output:
   dir: "data/yolo"  # 输出目录
   images_dir: "images"  # 输出图像目录
-  labels_dir: "labels"  # 输出标签目录
+  labels_dir: "labels_single"  # 输出标签目录
 # 注意: 类别ID映射通过 --data-yaml 参数指定的YAML文件中的 names 字段定义
 
 use_imagesets: true  # 是否使用ImageSets/Main/{train,val,test}.txt进行划分，否则按目录划分

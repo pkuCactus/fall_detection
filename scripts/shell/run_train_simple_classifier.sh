@@ -16,6 +16,38 @@ while [[ $# -gt 0 ]]; do
     --ngpus) NGPUS="$2"; shift 2 ;;
     --override) OVERRIDE="$2"; shift 2 ;;
     --master-port) MASTER_PORT="$2"; shift 2 ;;
+    -h|--help)
+      cat << 'EOF'
+Usage: bash run_train_simple_classifier.sh --config <config.yaml> [OPTIONS]
+
+Simple image classifier training script (COCO format, supports DDP, augmentation, LetterBox)
+
+Required:
+  --config <file>       Path to training config YAML file
+
+Options:
+  --ngpus N             Number of GPUs for DDP training (default: 1)
+  --override "k=v,..."  Override config values (e.g., "epochs=100,batch_size=8")
+  --master-port PORT    Distributed training master port (default: 29500)
+  -h, --help            Show this help message
+
+Examples:
+  # Single GPU training
+  bash run_train_simple_classifier.sh --config configs/training/simple_classifier.yaml
+
+  # Multi-GPU DDP training
+  bash run_train_simple_classifier.sh --config configs/training/simple_classifier.yaml --ngpus 2
+
+  # Override config values
+  bash run_train_simple_classifier.sh --config configs/training/simple_classifier.yaml \
+    --override "epochs=50,lr=0.001"
+
+  # Specify master port for DDP
+  bash run_train_simple_classifier.sh --config configs/training/simple_classifier.yaml \
+    --ngpus 4 --master-port 29501
+EOF
+      exit 0
+      ;;
     *) echo "Unknown option: $1"; exit 1 ;;
   esac
 done
@@ -23,7 +55,10 @@ done
 # 检查必需参数
 if [[ -z "$CONFIG" ]]; then
   echo "Error: --config is required"
-  echo "Usage: bash scripts/shell/run_train_simple_classifier.sh --config configs/training/simple_classifier.yaml [--ngpus 2] [--override \"epochs=100,batch=8\"] [--master-port 29500]"
+  cat << 'EOF'
+Usage: bash scripts/shell/run_train_simple_classifier.sh --config configs/training/simple_classifier.yaml \
+[--ngpus 2] [--override "epochs=100,batch=8"] [--master-port 29500]
+EOF
   exit 1
 fi
 

@@ -386,8 +386,9 @@ def convert_dataset_split(
     images_split_dir.mkdir(parents=True, exist_ok=True)
 
     # Directory for images without labels (for manual annotation later)
+    # Lazy creation: only create when first no-label image is found
     no_labels_dir = output_dir / 'no_labels' / split_name
-    no_labels_dir.mkdir(parents=True, exist_ok=True)
+    no_labels_dir_created = False
 
     converted = 0
     skipped = 0
@@ -433,6 +434,10 @@ def convert_dataset_split(
             if image_id not in all_xml_files:
                 # No XML annotation - copy image to no_labels for manual annotation
                 if img_file:
+                    # Lazy create no_labels_dir on first use
+                    if not no_labels_dir_created:
+                        no_labels_dir.mkdir(parents=True, exist_ok=True)
+                        no_labels_dir_created = True
                     dest_path = no_labels_dir / img_file.name
                     if not dest_path.exists():
                         if copy_images:
