@@ -459,9 +459,10 @@ def _handle_early_stopping(
         save_path = os.path.join(
             output_cfg.get("dir", "outputs/simple_classifier"), "best.pt"
         )
-        rank == 0 and _save_model_checkpoint(model, save_path, ddp)
-        if epoch % epoch_log_interval == 0:
-            print(f"[{_timestamp()}] Saved best model (val_acc={v_acc:.4f})")
+        if rank == 0:
+            _save_model_checkpoint(model, save_path, ddp)
+            if epoch % epoch_log_interval == 0:
+                print(f"[{_timestamp()}] Saved best model (val_acc={v_acc:.4f})")
         return v_acc, 0, False
     patience_counter += 1
     if patience_counter >= patience:
