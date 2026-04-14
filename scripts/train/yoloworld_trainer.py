@@ -43,7 +43,8 @@ class WorldTrainerDDP(WorldTrainer):
         """Initialize trainer and override callback."""
         super().__init__(cfg, overrides, _callbacks)
         # Replace the original callback with our fixed version
-        self.callbacks["on_pretrain_routine_end"] = [on_pretrain_routine_end_all_ranks]
+        # Use set_callback to properly override (replaces entire callback list)
+        self.set_callback("on_pretrain_routine_end", on_pretrain_routine_end_all_ranks)
 
 
 def get_trainer(cfg=None, overrides=None):
