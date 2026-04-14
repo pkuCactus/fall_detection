@@ -94,7 +94,7 @@ def main():
             # YOLO and YOLO-World have different embeddings, need to regenerate
             dataset_path = data_cfg.get("path", "")
             if dataset_path:
-                embed_cache = os.path.join(dataset_path, "images", "text_embeddings_clip_ViT-B-32.pt")
+                embed_cache = os.path.join(dataset_path, "text_embeddings_clip_ViT-B_32.pt")
                 if os.path.exists(embed_cache):
                     print(f"Removing cached text embeddings: {embed_cache}")
                     os.remove(embed_cache)

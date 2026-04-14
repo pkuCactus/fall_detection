@@ -158,9 +158,10 @@ def main():
     print(f"Number of classes: {len(class_names)}")
 
     # Determine output path
-    # YOLO-World expects embeddings in images/text_embeddings_{clip_model}.pt
-    clip_model_safe = args.clip_model.replace('/', '-')
-    output_dir = os.path.join(dataset_path, 'images')
+    # YOLO-World expects embeddings in dataset_root/text_embeddings_clip_ViT-B_32.pt
+    # Format: {class_name: embedding_tensor} dict
+    clip_model_safe = args.clip_model.replace('/', '_')
+    output_dir = dataset_path
     output_path = os.path.join(output_dir, f'text_embeddings_clip_{clip_model_safe}.pt')
 
     # Check if already exists
@@ -169,7 +170,7 @@ def main():
         print("Use --force to regenerate")
         return
 
-    # Create output directory
+    # Create output directory (dataset root)
     os.makedirs(output_dir, exist_ok=True)
 
     # Generate embeddings
@@ -184,16 +185,10 @@ def main():
         print(f"Error generating embeddings: {e}")
         sys.exit(1)
 
-    # Save embeddings
-    save_dict = {
-        'embeddings': embeddings,
-        'class_names': class_names,
-        'clip_model': args.clip_model,
-        'num_classes': len(class_names),
-        'embedding_dim': embeddings.shape[1],
-    }
+    # Save embeddings as {class_name: embedding_tensor} dict (ultralytics format)
+    txt_map = {name: embeddings[i] for i, name in enumerate(class_names)}
 
-    torch.save(save_dict, output_path)
+    torch.save(txt_map, output_path)
     print(f"\nSaved embeddings to: {output_path}")
     print(f"  Shape: {embeddings.shape}")
     print(f"  Classes: {len(class_names)}")
