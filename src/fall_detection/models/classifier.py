@@ -9,8 +9,9 @@ import torch.nn.functional as F
 class FallClassifier(nn.Module):
     """轻量融合姿态分类器."""
 
-    def __init__(self, model_path: str = None):
+    def __init__(self, model_path: str = None, device: str = None):
         super().__init__()
+        self.device = device
         # 图像分支: 3 -> 16 -> 32, 每层 stride=2, GAP
         self.img_conv1 = nn.Conv2d(3, 16, kernel_size=3, stride=2, padding=1)
         self.img_conv2 = nn.Conv2d(16, 32, kernel_size=3, stride=2, padding=1)
@@ -24,12 +25,16 @@ class FallClassifier(nn.Module):
         self.fusion_fc2 = nn.Linear(32, 1)
 
         # 加载预训练权重
+        map_location = device if device else 'cpu'
         if model_path and os.path.exists(model_path):
-            self.load_state_dict(torch.load(model_path, map_location='cpu'))
+            self.load_state_dict(torch.load(model_path, map_location=map_location))
             self.eval()
         elif os.path.exists("train/classifier/best.pt"):
-            self.load_state_dict(torch.load("train/classifier/best.pt", map_location='cpu'))
+            self.load_state_dict(torch.load("train/classifier/best.pt", map_location=map_location))
             self.eval()
+
+        if device:
+            self.to(device)
 
     def forward(self, roi, kpts, motion):
         """

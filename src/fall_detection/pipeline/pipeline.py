@@ -13,9 +13,10 @@ from fall_detection.models import FallClassifier, SimpleFallClassifier
 class FallDetectionPipeline:
     """端到端跌倒检测 Pipeline."""
 
-    def __init__(self, config_path: str = "configs/default.yaml"):
+    def __init__(self, config_path: str = "configs/default.yaml", device: str = None):
         with open(config_path, "r", encoding="utf-8") as f:
             self.cfg = yaml.safe_load(f)
+        self.device = device
 
         det_cfg = self.cfg.get("detector", {})
         track_cfg = self.cfg.get("tracker", {})
@@ -27,9 +28,9 @@ class FallDetectionPipeline:
         det_model_path = det_cfg.get("model_path")
         det_classes = det_cfg.get("classes")
         if det_model_path:
-            self.detector = PersonDetector(model_path=det_model_path, classes=det_classes)
+            self.detector = PersonDetector(model_path=det_model_path, classes=det_classes, device=device)
         else:
-            self.detector = PersonDetector(model_name="yolov8n", classes=det_classes)
+            self.detector = PersonDetector(model_name="yolov8n", classes=det_classes, device=device)
         self.detector_conf_thresh = det_cfg.get("conf_thresh", 0.3)
 
         self.tracker = ByteTrackLite(
@@ -45,9 +46,9 @@ class FallDetectionPipeline:
         pose_cfg = self.cfg.get("pose_estimator", {})
         pose_model_path = pose_cfg.get("model_path")
         if pose_model_path:
-            self.pose_estimator = PoseEstimator(model_path=pose_model_path)
+            self.pose_estimator = PoseEstimator(model_path=pose_model_path, device=device)
         else:
-            self.pose_estimator = PoseEstimator(model_name="yolov8n-pose")
+            self.pose_estimator = PoseEstimator(model_name="yolov8n-pose", device=device)
         self.rule_engine = RuleEngine(rules_cfg, fps=self.fps)
 
         # 初始化关键点跟踪器
@@ -71,13 +72,13 @@ class FallDetectionPipeline:
             # 使用简单的单分支分类器（仅图像输入）
             if cls_model_path is None:
                 cls_model_path = "train/simple_classifier/best.pt"
-            self.classifier = SimpleFallClassifier(model_path=cls_model_path, fall_class_idx=fall_class_idx)
+            self.classifier = SimpleFallClassifier(model_path=cls_model_path, fall_class_idx=fall_class_idx, device=device)
             self.use_simple_classifier = True
         else:
             # 使用融合分类器（图像+关键点+运动）
             if cls_model_path is None:
                 cls_model_path = "train/classifier/best.pt"
-            self.classifier = FallClassifier(model_path=cls_model_path)
+            self.classifier = FallClassifier(model_path=cls_model_path, device=device)
             self.use_simple_classifier = False
         self.fusion = {}  # track_id -> FusionDecision
         self.motion_window_frames = max(1, int(0.5 * self.fps))
@@ -216,6 +217,8 @@ class FallDetectionPipeline:
 
             if self.use_simple_classifier:
                 roi_tensor = torch.from_numpy(roi).unsqueeze(0)  # (1, 3, 96, 96)
+                if self.device:
+                    roi_tensor = roi_tensor.to(self.device)
                 with torch.no_grad():
                     logits = self.classifier(roi_tensor)
                     probs = F.softmax(logits, dim=1)

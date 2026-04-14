@@ -6,14 +6,16 @@ from ultralytics import YOLO
 class PersonDetector:
     """封装 YOLOv8 人体检测器."""
 
-    def __init__(self, model_name: str = "yolov8n", model_path: str = None, classes: list = None):
+    def __init__(self, model_name: str = "yolov8n", model_path: str = None, classes: list = None, device: str = None):
         if model_path:
             self.model = YOLO(model_path)
         else:
             self.model = YOLO(f"{model_name}.pt")
+        self.device = device
         self.imgsz = getattr(self.model, "args", {}).get("imgsz", 640)
         if classes and hasattr(self.model, "set_classes"):
             self.model.set_classes(classes)
+        self.device = device
 
     @property
     def input_size(self) -> int:
@@ -32,7 +34,7 @@ class PersonDetector:
             List[Dict]: 每个元素包含 bbox [x1, y1, x2, y2], conf, class_id.
                         仅返回 person 类 (COCO class_id == 0).
         """
-        results = self.model(img, verbose=False)
+        results = self.model(img, verbose=False, device=self.device)
         boxes = []
         for result in results:
             if result.boxes is None:

@@ -8,11 +8,12 @@ from fall_detection.utils.geometry import iou
 class PoseEstimator:
     """封装 YOLOv8n-pose 17 关键点估计器."""
 
-    def __init__(self, model_name: str = "yolov8n-pose", model_path: str = None):
+    def __init__(self, model_name: str = "yolov8n-pose", model_path: str = None, device: str = None):
         if model_path:
             self.model = YOLO(model_path)
         else:
             self.model = YOLO(f"{model_name}.pt")
+        self.device = device
 
     def __call__(self, img: np.ndarray, bboxes: List[List[float]]) -> List[np.ndarray]:
         """
@@ -29,7 +30,7 @@ class PoseEstimator:
         if len(bboxes) == 0:
             return []
 
-        results = self.model(img, verbose=False)
+        results = self.model(img, verbose=False, device=self.device)
         pose_boxes = []
         pose_kpts = []
         for result in results:

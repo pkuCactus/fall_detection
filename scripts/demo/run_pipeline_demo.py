@@ -165,6 +165,8 @@ def main():
                         help="Enable detailed debug logging")
     parser.add_argument("--log", default=None,
                         help="Log file path (used with --debug). Defaults to logs/{video_name}.log")
+    parser.add_argument("--device", default=None,
+                        help="Device to use (e.g., 'cuda', 'cuda:0', 'cpu'). Auto-detect if not specified.")
     args = parser.parse_args()
 
     # 如果没有指定log路径，使用视频文件名作为默认日志名
@@ -185,7 +187,8 @@ def main():
         logger.info("=" * 80)
 
     print("Initializing pipeline...")
-    pipeline = FallDetectionPipeline(args.config)
+    pipeline = FallDetectionPipeline(args.config, device=args.device)
+    print(f"  Using device: {args.device if args.device else 'auto'}")
 
     # 打印检测器输入分辨率
     detector_input_size = pipeline.detector.input_size

@@ -56,11 +56,12 @@ class SimpleFallClassifier(nn.Module):
     - 分类头: Linear + BN + Dropout + ReLU + Linear
     """
 
-    def __init__(self, model_path: str = None, dropout: float = 0.1, num_classes: int = 2, fall_class_idx: int = 1):
+    def __init__(self, model_path: str = None, dropout: float = 0.1, num_classes: int = 2, fall_class_idx: int = 1, device: str = None):
         super().__init__()
 
         self.num_classes = num_classes
         self.fall_class_idx = fall_class_idx
+        self.device = device
 
         self.backbone = nn.Sequential(
             nn.Conv2d(3, 64, kernel_size=3, stride=2, padding=1, bias=False),
@@ -88,19 +89,23 @@ class SimpleFallClassifier(nn.Module):
         )
 
         # 加载预训练权重 (使用try/except避免TOCTOU问题)
+        map_location = device if device else 'cpu'
         if model_path:
             try:
-                self.load_state_dict(torch.load(model_path, map_location='cpu', weights_only=True), strict=True)
+                self.load_state_dict(torch.load(model_path, map_location=map_location, weights_only=True), strict=True)
                 self.eval()
             except FileNotFoundError as e:
                 print(f"Warning: Failed to load model from {model_path}: {e}")
         else:
             # 尝试加载默认路径
             try:
-                self.load_state_dict(torch.load("outputs/simple_classifier/best.pt", map_location='cpu', weights_only=True), strict=True)
+                self.load_state_dict(torch.load("outputs/simple_classifier/best.pt", map_location=map_location, weights_only=True), strict=True)
                 self.eval()
             except FileNotFoundError:
                 print("Warning: Default model path not found, using random initialization.")  # 默认路径不存在，使用随机初始化
+
+        if device:
+            self.to(device)
 
     def forward(self, roi):
         """
