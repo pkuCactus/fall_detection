@@ -120,7 +120,7 @@ class TestPersonDetector:
         assert boxes[0]['bbox'] == [100.0, 200.0, 300.0, 400.0]
         assert boxes[0]['conf'] == 0.85
         assert boxes[0]['class_id'] == 0
-        mock_model.assert_called_once_with(img, verbose=False)
+        mock_model.assert_called_once_with(img, verbose=False, device=None)
 
     def test_call_filters_non_person_classes(self, mocker):
         """Test __call__ filters out non-person class detections."""

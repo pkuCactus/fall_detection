@@ -702,8 +702,8 @@ class TestVOCFallDataset:
         assert len(train_dataset) == 2
         assert len(val_dataset) == 1
 
-    def test_no_imageset_file_scan_all_xml(self, tmp_path, monkeypatch):
-        """Test VOCFallDataset scans all XML when ImageSet file doesn't exist."""
+    def test_no_imageset_file_skip_directory(self, tmp_path, monkeypatch):
+        """Test VOCFallDataset skips directory when ImageSet file doesn't exist."""
         # Create VOC structure
         image_ids = ["img001", "img002"]
         annotations = {
@@ -715,22 +715,20 @@ class TestVOCFallDataset:
             tmp_path, image_ids, annotations
         )
 
-        # Don't create train.txt - should scan all XML files
+        # Don't create train.txt - directory should be skipped
 
         # Mock cv2.imread
         mock_img = np.ones((480, 640, 3), dtype=np.uint8) * 128
         monkeypatch.setattr('cv2.imread', lambda path: mock_img)
 
-        # Initialize dataset
-        dataset = VOCFallDataset(
-            data_dirs=[str(tmp_path)],
-            split="train",  # ImageSet file doesn't exist for this split
-            target_size=96,
-            use_letterbox=True,
-        )
-
-        # Should scan all XML files
-        assert len(dataset) == 2
+        # Should raise ValueError because directory is skipped (no valid samples)
+        with pytest.raises(ValueError, match="No valid samples found"):
+            VOCFallDataset(
+                data_dirs=[str(tmp_path)],
+                split="train",  # ImageSet file doesn't exist for this split
+                target_size=96,
+                use_letterbox=True,
+            )
 
     def test_missing_annotation_file(self, tmp_path, monkeypatch):
         """Test VOCFallDataset handles missing annotation files gracefully."""
