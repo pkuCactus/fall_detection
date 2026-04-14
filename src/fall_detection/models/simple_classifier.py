@@ -5,6 +5,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from fall_detection.utils.common import normalize_device
+
 
 class SimpleBasicBlock(nn.Module):
     """BasicBlock: 两个3x3卷积层."""
@@ -62,7 +64,7 @@ class SimpleFallClassifier(nn.Module):
 
         self.num_classes = num_classes
         self.fall_class_idx = fall_class_idx
-        self.device = device
+        self.device = normalize_device(device)
 
         self.backbone = nn.Sequential(
             nn.Conv2d(3, 64, kernel_size=3, stride=2, padding=1, bias=False),
@@ -90,11 +92,11 @@ class SimpleFallClassifier(nn.Module):
         )
 
         # 加载预训练权重 (使用try/except避免TOCTOU问题)
-        map_location = device if device else 'cpu'
+        map_location = self.device if self.device else 'cpu'
         if not model_path:
             model_path = "outputs/simple_classifier/best.pt"  # 默认路径
         try:
-            model_weights = torch.load(model_path, map_location=map_location, weights_only=False)
+            model_weights = torch.load(model_path, map_location=map_location, weights_only=True)
             if 'model_state_dict' in model_weights:
                 self.load_state_dict(model_weights['model_state_dict'], strict=True)
             else:
@@ -103,8 +105,8 @@ class SimpleFallClassifier(nn.Module):
         except FileNotFoundError:
             print(f"Warning: Model file not found at {model_path}, using random initialization.")
 
-        if device:
-            self.to(device)
+        if self.device:
+            self.to(self.device)
 
     def forward(self, roi):
         """

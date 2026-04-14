@@ -5,13 +5,15 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from fall_detection.utils.common import normalize_device
+
 
 class FallClassifier(nn.Module):
     """轻量融合姿态分类器."""
 
     def __init__(self, model_path: str = None, device: str = None):
         super().__init__()
-        self.device = device
+        self.device = normalize_device(device)
         # 图像分支: 3 -> 16 -> 32, 每层 stride=2, GAP
         self.img_conv1 = nn.Conv2d(3, 16, kernel_size=3, stride=2, padding=1)
         self.img_conv2 = nn.Conv2d(16, 32, kernel_size=3, stride=2, padding=1)

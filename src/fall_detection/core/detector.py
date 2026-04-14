@@ -2,6 +2,8 @@ from typing import List, Dict
 import numpy as np
 from ultralytics import YOLO
 
+from fall_detection.utils.common import normalize_device
+
 
 class PersonDetector:
     """封装 YOLOv8 人体检测器."""
@@ -11,11 +13,10 @@ class PersonDetector:
             self.model = YOLO(model_path)
         else:
             self.model = YOLO(f"{model_name}.pt")
-        self.device = device
+        self.device = normalize_device(device)
         self.imgsz = getattr(self.model, "args", {}).get("imgsz", 640)
         if classes and hasattr(self.model, "set_classes"):
             self.model.set_classes(classes)
-        self.device = device
 
     @property
     def input_size(self) -> int:

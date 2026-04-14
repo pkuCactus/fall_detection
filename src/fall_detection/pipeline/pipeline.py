@@ -8,6 +8,7 @@ import torch.nn.functional as F
 
 from fall_detection.core import PersonDetector, ByteTrackLite, Detection, PoseEstimator, RuleEngine, FusionDecision, SimpleKeypointTracker
 from fall_detection.models import FallClassifier, SimpleFallClassifier
+from fall_detection.utils.common import normalize_device
 
 
 class FallDetectionPipeline:
@@ -16,7 +17,7 @@ class FallDetectionPipeline:
     def __init__(self, config_path: str = "configs/default.yaml", device: str = None):
         with open(config_path, "r", encoding="utf-8") as f:
             self.cfg = yaml.safe_load(f)
-        self.device = device
+        self.device = normalize_device(device)
 
         det_cfg = self.cfg.get("detector", {})
         track_cfg = self.cfg.get("tracker", {})

@@ -3,6 +3,7 @@ import numpy as np
 from ultralytics import YOLO
 
 from fall_detection.utils.geometry import iou
+from fall_detection.utils.common import normalize_device
 
 
 class PoseEstimator:
@@ -13,7 +14,7 @@ class PoseEstimator:
             self.model = YOLO(model_path)
         else:
             self.model = YOLO(f"{model_name}.pt")
-        self.device = device
+        self.device = normalize_device(device)
 
     def __call__(self, img: np.ndarray, bboxes: List[List[float]]) -> List[np.ndarray]:
         """
