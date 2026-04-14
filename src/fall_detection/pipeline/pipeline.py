@@ -54,7 +54,7 @@ class FallDetectionPipeline:
 
         # 初始化关键点跟踪器
         kpt_cfg = self.cfg.get("keypoint_tracker", {})
-        self.use_kpt_tracker = kpt_cfg.get("enabled", True)
+        self.use_kpt_tracker = kpt_cfg.get("enabled", False)  # 默认禁用，避免跳帧时关键点闪烁
         if self.use_kpt_tracker:
             self.kpt_tracker = SimpleKeypointTracker(
                 n_kpts=17,

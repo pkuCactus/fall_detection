@@ -41,6 +41,13 @@ fusion:
   cooldown_seconds: 3.0    # 3秒冷却期，防止频繁上报
   recovery_seconds: 0.5    # 0.5秒恢复确认期，快速恢复正常
 
+keypoint_tracker:
+  enabled: false              # 禁用关键点跟踪器，避免跳帧时关键点闪烁
+  smooth_alpha: 0.7           # 平滑系数（当前值权重）
+  velocity_decay: 0.9         # 速度衰减
+  max_history: 5              # 最大历史帧数
+  use_optical_flow: false     # 是否使用光流
+
 pipeline:
   skip_frames: 2
   fps: 25
