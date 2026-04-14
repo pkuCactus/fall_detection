@@ -114,9 +114,7 @@ def main():
         # For YOLO-World DDP training, use custom trainer to fix validation AP issue
         trainer_cfg = cfg.pop("trainer", None)
         if model_type == "yoloworld" and trainer_cfg != "default":
-            import sys
-            sys.path.insert(0, os.path.dirname(__file__))
-            from yoloworld_trainer import WorldTrainerDDP
+            from fall_detection.trainers import WorldTrainerDDP
             model.train(trainer=WorldTrainerDDP, **cfg)
         else:
             model.train(**cfg)

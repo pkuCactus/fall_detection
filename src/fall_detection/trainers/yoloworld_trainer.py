@@ -4,9 +4,8 @@ Fixes the issue where validation AP is near 0 in DDP mode by ensuring
 all ranks have correct text embeddings.
 """
 
-import torch
 from ultralytics.models.yolo.world import WorldTrainer
-from ultralytics.utils import RANK
+from ultralytics.utils import DEFAULT_CFG, RANK
 from ultralytics.utils.torch_utils import unwrap_model
 
 
@@ -39,14 +38,9 @@ class WorldTrainerDDP(WorldTrainer):
     fixing the near-0 AP issue in DDP validation.
     """
 
-    def __init__(self, cfg=None, overrides=None, _callbacks=None):
+    def __init__(self, cfg=DEFAULT_CFG, overrides=None, _callbacks=None):
         """Initialize trainer and override callback."""
         super().__init__(cfg, overrides, _callbacks)
         # Replace the original callback with our fixed version
         # Use set_callback to properly override (replaces entire callback list)
         self.set_callback("on_pretrain_routine_end", on_pretrain_routine_end_all_ranks)
-
-
-def get_trainer(cfg=None, overrides=None):
-    """Get the appropriate trainer based on DDP settings."""
-    return WorldTrainerDDP(cfg, overrides)
