@@ -158,10 +158,10 @@ def main():
     print(f"Number of classes: {len(class_names)}")
 
     # Determine output path
-    # YOLO-World expects embeddings in dataset_root/text_embeddings_clip_ViT-B_32.pt
+    # YOLO-World expects embeddings in images/text_embeddings_clip_ViT-B_32.pt
     # Format: {class_name: embedding_tensor} dict
     clip_model_safe = args.clip_model.replace('/', '_')
-    output_dir = dataset_path
+    output_dir = os.path.join(dataset_path, 'images')
     output_path = os.path.join(output_dir, f'text_embeddings_clip_{clip_model_safe}.pt')
 
     # Check if already exists
