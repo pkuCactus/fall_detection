@@ -15,6 +15,11 @@ from ultralytics import YOLO, YOLOWorld
 from fall_detection.utils import parse_args, load_config
 
 
+def is_ddp() -> bool:
+    """Check if running in DDP mode."""
+    return int(os.environ.get("RANK", -1)) != -1 or int(os.environ.get("LOCAL_RANK", -1)) != -1
+
+
 def load_data_config(data_path: str) -> dict:
     """Load YOLO data config file."""
     if not os.path.exists(data_path):
@@ -106,7 +111,15 @@ def main():
 
     # Train
     try:
-        model.train(**cfg)
+        # For YOLO-World DDP training, use custom trainer to fix validation AP issue
+        trainer_cfg = cfg.pop("trainer", None)
+        if model_type == "yoloworld" and trainer_cfg != "default":
+            import sys
+            sys.path.insert(0, os.path.dirname(__file__))
+            from yoloworld_trainer import WorldTrainerDDP
+            model.train(trainer=WorldTrainerDDP, **cfg)
+        else:
+            model.train(**cfg)
     except Exception as e:
         print(f"\nError during training: {e}")
         traceback.print_exc()
