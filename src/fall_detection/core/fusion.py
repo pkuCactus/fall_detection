@@ -90,11 +90,7 @@ class FusionDecision:
                     # 分类器高置信度时可绕过该检查
                     if cls_bypass or self._check_fall_sequence():
                         self._state = FallState.FALLING
-                    else:
-                        # 序列不匹配，延长观察但不贸然跌落
-                        if self._alarm_frames >= self.alarm_min_frames + 3:
-                            self._state = FallState.NORMAL
-                            self._alarm_frames = 0
+                    # 序列不匹配时继续停留在 SUSPECTED 观察，不贸然跌落也不回 NORMAL
             else:
                 self._miss_frames += 1
                 if self._miss_frames >= int(self.reset_seconds * self.fps):
