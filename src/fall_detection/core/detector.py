@@ -27,33 +27,38 @@ class PersonDetector:
         """返回模型输入分辨率."""
         return self.imgsz
 
-    def __call__(self, img: np.ndarray, conf_thresh: float = 0.3) -> List[Dict]:
+    def __call__(self, img: np.ndarray, conf_thresh: float = 0.3, filter_class_id: int = 0) -> List[Dict]:
         """
         对单帧图像执行人体检测.
 
         Args:
             img: numpy array, HWC, BGR (OpenCV 默认格式).
             conf_thresh: 置信度阈值.
+            filter_class_id: 仅返回指定类别，None 表示返回所有类别.
 
         Returns:
-            List[Dict]: 每个元素包含 bbox [x1, y1, x2, y2], conf, class_id.
-                        仅返回 person 类 (COCO class_id == 0).
+            List[Dict]: 每个元素包含 bbox [x1, y1, x2, y2], conf, class_id, class_name.
         """
         results = self.model(img, verbose=False)
         boxes = []
         for result in results:
             if result.boxes is None:
                 continue
+            names = getattr(result, "names", {})
             for box in result.boxes:
                 cls_id = int(box.cls.item())
                 conf = float(box.conf.item())
-                if cls_id == 0 and conf >= conf_thresh:
-                    xyxy = box.xyxy.cpu().numpy().flatten().tolist()
-                    boxes.append(
-                        {
-                            "bbox": [float(v) for v in xyxy],
-                            "conf": conf,
-                            "class_id": cls_id,
-                        }
-                    )
+                if filter_class_id is not None and cls_id != filter_class_id:
+                    continue
+                if conf < conf_thresh:
+                    continue
+                xyxy = box.xyxy.cpu().numpy().flatten().tolist()
+                boxes.append(
+                    {
+                        "bbox": [float(v) for v in xyxy],
+                        "conf": conf,
+                        "class_id": cls_id,
+                        "class_name": names.get(cls_id, str(cls_id)),
+                    }
+                )
         return boxes

@@ -1,0 +1,54 @@
+detector:
+  conf_thresh: 0.3
+  model_path: null  # 使用默认 yolov8l-worldv2.pt，或指定自定义训练权重
+
+yolo_world_fall:
+  classes:
+    - "person standing"
+    - "person sitting"
+    - "person squatting"
+    - "person bending"
+    - "person half up or crouching"
+    - "person kneeling"
+    - "person crawling or crawling-like"
+    - "person lying on floor"
+  posture_map:
+    person standing: standing
+    person sitting: sitting
+    person squatting: crouching
+    person bending: crouching
+    person half up or crouching: crouching
+    person kneeling: crouching
+    person crawling or crawling-like: lying
+    person lying on floor: lying
+  fall_scores:
+    person standing: 0.0
+    person sitting: 0.15
+    person squatting: 0.25
+    person bending: 0.35
+    person half up or crouching: 0.45
+    person kneeling: 0.30
+    person crawling or crawling-like: 0.55
+    person lying on floor: 0.95
+
+tracker:
+  track_thresh: 0.5
+  match_thresh: 0.8
+  max_age: 30
+  min_hits: 3
+
+fusion:
+  alpha: 0.3
+  beta: 0.5
+  gamma: 0.2
+  alarm_thresh: 0.60
+  alarm_min_frames: 3
+  sequence_check_frames: 6
+  cls_bypass_thresh: 1.0  # 禁用（此 pipeline 无独立分类器）
+  reset_seconds: 0.5
+  cooldown_seconds: 3.0
+  recovery_seconds: 0.5
+
+pipeline:
+  skip_frames: 2
+  fps: 25
