@@ -53,15 +53,18 @@ if [ -d "$INPUT" ]; then
     while IFS= read -r video_file; do
         PROCESSED=$((PROCESSED + 1))
 
-        # 获取视频文件名（不含路径和扩展名）
+        # 计算相对于输入目录的相对路径，保持子目录结构
+        rel_path=$(realpath --relative-to="$INPUT" "$video_file")
+        rel_dir=$(dirname "$rel_path")
         video_basename=$(basename "$video_file")
         video_name="${video_basename%.*}"
 
-        # 生成输出文件名
-        output_file="$OUTPUT_DIR/${video_name}_output.mp4"
+        # 生成输出文件名（保留原始子目录结构）
+        output_file="$OUTPUT_DIR/$rel_dir/${video_name}_output.mp4"
+        mkdir -p "$(dirname "$output_file")"
 
         echo "----------------------------------------"
-        echo "[$PROCESSED/$VIDEO_COUNT] Processing: $video_basename"
+        echo "[$PROCESSED/$VIDEO_COUNT] Processing: $rel_path"
         echo "  Input:  $video_file"
         echo "  Output: $output_file"
         echo ""
