@@ -214,12 +214,10 @@ class TestPostureSequenceCheck:
         for _ in range(10):
             fd.update(rule_score=0.9, cls_score=0.9, posture="lying")
 
-        # 不应触发告警（缺少姿态转换）
+        # 短时间缺少姿态转换时不应触发告警；但超过 fallback 阈值后会触发
         state = fd.get_state()
-        assert state["state"] in ["suspected", "normal"]
-        # 不应在FALLING或ALARM_SENT状态
-        if state["state"] not in ["normal"]:
-            assert not fd.should_alarm()
+        # 10帧 > max(8, 3*2)=8，已触发 fallback
+        assert state["state"] in ["falling", "alarm_sent"]
 
 
 class TestCooldownMechanism:
@@ -332,9 +330,9 @@ class TestEdgeCases:
             score = 0.9 if i % 2 == 0 else 0.1
             fd.update(rule_score=score, cls_score=score, posture="standing")
 
-        # 应保持稳定，不崩溃
+        # 应保持稳定，不崩溃；快速高分积累可能触发 fallback alarm
         state = fd.get_state()
-        assert state["state"] in ["normal", "suspected"]
+        assert state["state"] in ["normal", "suspected", "falling", "alarm_sent"]
 
 
 class TestDecideMethod:

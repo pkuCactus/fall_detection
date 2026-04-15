@@ -90,7 +90,10 @@ class FusionDecision:
                     # 分类器高置信度时可绕过该检查
                     if cls_bypass or self._check_fall_sequence():
                         self._state = FallState.FALLING
-                    # 序列不匹配时继续停留在 SUSPECTED 观察，不贸然跌落也不回 NORMAL
+                    elif self._alarm_frames >= max(self.sequence_check_frames, self.alarm_min_frames * 2):
+                        # Fallback：长期保持高置信度 suspected 且未恢复，直接判定为跌倒
+                        self._state = FallState.FALLING
+                    # 其余情况继续停留在 SUSPECTED 观察
             else:
                 self._miss_frames += 1
                 if self._miss_frames >= int(self.reset_seconds * self.fps):
@@ -129,6 +132,7 @@ class FusionDecision:
         要求：最近 sequence_check_frames 帧内，既有站立/坐姿，又有倒下/躺卧姿态.
         """
         if len(self._posture_history) < self.sequence_check_frames:
+            print(f"[Fusion] posture_history too short: {len(self._posture_history)} < {self.sequence_check_frames}")
             return False
 
         recent = list(self._posture_history)[-self.sequence_check_frames:]
@@ -140,7 +144,9 @@ class FusionDecision:
         # 进一步约束：最近一帧最好是跌倒姿态或分值仍高
         current_is_fall = recent[-1] in fall_postures
 
-        return has_upright and has_fall and current_is_fall
+        result = has_upright and has_fall and current_is_fall
+        print(f"[Fusion] _check_fall_sequence: recent={recent}, has_upright={has_upright}, has_fall={has_fall}, current_is_fall={current_is_fall}, result={result}")
+        return result
 
     def decide(self) -> bool:
         # 只在FALLING和ALARM_SENT返回True，RECOVERING是恢复期不应算跌倒

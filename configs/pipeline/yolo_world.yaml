@@ -44,7 +44,7 @@ fusion:
   alarm_thresh: 0.60
   alarm_min_frames: 3
   sequence_check_frames: 6
-  cls_bypass_thresh: 1.0  # 禁用（此 pipeline 无独立分类器）
+  cls_bypass_thresh: 0.75  # 允许高置信度直接预测绕过姿态序列检查（YOLO-World 可直接检测 lying）
   reset_seconds: 0.5
   cooldown_seconds: 3.0
   recovery_seconds: 0.5
