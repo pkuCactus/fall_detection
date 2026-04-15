@@ -13,7 +13,7 @@ import yaml
 
 sys.path.insert(0, "src")
 from fall_detection.pipeline.pipeline import FallDetectionPipeline
-from fall_detection.pipeline.yolo_world_pipeline import YOLOWorldFallPipeline
+from fall_detection.pipeline.yoloworld_pipeline import YOLOWorldFallPipeline
 from fall_detection.utils.visualization import draw_results
 
 
