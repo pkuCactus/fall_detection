@@ -1,6 +1,9 @@
 from typing import Dict, Any, Optional
 from collections import deque
 from enum import Enum
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class FallState(Enum):
@@ -132,7 +135,7 @@ class FusionDecision:
         要求：最近 sequence_check_frames 帧内，既有站立/坐姿，又有倒下/躺卧姿态.
         """
         if len(self._posture_history) < self.sequence_check_frames:
-            print(f"[Fusion] posture_history too short: {len(self._posture_history)} < {self.sequence_check_frames}")
+            logger.debug("[Fusion] posture_history too short: %d < %d", len(self._posture_history), self.sequence_check_frames)
             return False
 
         recent = list(self._posture_history)[-self.sequence_check_frames:]
@@ -145,7 +148,7 @@ class FusionDecision:
         current_is_fall = recent[-1] in fall_postures
 
         result = has_upright and has_fall and current_is_fall
-        print(f"[Fusion] _check_fall_sequence: recent={recent}, has_upright={has_upright}, has_fall={has_fall}, current_is_fall={current_is_fall}, result={result}")
+        logger.debug("[Fusion] _check_fall_sequence: recent=%s, has_upright=%s, has_fall=%s, current_is_fall=%s, result=%s", recent, has_upright, has_fall, current_is_fall, result)
         return result
 
     def decide(self) -> bool:
