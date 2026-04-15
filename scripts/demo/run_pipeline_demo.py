@@ -290,6 +290,8 @@ def main():
                 info_bar_height = 25 * len(track_scores) + 40 if track_scores else 50
                 cv2.putText(frame, f"Frame: {frame_idx}", (10, info_bar_height),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
+                cv2.putText(frame, f"Alarms: {new_alarm_count}", (10, info_bar_height + 25),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
 
                 # 统计跌倒帧和新告警事件
                 if any(results.get("track_falling", {}).values()):
