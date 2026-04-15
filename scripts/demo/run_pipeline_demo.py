@@ -102,34 +102,31 @@ def log_frame_details(logger, pipeline, frame_idx, results):
             if c > 0.1:
                 logger.debug(f"      - {names[i]}: ({x:.1f}, {y:.1f}, conf={c:.3f})")
 
-    # 规则判定
+    # 分类器结果（分类器每帧都推理，结果用于辅助姿态判定和融合决策）
     track_scores = results.get("track_scores", {})
-    rule_idx = "[5]" if run_detection else "[4]"
-    logger.info(f"{rule_idx} Rule engine evaluation:")
-    for tid, scores in track_scores.items():
-        rule_score = scores.get('rule', 0)
-        triggered = rule_score >= pipeline.trigger_thresh
-        flags = scores.get('flags', {})
-        debug = scores.get('debug', {})
-        logger.info(f"    Track {tid}:")
-        logger.info(f"      - Rule score: {rule_score:.3f} (threshold: {pipeline.trigger_thresh})")
-        logger.info(f"      - Rules: A={flags.get('A', False)}, B={flags.get('B', False)}, "
-                    f"C={flags.get('C', False)}, D={flags.get('D', False)}")
-        logger.info(f"      - Debug: h_ratio={debug.get('h_ratio', 0):.3f}, n_ground={debug.get('n_ground', 0)}, "
-                    f"vy={debug.get('vy', 0):.1f}, centers={debug.get('centers_len', 0)}")
-        logger.info(f"      - Trigger classifier: {'YES' if triggered else 'NO'}")
-        # 输出融合决策状态
-        if tid in pipeline.fusion:
-            fusion_state = pipeline.fusion[tid].get_state()
-            logger.info(f"      - Fusion: S_final={fusion_state['S_final']:.3f}, "
-                        f"state={fusion_state['state']}, alarm={fusion_state['should_alarm']}")
-
-    # 分类器结果
-    cls_idx = "[6]" if run_detection else "[5]"
-    logger.info(f"{cls_idx} Classifier evaluation:")
+    cls_idx = "[5]" if run_detection else "[4]"
+    logger.info(f"{cls_idx} Classifier (per-frame):")
     for tid, scores in track_scores.items():
         cls_score = scores.get('cls', 0)
         logger.info(f"    Track {tid}: cls_score={cls_score:.3f}")
+
+    # 规则判定（已引入分类器得分做姿态辅助修正）
+    rule_idx = "[6]" if run_detection else "[5]"
+    logger.info(f"{rule_idx} Rule engine evaluation:")
+    for tid, scores in track_scores.items():
+        rule_score = scores.get('rule', 0)
+        flags = scores.get('flags', {})
+        debug = scores.get('debug', {})
+        cls_score = scores.get('cls', 0)
+        logger.info(f"    Track {tid}:")
+        logger.info(f"      - Rule score: {rule_score:.3f}")
+        logger.info(f"      - Rules: A={flags.get('A', False)}, B={flags.get('B', False)}, "
+                    f"C={flags.get('C', False)}, D={flags.get('D', False)}, E={flags.get('E', False)}, F={flags.get('F', False)}")
+        posture = debug.get('posture', 'unknown')
+        logger.info(f"      - Posture: {posture} (cls_score={cls_score:.3f})")
+        logger.info(f"      - Debug: h_ratio={debug.get('h_ratio', 0):.3f}, kpt_aspect={debug.get('kpt_aspect', 0):.2f}, "
+                    f"torso_angle={debug.get('torso_angle', 0):.1f}, n_ground={debug.get('n_ground', 0)}, "
+                    f"vy={debug.get('vy_px_s', 0):.1f}, centers={debug.get('centers_len', 0)}")
 
     # 融合决策
     track_falling = results.get("track_falling", {})
@@ -141,10 +138,16 @@ def log_frame_details(logger, pipeline, frame_idx, results):
         is_falling = track_falling.get(tid, False)
         state = scores.get('state', 'unknown')
         is_new_alarm = tid in new_alarms
+        cls_score = scores.get('cls', 0)
         logger.info(f"    Track {tid}:")
+        logger.info(f"      - Inputs: rule={scores.get('rule', 0):.3f}, cls={cls_score:.3f}, posture={scores.get('debug', {}).get('posture', 'unknown')}")
         logger.info(f"      - Final score: {final_score:.3f}")
         logger.info(f"      - State: {state}")
         logger.info(f"      - Is falling: {is_falling}")
+        if tid in pipeline.fusion:
+            fusion_state = pipeline.fusion[tid].get_state()
+            logger.info(f"      - Fusion detail: S_temporal={fusion_state['S_temporal']:.3f}, "
+                        f"alarm_frames={fusion_state['alarm_frames']}, cooldown={fusion_state['cooldown_remaining']}")
         if is_new_alarm:
             logger.info(f"      - *** NEW ALARM TRIGGERED ***")
 

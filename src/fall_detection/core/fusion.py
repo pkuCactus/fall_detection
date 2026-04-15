@@ -28,6 +28,7 @@ class FusionDecision:
         reset_seconds: float = 3.0,
         cooldown_seconds: float = 5.0,
         recovery_seconds: float = 2.0,
+        cls_bypass_thresh: float = 1.0,
     ):
         cfg = config or {}
         self.alpha = cfg.get("alpha", alpha)
@@ -39,6 +40,7 @@ class FusionDecision:
         self.reset_seconds = cfg.get("reset_seconds", reset_seconds)
         self.cooldown_frames = int(cfg.get("cooldown_seconds", cooldown_seconds) * fps)
         self.recovery_frames = int(cfg.get("recovery_seconds", recovery_seconds) * fps)
+        self.cls_bypass_thresh = cfg.get("cls_bypass_thresh", cls_bypass_thresh)
         self.fps = fps
 
         self._cls_history = deque(maxlen=max(5, fps))
@@ -81,9 +83,12 @@ class FusionDecision:
             if is_above_thresh:
                 self._alarm_frames += 1
                 self._miss_frames = 0
-                if self._alarm_frames >= self.alarm_min_frames:
+                cls_bypass = cls_score >= self.cls_bypass_thresh
+                min_frames = max(2, self.alarm_min_frames // 2) if cls_bypass else self.alarm_min_frames
+                if self._alarm_frames >= min_frames:
                     # 增加姿态序列一致性检查：必须有站/坐 -> 跌的转换
-                    if self._check_fall_sequence():
+                    # 分类器高置信度时可绕过该检查
+                    if cls_bypass or self._check_fall_sequence():
                         self._state = FallState.FALLING
                     else:
                         # 序列不匹配，延长观察但不贸然跌落

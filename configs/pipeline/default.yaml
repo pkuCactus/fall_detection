@@ -30,6 +30,8 @@ rules:
   no_keypoint_thresh: 0.10    # 关键点几乎不可见阈值（规则F：检测不到关键点时触发）
   ground_ratio: 0.40          # 贴地判定：bbox底部40%区域算贴地
   fps: 25                     # 规则引擎归一化帧率
+  cls_posture_t1: 0.85         # 分类器辅助姿态：>t1 强制判定为 lying（1.0=禁用）
+  cls_posture_t2: 0.2        # 分类器辅助姿态：<t2 强制判定为 standing（-1.0=禁用）
 
 fusion:
   alpha: 0.5      # 降低规则权重，避免纯规则主导
@@ -38,6 +40,7 @@ fusion:
   alarm_thresh: 0.50  # 提高告警阈值，减少日常动作误报
   alarm_min_frames: 3
   sequence_check_frames: 8    # 姿态转换序列检查窗口（帧）
+  cls_bypass_thresh: 0.85     # 分类器高置信度阈值，超过可绕过姿态序列检查（1.0=禁用）
   reset_seconds: 0.5       # 0.5秒无检测后进入恢复期（快速恢复）
   cooldown_seconds: 3.0    # 3秒冷却期，防止频繁上报
   recovery_seconds: 0.5    # 0.5秒恢复确认期，快速恢复正常

@@ -28,12 +28,15 @@ class RuleEngine:
         self.accel_thresh = cfg.get("accel_thresh", 150.0)
         self.visible_ratio_min = cfg.get("visible_ratio_min", 0.6)
         self.no_keypoint_thresh = cfg.get("no_keypoint_thresh", 0.1)  # 关键点几乎不可见阈值
+        self.cls_posture_t1 = cfg.get("cls_posture_t1", 1.0)  # 分类器高分阈值，>t1强制lying
+        self.cls_posture_t2 = cfg.get("cls_posture_t2", -1.0)  # 分类器低分阈值，<t2强制standing
 
     def _compute_body_metrics(
         self, kpts: np.ndarray, bbox: List[float]
     ) -> Dict[str, Any]:
-        """计算人体关键指标：head_y, lower_y, h_ratio, hip_ratio, visible_ratio 等."""
+        """计算人体关键指标：head_y, lower_y, h_ratio, hip_ratio, visible_ratio, kpt_aspect, torso_angle 等."""
         bbox_h = max(1.0, bbox[3] - bbox[1])
+        bbox_w = max(1.0, bbox[2] - bbox[0])
         visible_ratio = float(np.sum(kpts[:, 2] > self.KEYPOINT_CONF_THRESH) / self.NUM_KEYPOINTS)
 
         head_vals = [kpts[i, 1] for i in (0, 1, 2) if kpts[i, 2] > self.KEYPOINT_CONF_THRESH]
@@ -47,8 +50,33 @@ class RuleEngine:
         h_ratio = abs(head_y - lower_y) / bbox_h
         hip_ratio = abs(head_y - hip_y) / bbox_h
 
+        visible_kpts = kpts[kpts[:, 2] > self.KEYPOINT_CONF_THRESH]
+        if len(visible_kpts) >= 4:
+            kpt_span_w = float(np.max(visible_kpts[:, 0]) - np.min(visible_kpts[:, 0]))
+            kpt_span_h = float(np.max(visible_kpts[:, 1]) - np.min(visible_kpts[:, 1]))
+        else:
+            kpt_span_w, kpt_span_h = bbox_w, bbox_h
+
+        def _midpoint(i1, i2):
+            if kpts[i1, 2] > self.KEYPOINT_CONF_THRESH and kpts[i2, 2] > self.KEYPOINT_CONF_THRESH:
+                return ((kpts[i1, 0] + kpts[i2, 0]) / 2.0, (kpts[i1, 1] + kpts[i2, 1]) / 2.0)
+            elif kpts[i1, 2] > self.KEYPOINT_CONF_THRESH:
+                return (kpts[i1, 0], kpts[i1, 1])
+            elif kpts[i2, 2] > self.KEYPOINT_CONF_THRESH:
+                return (kpts[i2, 0], kpts[i2, 1])
+            return (None, None)
+
+        sh_x, sh_y = _midpoint(5, 6)
+        hp_x, hp_y = _midpoint(11, 12)
+        torso_angle = 0.0
+        if sh_x is not None and hp_x is not None:
+            dx, dy = abs(hp_x - sh_x), abs(hp_y - sh_y)
+            torso_angle = float(np.degrees(np.arctan2(dx, max(dy, 1e-6))))
+
         return {
             "bbox_h": float(bbox_h),
+            "bbox_w": float(bbox_w),
+            "bbox_aspect": float(bbox_w / bbox_h),
             "visible_ratio": float(visible_ratio),
             "head_y": float(head_y),
             "lower_y": float(lower_y),
@@ -56,6 +84,10 @@ class RuleEngine:
             "h_ratio": float(h_ratio),
             "hip_ratio": float(hip_ratio),
             "has_ankles": bool(ankle_vals),
+            "kpt_span_w": float(kpt_span_w),
+            "kpt_span_h": float(kpt_span_h),
+            "kpt_aspect": float(kpt_span_w / max(kpt_span_h, 1.0)),
+            "torso_angle": float(torso_angle),
         }
 
     def evaluate(
@@ -63,6 +95,7 @@ class RuleEngine:
         kpts: np.ndarray,
         bbox: List[float],
         history: Dict[str, Any],
+        cls_score: float = 0.0,
     ) -> Tuple[float, Dict[str, bool], Dict[str, Any]]:
         """
         评估规则得分.
@@ -71,6 +104,7 @@ class RuleEngine:
             kpts: (17, 3) 关键点 [x, y, conf].
             bbox: [x1, y1, x2, y2].
             history: dict 包含 'centers': List[(cx, cy), ...].
+            cls_score: 分类器跌倒概率，用于辅助姿态判定.
 
         Returns:
             (S_rule, {"A": bool, "B": bool, "C": bool, "D": bool, "E": bool, "F": bool}, debug_info)
@@ -87,8 +121,8 @@ class RuleEngine:
         hip_ratio = metrics["hip_ratio"]
         has_ankles = metrics["has_ankles"]
 
-        # ---- 姿态预分类 ----
-        posture = self._classify_posture(kpts, bbox, visible_ratio)
+        # ---- 姿态预分类（结合分类器得分） ----
+        posture = self._classify_posture(kpts, bbox, visible_ratio, cls_score)
 
         # ---- A: 高度压缩 + 多点贴地 ----
         ground_y_thresh = bbox[1] + (1.0 - self.ground_ratio) * bbox_h
@@ -99,15 +133,23 @@ class RuleEngine:
         )
         # 不再无条件放宽到 hip
 
-        # 规则A：h_ratio低且多点贴地，且关键点可见性足够
-        flags["A"] = (
+        kpt_aspect = metrics.get("kpt_aspect", 0.0)
+        torso_angle = metrics.get("torso_angle", 0.0)
+        is_compressed = (
             (h_ratio < self.h_ratio_thresh)
+            or (kpt_aspect > 1.5)
+            or (torso_angle > 55)
+        )
+
+        # 规则A：高度压缩（含光轴方向倒下）+ 多点贴地 + 可见性足够
+        flags["A"] = (
+            is_compressed
             and (n_ground >= self.n_ground_min)
             and (visible_ratio >= self.visible_ratio_min)
         )
 
-        # 额外约束：如果脚踝不可见但hip_ratio显示人明显直立，压低规则A置信
-        if not has_ankles and hip_ratio > 0.7:
+        # 额外约束：如果脚踝不可见但hip_ratio显示人明显直立且无水平展开特征，压低规则A置信
+        if not has_ankles and hip_ratio > 0.7 and kpt_aspect <= 1.2 and torso_angle <= 45:
             flags["A"] = False
 
         # ---- B: 地面 ROI 判定 ----
@@ -165,7 +207,7 @@ class RuleEngine:
             recent_y = [c[1] for c in centers[-window:]]
             # px/s: 每帧位移 * fps
             vy_px_s = (recent_y[-1] - recent_y[0]) / (window - 1) * self.fps
-            flags["D"] = (vy_px_s > self.fall_vy_thresh) and (h_ratio < self.h_ratio_thresh)
+            flags["D"] = (vy_px_s > self.fall_vy_thresh) and ((h_ratio < self.h_ratio_thresh) or (posture == "lying"))
 
         # ---- E: 加速度辅助判定 (px/s^2) ----
         accel_mag = 0.0
@@ -180,7 +222,7 @@ class RuleEngine:
                 accel = (vys[-1] - vys[0]) / ((len(vys)) / self.fps)
                 accel_mag = abs(accel)
                 # 向下加速度大且当前姿态低 => 快速跌落特征
-                flags["E"] = (accel > self.accel_thresh) and (h_ratio < self.h_ratio_thresh)
+                flags["E"] = (accel > self.accel_thresh) and ((h_ratio < self.h_ratio_thresh) or (posture == "lying"))
 
         # ---- F: 关键点完全不可见检测 ----
         # 当关键点几乎完全检测不到时，说明有异常（可能被遮挡或倒地后姿态极端）
@@ -204,32 +246,57 @@ class RuleEngine:
             "accel_mag": float(accel_mag),
             "visible_ratio": float(visible_ratio),
             "posture": posture,
+            "kpt_aspect": float(kpt_aspect),
+            "torso_angle": float(torso_angle),
             "centers_len": len(centers),
             "min_history_frames": min_history_frames,
         }
 
         return float(score), {k: bool(v) for k, v in flags.items()}, debug_info
 
-    def _classify_posture(self, kpts: np.ndarray, bbox: List[float], visible_ratio: float) -> str:
-        """基于h_ratio和关键点做粗粒度姿态分类."""
+    def _classify_posture(
+        self, kpts: np.ndarray, bbox: List[float], visible_ratio: float, cls_score: float = 0.0
+    ) -> str:
+        """基于h_ratio、关键点二维分布、躯干角度和分类器得分做粗粒度姿态分类."""
         if visible_ratio < self.POSTURE_VISIBLE_THRESH:
             return "unknown"
 
         metrics = self._compute_body_metrics(kpts, bbox)
         h_ratio = metrics["h_ratio"]
         hip_ratio = metrics["hip_ratio"]
+        kpt_aspect = metrics.get("kpt_aspect", 0.0)
+        torso_angle = metrics.get("torso_angle", 0.0)
+        bbox_aspect = metrics.get("bbox_aspect", 1.0)
 
-        if h_ratio > self.POSTURE_STANDING_THRESH:
-            return "standing"
+        # 光轴方向跌倒：关键点水平展开或躯干接近水平
+        if kpt_aspect > 1.5 or torso_angle > 55:
+            posture = "lying"
+        # 检测框明显变宽且人有一定压缩，也判为跌倒
+        elif bbox_aspect > 1.3 and kpt_aspect > 1.0 and h_ratio < 0.65:
+            posture = "lying"
+        elif h_ratio > self.POSTURE_STANDING_THRESH:
+            posture = "standing"
         elif h_ratio > self.POSTURE_SITTING_THRESH:
-            # 坐下时 hip 会明显低于 standing
             if hip_ratio < self.POSTURE_HIP_RATIO_THRESH:
-                return "sitting"
-            return "standing" if h_ratio > 0.65 else "sitting"
+                posture = "sitting"
+            else:
+                posture = "standing" if h_ratio > 0.65 else "sitting"
         elif h_ratio > self.POSTURE_CROUCHING_THRESH:
-            return "crouching"
+            posture = "crouching"
         else:
-            return "lying"
+            posture = "lying"
+
+        # 分类器得分辅助修正姿态（仅当阈值在合法范围0~1内时生效）
+        if 0.0 <= self.cls_posture_t1 <= 1.0 and 0.0 <= self.cls_posture_t2 <= 1.0:
+            if cls_score > self.cls_posture_t1:
+                posture = "lying"
+            elif cls_score < self.cls_posture_t2:
+                posture = "standing"
+            elif self.cls_posture_t2 <= cls_score <= self.cls_posture_t1:
+                # 中间区间：若原姿态为standing，降级为sitting（非站立）
+                if posture == "standing":
+                    posture = "sitting"
+        return posture
 
     @staticmethod
     def _point_in_polygon(point, polygon) -> bool:

@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project overview
 
-Edge-AI fall detection system targeting the HiSilicon 3516C platform (0.5T INT8, 15M DDR, 30M Flash). It is a pure vision pipeline: person detection -> tracking -> pose estimation -> rule engine -> optional light classifier -> temporal fusion with a state machine.
+Edge-AI fall detection system targeting the HiSilicon 3516C platform (0.5T INT8, 15M DDR, 30M Flash). It is a pure vision pipeline: person detection -> tracking -> pose estimation & classifier -> rule engine (with cls_score posture assist) -> temporal fusion with a state machine.
 
 ## Directory Structure
 
@@ -132,8 +132,8 @@ from fall_detection.utils.export import export_classifier_onnx, export_simple_cl
 
 `FallDetectionPipeline` processes every frame but only runs the heavy models on detection frames:
 - Detection is triggered every `skip_frames + 1` frames (default `skip_frames: 2`, so every 3rd frame).
-- On detection frames: YOLOv8n person detector -> ByteTrack-lite tracker update -> YOLOv8n-pose per-track ROI inference -> RuleEngine -> (optional) FallClassifier -> FusionDecision.
-- On skip frames: tracker predicts existing tracks without detection, rules and fusion still run using cached keypoints and cached classifier scores from the last detection frame.
+- On detection frames: YOLOv8n person detector -> ByteTrack-lite tracker update -> YOLOv8n-pose per-track ROI inference -> Classifier inference -> RuleEngine (receives `cls_score` for posture assist) -> FusionDecision.
+- On skip frames: tracker predicts existing tracks without detection; classifier still runs every frame using cached/predicted keypoints; rules and fusion run with the fresh `cls_score`.
 
 This skip-frame design is central to meeting the edge latency budget (~34ms total, ≤15M DDR).
 
@@ -143,13 +143,20 @@ This skip-frame design is central to meeting the edge latency budget (~34ms tota
 
 ### Rule engine (`src/fall_detection/core/rules.py`)
 
-`RuleEngine.evaluate(kpts, bbox, history)` returns a score in `[0, 1]` and four boolean flags:
-- **A**: height compression ratio (`h_ratio`) + ground contact points.
+`RuleEngine.evaluate(kpts, bbox, history, cls_score)` returns a score in `[0, 1]` and six boolean flags (A/B/C/D/E/F):
+- **A**: height compression ratio (`h_ratio`) + ground contact points (also triggered by optical-axis fall via `kpt_aspect` / `torso_angle`).
 - **B**: ground ROI (if `ground_roi` is set) or fallback bottom-of-bbox check.
 - **C**: motion-to-static transition using center displacement over a time window.
-- **D**: rapid vertical descent (`vy`) combined with low height ratio.
+- **D**: rapid vertical descent (`vy`) combined with low height ratio or `lying` posture.
+- **E**: downward acceleration check.
+- **F**: keypoints almost invisible (occlusion/extreme posture).
 
-Score = average of the four flags. If `score >= trigger_thresh`, the pipeline proceeds to the classifier to save compute.
+The posture classification inside `_classify_posture` now incorporates `cls_score` when `cls_posture_t1` / `cls_posture_t2` are configured:
+- `cls_score > t1` forces `lying`
+- `cls_score < t2` forces `standing`
+- `t2 <= cls_score <= t1` downgrades `standing` to `sitting`
+
+It also detects falls toward/away from the camera via `kpt_aspect` (keypoint width-to-height span) and `torso_angle` (shoulder-to-hip angle vs vertical).
 
 ### Classifier (`src/fall_detection/models/classifier.py`)
 
@@ -164,8 +171,9 @@ Score = average of the four flags. If `score >= trigger_thresh`, the pipeline pr
 `FusionDecision` is not a simple weighted sum; it drives a `FallState` state machine:
 - `NORMAL -> SUSPECTED -> FALLING -> ALARM_SENT -> RECOVERING -> NORMAL`
 - An alarm is fired once on entering `FALLING` (checked via `should_alarm()`).
-- `cooldown_seconds` prevents rapid re-alarming; `recovery_seconds` prevents state oscillation after a fall ends.
+- `cooldown_seconds` prevents rapid rapid re-alarming; `recovery_seconds` prevents state oscillation after a fall ends.
 - The smoothed temporal score uses a sliding window of classifier scores.
+- `cls_bypass_thresh` (default 1.0 = disabled) allows high-confidence classifier predictions to bypass the posture-sequence check and halve `alarm_min_frames`, speeding up fall confirmation when the model is very sure.
 
 ### Pose estimation (`src/fall_detection/core/pose_estimator.py`)
 

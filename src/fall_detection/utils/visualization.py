@@ -104,7 +104,8 @@ def draw_results(
                 recent_scores = history_list[-3:]
                 temporal_info = f" H:[{recent_scores[0]:.2f},{recent_scores[1]:.2f},{recent_scores[2]:.2f}]"
 
-        text = f"T{tid}: R={scores.get('rule', 0):.2f} C={scores.get('cls', 0):.2f} F={scores.get('final', 0):.2f} | {state_str}{temporal_info}"
+        posture = scores.get('debug', {}).get('posture', 'unknown')
+        text = f"T{tid}: R={scores.get('rule', 0):.2f} C={scores.get('cls', 0):.2f} F={scores.get('final', 0):.2f} | {state_str} | {posture}{temporal_info}"
         text_color = (0, 0, 255) if is_fall else (0, 255, 0)
         thickness = 2 if is_fall else 1
 

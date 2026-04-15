@@ -56,16 +56,27 @@
 └─────────────────────────────────────┘
     ↓
 ┌─────────────────────────────────────┐
-│ 模块4: 规则引擎 (Rule Engine)        │
-│ - A: 高度压缩比 + 多点贴地           │
-│ - B: 地面 ROI 判定                   │
-│ - C: 运动到静止方差                  │
+│ 模块4: 分类器 (Classifier)           │
+│ - 图像+姿态+运动 / 单分支图像        │
+│ - 输出: 跌倒概率 cls_score           │
+│ - 每帧都推理（检测帧和跳帧均运行）   │
 └─────────────────────────────────────┘
     ↓
 ┌─────────────────────────────────────┐
-│ 模块5: 融合决策器 (Fusion)           │
+│ 模块5: 规则引擎 (Rule Engine)        │
+│ - A: 高度压缩比 + 多点贴地           │
+│ - B: 地面 ROI 判定                   │
+│ - C: 运动到静止方差                  │
+│ - D/E/F: 下降速度/加速度/不可见      │
+│ - 接收 cls_score 辅助姿态分类        │
+│ - 支持光轴方向跌倒检测               │
+└─────────────────────────────────────┘
+    ↓
+┌─────────────────────────────────────┐
+│ 模块6: 融合决策器 (Fusion)           │
 │ S_final = α·S_rule + β·S_cls + γ·S_temporal │
 │ - 时序滑动窗口平滑                   │
+│ - 姿态序列检查 + cls_bypass 快速通道 │
 │ - 连续 N 帧触发告警                  │
 └─────────────────────────────────────┘
     ↓
@@ -467,6 +478,8 @@ rules:
   visible_ratio_min: 0.50   # 关键点可见比例下限
   ground_ratio: 0.40        # 贴地判定区域比例
   fps: 25                   # 规则引擎归一化帧率
+  cls_posture_t1: 0.85      # 分类器辅助姿态：>t1 强制 lying（1.0=禁用）
+  cls_posture_t2: 0.20      # 分类器辅助姿态：<t2 强制 standing（-1.0=禁用）
 
 fusion:
   alpha: 0.5                # 规则分权重
@@ -474,6 +487,8 @@ fusion:
   gamma: 0.2                # 时序分权重
   alarm_thresh: 0.50        # 告警阈值
   alarm_min_frames: 3       # 最小告警帧数
+  sequence_check_frames: 8  # 姿态转换序列检查窗口
+  cls_bypass_thresh: 0.85   # 分类器高置信度绕过序列检查（1.0=禁用）
   cooldown_seconds: 3.0     # 冷却期
   recovery_seconds: 0.5     # 恢复确认期
 
@@ -622,9 +637,15 @@ class FallClassifier(nn.Module):
 - 运行 `run_tune_tracker.sh` 寻找最优参数
 
 **Q: 误报率高？**
-- 提高 `rules.trigger_thresh` 或 `fusion.alarm_thresh`
-- 增加 `fusion.alarm_min_frames`
+- 提高 `fusion.alarm_thresh` 或 `fusion.alarm_min_frames`
+- 收紧 `rules.cls_posture_t1`（提高强制 lying 的门槛）
+- 降低 `fusion.cls_bypass_thresh`（或设为 1.0 禁用快速通道）
 - 收集更多困难样本重新训练分类器
+
+**Q: 漏报对着摄像头倒下/背对倒下？**
+- 确认 `rules.cls_posture_t1` 和 `rules.cls_posture_t2` 已配置（如 0.85 / 0.20）
+- 降低 `fusion.cls_bypass_thresh`（如 0.80）让分类器高置信度时绕过姿态序列检查
+- 检查 `kpt_aspect` 和 `torso_angle` 的 debug 输出是否已正确识别 lying
 
 **Q: 内存不足？**
 - 增大 `pipeline.skip_frames` 降低检测频率

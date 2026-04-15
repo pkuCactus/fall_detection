@@ -77,6 +77,35 @@ class TestRuleAHeightCompression:
         # 可见性不足时，即使h_ratio低，也不应触发
         assert debug["visible_ratio"] < 0.6
 
+    def test_optical_axis_fall_trigger(self):
+        """朝摄像头倒下：h_ratio正常但躯干水平，规则A应触发."""
+        engine = RuleEngine(fps=25)
+        kpts = np.zeros((17, 3))
+        kpts[0] = [50, 20, 0.9]
+        kpts[1] = [45, 25, 0.9]
+        kpts[2] = [55, 25, 0.9]
+        # 躯干水平，肩膀和髋同高
+        kpts[5] = [10, 100, 0.9]
+        kpts[6] = [50, 100, 0.9]
+        kpts[11] = [50, 100, 0.9]
+        kpts[12] = [90, 100, 0.9]
+        kpts[13] = [50, 140, 0.9]
+        kpts[14] = [70, 140, 0.9]
+        kpts[15] = [50, 180, 0.9]
+        kpts[16] = [50, 185, 0.9]
+        # 其余点也放在底部区域，确保n_ground >= 2
+        for i in [3, 4, 7, 8, 9, 10]:
+            kpts[i] = [50, 180, 0.9]
+        bbox = [0, 0, 100, 200]
+
+        score, flags, debug = engine.evaluate(kpts, bbox, {})
+
+        assert debug["h_ratio"] > 0.75
+        assert debug["torso_angle"] > 55
+        assert debug["posture"] == "lying"
+        assert flags["A"] is True
+        assert debug["n_ground"] >= 2
+
 
 class TestRuleBGroundRegion:
     """测试规则B：地面区域判定."""
@@ -348,6 +377,182 @@ class TestPostureClassification:
 
         assert debug["visible_ratio"] < 0.4
         assert debug["posture"] == "unknown"
+
+    def test_falling_toward_camera_by_torso_angle(self):
+        """朝摄像头倒下：h_ratio正常但躯干水平，应判为lying."""
+        engine = RuleEngine(fps=25)
+        kpts = np.zeros((17, 3))
+        # 头脚仍有一定纵向分离，模拟检测框没明显变矮的情况
+        kpts[0] = [50, 20, 0.9]   # nose
+        kpts[1] = [45, 25, 0.9]   # left eye
+        kpts[2] = [55, 25, 0.9]   # right eye
+        kpts[3] = [40, 30, 0.9]   # left ear
+        kpts[4] = [60, 30, 0.9]   # right ear
+        # 肩膀和髋在同一高度，但水平错开 -> 躯干接近水平
+        kpts[5] = [10, 100, 0.9]  # left shoulder
+        kpts[6] = [50, 100, 0.9]  # right shoulder
+        kpts[11] = [50, 100, 0.9] # left hip
+        kpts[12] = [90, 100, 0.9] # right hip
+        kpts[13] = [50, 140, 0.9] # left knee
+        kpts[14] = [70, 140, 0.9] # right knee
+        kpts[15] = [50, 180, 0.9] # left ankle
+        kpts[16] = [50, 185, 0.9] # right ankle
+        bbox = [0, 0, 100, 200]
+
+        score, flags, debug = engine.evaluate(kpts, bbox, {})
+
+        # h_ratio = (20-182.5)/200 ≈ 0.81 > 0.75，旧逻辑会判standing
+        assert debug["h_ratio"] > 0.75
+        # 但躯干角度接近90度
+        assert debug["torso_angle"] > 55
+        # 新逻辑应判为lying
+        assert debug["posture"] == "lying"
+
+    def test_falling_toward_camera_by_kpt_aspect(self):
+        """朝摄像头倒下：关键点水平展开明显大于纵向."""
+        engine = RuleEngine(fps=25)
+        kpts = np.zeros((17, 3))
+        # 所有关键点集中在一条水平线上，左右展开很大
+        for i in range(17):
+            kpts[i] = [10 + i * 5, 100 + (i % 3), 0.9]
+        bbox = [0, 0, 100, 200]
+
+        score, flags, debug = engine.evaluate(kpts, bbox, {})
+
+        # 水平跨度大，垂直跨度小
+        assert debug["kpt_aspect"] > 1.5
+        assert debug["posture"] == "lying"
+
+    def test_standing_with_arms_outstretched_not_lying(self):
+        """站立时手臂张开，不应误判为lying."""
+        engine = RuleEngine(fps=25)
+        kpts = np.zeros((17, 3))
+        kpts[0] = [50, 20, 0.9]   # nose
+        kpts[1] = [45, 25, 0.9]
+        kpts[2] = [55, 25, 0.9]
+        kpts[3] = [20, 30, 0.9]   # left ear (手臂方向)
+        kpts[4] = [80, 30, 0.9]   # right ear
+        kpts[5] = [10, 60, 0.9]   # left shoulder (手臂张开)
+        kpts[6] = [90, 60, 0.9]   # right shoulder
+        kpts[7] = [5, 90, 0.9]    # left elbow
+        kpts[8] = [95, 90, 0.9]   # right elbow
+        kpts[9] = [0, 120, 0.9]   # left wrist
+        kpts[10] = [100, 120, 0.9] # right wrist
+        kpts[11] = [40, 120, 0.9] # left hip
+        kpts[12] = [60, 120, 0.9] # right hip
+        kpts[13] = [30, 150, 0.9] # left knee
+        kpts[14] = [70, 150, 0.9] # right knee
+        kpts[15] = [40, 190, 0.9] # left ankle
+        kpts[16] = [60, 190, 0.9] # right ankle
+        bbox = [0, 0, 100, 200]
+
+        score, flags, debug = engine.evaluate(kpts, bbox, {})
+
+        # 关键点水平跨度大，但垂直跨度也大，kpt_aspect不应>1.5
+        assert debug["kpt_aspect"] < 1.5
+        # 躯干仍是竖直的
+        assert debug["torso_angle"] < 30
+        assert debug["posture"] == "standing"
+
+
+class TestClsScorePostureOverride:
+    """测试分类器得分辅助姿态分类."""
+
+    @staticmethod
+    def _make_standing_kpts():
+        kpts = np.zeros((17, 3))
+        kpts[0] = [50, 20, 0.9]   # nose
+        kpts[1] = [45, 25, 0.9]
+        kpts[2] = [55, 25, 0.9]
+        kpts[3] = [40, 30, 0.9]
+        kpts[4] = [60, 30, 0.9]
+        kpts[5] = [30, 60, 0.9]   # lsho
+        kpts[6] = [70, 60, 0.9]   # rsho
+        kpts[7] = [25, 90, 0.9]
+        kpts[8] = [75, 90, 0.9]
+        kpts[9] = [20, 120, 0.9]
+        kpts[10] = [80, 120, 0.9]
+        kpts[11] = [40, 120, 0.9] # lhip
+        kpts[12] = [60, 120, 0.9] # rhip
+        kpts[13] = [35, 155, 0.9]
+        kpts[14] = [65, 155, 0.9]
+        kpts[15] = [40, 190, 0.9] # lank
+        kpts[16] = [60, 190, 0.9] # rank
+        return kpts
+
+    @staticmethod
+    def _make_lying_kpts():
+        kpts = np.zeros((17, 3))
+        # 人躺下，纵向接近同一高度，但可见性足够
+        for i in range(17):
+            kpts[i] = [20 + i * 4, 175 + (i % 2), 0.9]
+        return kpts
+
+    def test_cls_score_above_t1_forces_lying(self):
+        """cls_score > t1 时强制判定为 lying."""
+        engine = RuleEngine(
+            config={"cls_posture_t1": 0.80, "cls_posture_t2": 0.30}, fps=25
+        )
+        kpts = self._make_standing_kpts()
+        bbox = [0, 0, 100, 200]
+
+        # cls_score 在中间区间，原 standing 降级为 sitting
+        _, _, debug = engine.evaluate(kpts, bbox, {}, cls_score=0.50)
+        assert debug["posture"] == "sitting"
+
+        # cls_score > t1 强制 lying
+        _, _, debug = engine.evaluate(kpts, bbox, {}, cls_score=0.85)
+        assert debug["posture"] == "lying"
+
+    def test_cls_score_below_t2_forces_standing(self):
+        """cls_score < t2 时强制判定为 standing."""
+        engine = RuleEngine(
+            config={"cls_posture_t1": 0.80, "cls_posture_t2": 0.30}, fps=25
+        )
+        kpts = self._make_lying_kpts()
+        bbox = [0, 0, 100, 200]
+
+        # cls_score 在中间区间，原 lying 保持 lying
+        _, _, debug = engine.evaluate(kpts, bbox, {}, cls_score=0.50)
+        assert debug["posture"] == "lying"
+
+        # cls_score < t2 强制 standing
+        _, _, debug = engine.evaluate(kpts, bbox, {}, cls_score=0.20)
+        assert debug["posture"] == "standing"
+
+    def test_cls_score_mid_range_downgrades_standing_to_sitting(self):
+        """t2 <= cls_score <= t1 时，standing 降级为 sitting."""
+        engine = RuleEngine(
+            config={"cls_posture_t1": 0.80, "cls_posture_t2": 0.30}, fps=25
+        )
+        kpts = self._make_standing_kpts()
+        bbox = [0, 0, 100, 200]
+
+        # 中间区间，原 standing 降级为 sitting
+        _, _, debug = engine.evaluate(kpts, bbox, {}, cls_score=0.50)
+        assert debug["posture"] == "sitting"
+
+    def test_cls_score_mid_range_preserves_non_standing(self):
+        """t2 <= cls_score <= t1 时，非 standing 姿态保持不变."""
+        engine = RuleEngine(
+            config={"cls_posture_t1": 0.80, "cls_posture_t2": 0.30}, fps=25
+        )
+        kpts = self._make_lying_kpts()
+        bbox = [0, 0, 100, 200]
+
+        # 中间区间保持 lying
+        _, _, debug = engine.evaluate(kpts, bbox, {}, cls_score=0.50)
+        assert debug["posture"] == "lying"
+
+    def test_disabled_by_default(self):
+        """默认阈值禁用分类器辅助姿态."""
+        engine = RuleEngine(fps=25)
+        kpts = self._make_standing_kpts()
+        bbox = [0, 0, 100, 200]
+
+        _, _, debug = engine.evaluate(kpts, bbox, {}, cls_score=0.99)
+        # t1=1.0 禁用，0.99 不应触发强制 lying
+        assert debug["posture"] == "standing"
 
 
 class TestScoreCalculation:

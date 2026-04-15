@@ -119,7 +119,7 @@ class FallDetectionPipeline:
             track_kpts = self._estimate_keypoints(frame, active_tracks)
             cls_scores = self._compute_classifier_scores(frame, active_tracks, track_kpts)
         else:
-            # 只预测已有轨迹，不跑检测和 pose
+            # 只预测已有轨迹，不跑检测和 pose，但分类器每帧都推理
             for track in self.tracker.tracks:
                 track.predict()
             active_tracks = [t for t in self.tracker.tracks if t.time_since_update <= self.skip_frames]
@@ -134,7 +134,7 @@ class FallDetectionPipeline:
             else:
                 # 禁用跟踪器时，复用上一帧关键点
                 track_kpts = self._last_track_kpts
-            cls_scores = self._last_cls_scores
+            cls_scores = self._compute_classifier_scores(frame, active_tracks, track_kpts)
 
         self._update_track_history(active_tracks)
         result = self._process_tracks(active_tracks, track_kpts, cls_scores)
@@ -254,8 +254,8 @@ class FallDetectionPipeline:
             kpts = track_kpts.get(tid, np.zeros((17, 3), dtype=np.float32))
             bbox = track.to_tlbr().tolist()
             history = {"centers": list(self._track_history[tid])}
-            s_rule, flags, rule_debug = self.rule_engine.evaluate(kpts, bbox, history)
             s_cls = cls_scores.get(tid, 0.0)
+            s_rule, flags, rule_debug = self.rule_engine.evaluate(kpts, bbox, history, cls_score=s_cls)
 
             if tid not in self.fusion:
                 self.fusion[tid] = FusionDecision(self.cfg.get("fusion", {}), fps=self.fps)

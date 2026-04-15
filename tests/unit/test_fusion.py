@@ -26,6 +26,14 @@ class TestFusionDecisionInit:
         assert fd.alarm_thresh == 0.6
         assert fd.alarm_min_frames == 3
 
+    def test_cls_bypass_init(self):
+        """测试分类器快速通道阈值初始化."""
+        fd = FusionDecision(cls_bypass_thresh=0.85)
+        assert fd.cls_bypass_thresh == 0.85
+
+        fd2 = FusionDecision(config={"cls_bypass_thresh": 0.90})
+        assert fd2.cls_bypass_thresh == 0.90
+
 
 class TestScoreCalculation:
     """测试融合得分计算."""
@@ -69,6 +77,26 @@ class TestStateMachineTransitions:
         # 高分，触发SUSPECTED
         fd.update(rule_score=0.8, cls_score=0.9, posture="standing")
         assert fd.get_state()["state"] == "suspected"
+
+    def test_suspected_to_falling_with_cls_bypass(self):
+        """测试分类器高置信度绕过姿态序列直接进入FALLING."""
+        fd = FusionDecision(
+            alarm_thresh=0.5, alarm_min_frames=5, sequence_check_frames=8, cls_bypass_thresh=0.85
+        )
+
+        # 持续高分但分类器置信度低于bypass阈值，姿态序列不满足（全程lying，无站立/坐姿）
+        fd.update(rule_score=0.8, cls_score=0.8, posture="lying")
+        fd.update(rule_score=0.8, cls_score=0.8, posture="lying")
+        fd.update(rule_score=0.8, cls_score=0.8, posture="lying")
+        fd.update(rule_score=0.8, cls_score=0.8, posture="lying")
+        # 此时仍不应触发（alarm_frames=4 < 5）
+        assert fd.get_state()["state"] == "suspected"
+
+        # 分类器置信度超过bypass阈值，且is_above_thresh
+        fd.update(rule_score=0.8, cls_score=0.95, posture="lying")
+        # alarm_frames >= max(2, 5//2)=2，且cls_bypass为真，应进入FALLING
+        state = fd.get_state()
+        assert state["state"] in ["falling", "alarm_sent"]
 
     def test_suspected_to_falling_with_sequence(self):
         """测试SUSPECTED → FALLING转换（需要姿态序列）."""
