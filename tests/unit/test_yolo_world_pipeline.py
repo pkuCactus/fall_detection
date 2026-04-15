@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 import sys
 
 sys.path.insert(0, "src")
-from fall_detection.pipeline.yolo_world_pipeline import YOLOWorldFallPipeline
+from fall_detection.pipeline.yoloworld_pipeline import YOLOWorldFallPipeline
 from fall_detection.core.tracker import Track, Detection
 
 
@@ -82,7 +82,7 @@ class TestYOLOWorldFallPipeline:
     """Tests for YOLOWorldFallPipeline."""
 
     def test_init(self, mocker, yolo_world_config):
-        mock_pd = mocker.patch("fall_detection.pipeline.yolo_world_pipeline.PersonDetector")
+        mock_pd = mocker.patch("fall_detection.pipeline.yoloworld_pipeline.PersonDetector")
         mock_model = MagicMock()
         mock_model.input_size = 640
         mock_pd.return_value = mock_model
@@ -96,8 +96,8 @@ class TestYOLOWorldFallPipeline:
         mock_pd.assert_called_once()
 
     def test_process_frame_detection(self, mocker, yolo_world_config, sample_frame):
-        mock_pd = mocker.patch("fall_detection.pipeline.yolo_world_pipeline.PersonDetector")
-        mock_tracker = mocker.patch("fall_detection.pipeline.yolo_world_pipeline.ByteTrackLite")
+        mock_pd = mocker.patch("fall_detection.pipeline.yoloworld_pipeline.PersonDetector")
+        mock_tracker = mocker.patch("fall_detection.pipeline.yoloworld_pipeline.ByteTrackLite")
 
         mock_model = MagicMock()
         mock_model.input_size = 640
@@ -123,8 +123,8 @@ class TestYOLOWorldFallPipeline:
         assert result["track_scores"][1]["debug"]["class_name"] == "person lying on floor"
 
     def test_process_frame_skip(self, mocker, yolo_world_config, sample_frame):
-        mock_pd = mocker.patch("fall_detection.pipeline.yolo_world_pipeline.PersonDetector")
-        mock_tracker = mocker.patch("fall_detection.pipeline.yolo_world_pipeline.ByteTrackLite")
+        mock_pd = mocker.patch("fall_detection.pipeline.yoloworld_pipeline.PersonDetector")
+        mock_tracker = mocker.patch("fall_detection.pipeline.yoloworld_pipeline.ByteTrackLite")
 
         mock_model = MagicMock()
         mock_model.input_size = 640
@@ -155,7 +155,7 @@ class TestYOLOWorldFallPipeline:
         assert len(result["tracks"]) == 1
 
     def test_match_detections_to_tracks(self, mocker, yolo_world_config):
-        mock_pd = mocker.patch("fall_detection.pipeline.yolo_world_pipeline.PersonDetector")
+        mock_pd = mocker.patch("fall_detection.pipeline.yoloworld_pipeline.PersonDetector")
         mock_pd.return_value = MagicMock()
 
         pipeline = YOLOWorldFallPipeline(yolo_world_config, device="cpu")
@@ -179,7 +179,7 @@ class TestYOLOWorldFallPipeline:
         assert det_info[2]["class_name"] == "person lying on floor"
 
     def test_compute_fall_score_fallen(self, mocker, yolo_world_config):
-        mock_pd = mocker.patch("fall_detection.pipeline.yolo_world_pipeline.PersonDetector")
+        mock_pd = mocker.patch("fall_detection.pipeline.yoloworld_pipeline.PersonDetector")
         mock_pd.return_value = MagicMock()
 
         pipeline = YOLOWorldFallPipeline(yolo_world_config, device="cpu")
@@ -196,7 +196,7 @@ class TestYOLOWorldFallPipeline:
         assert debug["aspect"] > 1.0
 
     def test_compute_fall_score_standing(self, mocker, yolo_world_config):
-        mock_pd = mocker.patch("fall_detection.pipeline.yolo_world_pipeline.PersonDetector")
+        mock_pd = mocker.patch("fall_detection.pipeline.yoloworld_pipeline.PersonDetector")
         mock_pd.return_value = MagicMock()
 
         pipeline = YOLOWorldFallPipeline(yolo_world_config, device="cpu")
@@ -212,7 +212,7 @@ class TestYOLOWorldFallPipeline:
         assert score == pytest.approx(0.0, abs=1e-6)
 
     def test_compute_motion_bonus_with_fast_drop(self, mocker, yolo_world_config):
-        mock_pd = mocker.patch("fall_detection.pipeline.yolo_world_pipeline.PersonDetector")
+        mock_pd = mocker.patch("fall_detection.pipeline.yoloworld_pipeline.PersonDetector")
         mock_pd.return_value = MagicMock()
 
         pipeline = YOLOWorldFallPipeline(yolo_world_config, device="cpu")
@@ -231,7 +231,7 @@ class TestYOLOWorldFallPipeline:
         assert bonus > 0.0
 
     def test_process_tracks_alarm(self, mocker, yolo_world_config):
-        mock_pd = mocker.patch("fall_detection.pipeline.yolo_world_pipeline.PersonDetector")
+        mock_pd = mocker.patch("fall_detection.pipeline.yoloworld_pipeline.PersonDetector")
         mock_pd.return_value = MagicMock()
 
         pipeline = YOLOWorldFallPipeline(yolo_world_config, device="cpu")
@@ -258,8 +258,8 @@ class TestYOLOWorldFallPipeline:
         assert 1 in result["new_alarms"]
 
     def test_no_tracks(self, mocker, yolo_world_config, sample_frame):
-        mock_pd = mocker.patch("fall_detection.pipeline.yolo_world_pipeline.PersonDetector")
-        mock_tracker = mocker.patch("fall_detection.pipeline.yolo_world_pipeline.ByteTrackLite")
+        mock_pd = mocker.patch("fall_detection.pipeline.yoloworld_pipeline.PersonDetector")
+        mock_tracker = mocker.patch("fall_detection.pipeline.yoloworld_pipeline.ByteTrackLite")
 
         mock_model = MagicMock()
         mock_model.input_size = 640

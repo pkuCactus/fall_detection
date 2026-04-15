@@ -3,10 +3,26 @@
 # Pipeline演示脚本
 # 展示完整的跌倒检测Pipeline
 # 支持单视频文件或目录（自动处理目录下所有视频）
+# 根据 --config 参数自动区分标准Pipeline或YOLO-World Pipeline
 
 INPUT="${1:-data/sample.mp4}"
 OUTPUT="${2:-}"
 shift 2 || true
+
+DEMO_SCRIPT="scripts/demo/run_pipeline_demo.py"
+DEFAULT_CONFIG="configs/pipeline/default.yaml"
+
+# 如果用户没有显式指定 --config，补充默认配置
+has_config=false
+for arg in "$@"; do
+    if [ "$arg" = "--config" ]; then
+        has_config=true
+        break
+    fi
+done
+if [ "$has_config" = false ]; then
+    set -- "$@" --config "$DEFAULT_CONFIG"
+fi
 
 # 支持的视频格式
 VIDEO_EXTENSIONS="mp4|avi|mov|mkv|flv|wmv|webm|m4v|3gp"
@@ -20,7 +36,6 @@ if [ -d "$INPUT" ]; then
     echo ""
 
     # 查找所有视频文件
-    # 使用find命令查找所有支持的视频格式
     VIDEO_COUNT=0
     while IFS= read -r video_file; do
         VIDEO_COUNT=$((VIDEO_COUNT + 1))
@@ -70,7 +85,7 @@ if [ -d "$INPUT" ]; then
         echo ""
 
         # 运行pipeline
-        if python scripts/demo/run_pipeline_demo.py --video "$video_file" --output "$output_file" "$@" --headless; then
+        if python "$DEMO_SCRIPT" --video "$video_file" --output "$output_file" "$@" --headless; then
             echo "  ✓ Completed: $video_basename"
         else
             echo "  ✗ Failed: $video_basename"
@@ -125,5 +140,5 @@ else
     echo "  s   - save current frame"
     echo ""
 
-    python scripts/demo/run_pipeline_demo.py --video "$VIDEO" --output "$OUTPUT" "$@"
+    python "$DEMO_SCRIPT" --video "$VIDEO" --output "$OUTPUT" "$@"
 fi

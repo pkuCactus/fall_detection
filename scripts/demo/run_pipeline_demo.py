@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pipeline演示脚本 - 展示完整的跌倒检测流程."""
+"""Pipeline演示脚本 - 根据配置自动选择标准或YOLO-World跌倒检测Pipeline."""
 
 import argparse
 import sys
@@ -9,9 +9,11 @@ from datetime import datetime
 
 import cv2
 import numpy as np
+import yaml
 
 sys.path.insert(0, "src")
 from fall_detection.pipeline.pipeline import FallDetectionPipeline
+from fall_detection.pipeline.yolo_world_pipeline import YOLOWorldFallPipeline
 from fall_detection.utils.visualization import draw_results
 
 
@@ -55,7 +57,7 @@ def _format_track_log(track, run_detection: bool) -> str:
     return f"    [Track {tid}] BBox={bbox_str}, State={state}, Predicted={time_since}f"
 
 
-def log_frame_details(logger, pipeline, frame_idx, results):
+def log_frame_details(logger, pipeline, frame_idx, results, is_yolo_world: bool = False):
     """记录帧处理详细信息."""
     logger.info(f"\n{'='*60}")
     logger.info(f"FRAME {frame_idx}")
@@ -86,32 +88,37 @@ def log_frame_details(logger, pipeline, frame_idx, results):
         for track in tracks:
             logger.info(_format_track_log(track, run_detection=False))
 
-    # 关键点检测
+    # 关键点检测（仅标准pipeline有）
     track_kpts = results.get("track_kpts", {})
-    pose_idx = "[4]" if run_detection else "[3]"
-    pose_label = "Pose (detected)" if run_detection else "Pose (cached)"
-    logger.info(f"{pose_idx} {pose_label}:")
-    for tid, kpts in track_kpts.items():
-        visible = sum(1 for k in kpts if k[2] > 0.1)
-        tag = "[Detection]" if run_detection else "[Cached]"
-        logger.info(f"    {tag} Track {tid}: {visible}/17 keypoints visible")
+    if not is_yolo_world and track_kpts:
+        pose_idx = "[4]" if run_detection else "[3]"
+        pose_label = "Pose (detected)" if run_detection else "Pose (cached)"
+        logger.info(f"{pose_idx} {pose_label}:")
+        for tid, kpts in track_kpts.items():
+            visible = sum(1 for k in kpts if k[2] > 0.1)
+            tag = "[Detection]" if run_detection else "[Cached]"
+            logger.info(f"    {tag} Track {tid}: {visible}/17 keypoints visible")
 
-        names = ['nose', 'leye', 'reye', 'lear', 'rear', 'lsho', 'rsho',
-                'lelb', 'relb', 'lwri', 'rwri', 'lhip', 'rhip', 'lkne', 'rkne', 'lank', 'rank']
-        for i, (x, y, c) in enumerate(kpts):
-            if c > 0.1:
-                logger.debug(f"      - {names[i]}: ({x:.1f}, {y:.1f}, conf={c:.3f})")
+            names = ['nose', 'leye', 'reye', 'lear', 'rear', 'lsho', 'rsho',
+                    'lelb', 'relb', 'lwri', 'rwri', 'lhip', 'rhip', 'lkne', 'rkne', 'lank', 'rank']
+            for i, (x, y, c) in enumerate(kpts):
+                if c > 0.1:
+                    logger.debug(f"      - {names[i]}: ({x:.1f}, {y:.1f}, conf={c:.3f})")
 
-    # 分类器结果（分类器每帧都推理，结果用于辅助姿态判定和融合决策）
+    # 分类器结果 / 检测类别结果
     track_scores = results.get("track_scores", {})
-    cls_idx = "[5]" if run_detection else "[4]"
+    cls_idx = "[5]" if (run_detection and not is_yolo_world) else ("[4]" if (run_detection and is_yolo_world) else "[3]")
     logger.info(f"{cls_idx} Classifier (per-frame):")
     for tid, scores in track_scores.items():
         cls_score = scores.get('cls', 0)
-        logger.info(f"    Track {tid}: cls_score={cls_score:.3f}")
+        debug = scores.get('debug', {})
+        if is_yolo_world:
+            logger.info(f"    Track {tid}: cls_score={cls_score:.3f}, class={debug.get('class_name', 'unknown')}")
+        else:
+            logger.info(f"    Track {tid}: cls_score={cls_score:.3f}")
 
     # 规则判定（已引入分类器得分做姿态辅助修正）
-    rule_idx = "[6]" if run_detection else "[5]"
+    rule_idx = "[6]" if (run_detection and not is_yolo_world) else ("[5]" if (run_detection and is_yolo_world) else "[4]")
     logger.info(f"{rule_idx} Rule engine evaluation:")
     for tid, scores in track_scores.items():
         rule_score = scores.get('rule', 0)
@@ -120,18 +127,23 @@ def log_frame_details(logger, pipeline, frame_idx, results):
         cls_score = scores.get('cls', 0)
         logger.info(f"    Track {tid}:")
         logger.info(f"      - Rule score: {rule_score:.3f}")
-        logger.info(f"      - Rules: A={flags.get('A', False)}, B={flags.get('B', False)}, "
-                    f"C={flags.get('C', False)}, D={flags.get('D', False)}, E={flags.get('E', False)}, F={flags.get('F', False)}")
+        if not is_yolo_world:
+            logger.info(f"      - Rules: A={flags.get('A', False)}, B={flags.get('B', False)}, "
+                        f"C={flags.get('C', False)}, D={flags.get('D', False)}, E={flags.get('E', False)}, F={flags.get('F', False)}")
         posture = debug.get('posture', 'unknown')
         logger.info(f"      - Posture: {posture} (cls_score={cls_score:.3f})")
-        logger.info(f"      - Debug: h_ratio={debug.get('h_ratio', 0):.3f}, kpt_aspect={debug.get('kpt_aspect', 0):.2f}, "
-                    f"torso_angle={debug.get('torso_angle', 0):.1f}, n_ground={debug.get('n_ground', 0)}, "
-                    f"vy={debug.get('vy_px_s', 0):.1f}, centers={debug.get('centers_len', 0)}")
+        if is_yolo_world:
+            logger.info(f"      - Debug: aspect={debug.get('aspect', 0):.2f}, "
+                        f"motion_bonus={debug.get('motion_bonus', 0):.3f}, det_conf={debug.get('det_conf', 0):.3f}")
+        else:
+            logger.info(f"      - Debug: h_ratio={debug.get('h_ratio', 0):.3f}, kpt_aspect={debug.get('kpt_aspect', 0):.2f}, "
+                        f"torso_angle={debug.get('torso_angle', 0):.1f}, n_ground={debug.get('n_ground', 0)}, "
+                        f"vy={debug.get('vy_px_s', 0):.1f}, centers={debug.get('centers_len', 0)}")
 
     # 融合决策
     track_falling = results.get("track_falling", {})
     new_alarms = results.get("new_alarms", [])
-    fusion_idx = "[7]" if run_detection else "[6]"
+    fusion_idx = "[7]" if (run_detection and not is_yolo_world) else ("[5]" if run_detection else "[4]")
     logger.info(f"{fusion_idx} Fusion decision:")
     for tid, scores in track_scores.items():
         final_score = scores.get('final', 0)
@@ -150,6 +162,16 @@ def log_frame_details(logger, pipeline, frame_idx, results):
                         f"alarm_frames={fusion_state['alarm_frames']}, cooldown={fusion_state['cooldown_remaining']}")
         if is_new_alarm:
             logger.info(f"      - *** NEW ALARM TRIGGERED ***")
+
+
+def load_pipeline(config_path: str, device: str = None):
+    """根据配置文件内容自动选择并实例化对应 pipeline."""
+    with open(config_path, "r", encoding="utf-8") as f:
+        cfg = yaml.safe_load(f)
+    is_yolo_world = cfg is not None and "yolo_world_fall" in cfg
+    if is_yolo_world:
+        return YOLOWorldFallPipeline(config_path, device=device), True
+    return FallDetectionPipeline(config_path, device=device), False
 
 
 def main():
@@ -174,8 +196,9 @@ def main():
 
     # 如果没有指定log路径，使用视频文件名作为默认日志名
     if args.log is None and args.debug:
+        out_dir = os.path.dirname(args.output) if args.output else "."
         video_name = os.path.splitext(os.path.basename(args.video))[0]
-        args.log = f"{os.path.dirname(args.output)}/logs/{video_name}.log"
+        args.log = f"{out_dir}/logs/{video_name}.log"
 
     # 设置调试日志
     logger = None
@@ -190,15 +213,21 @@ def main():
         logger.info("=" * 80)
 
     print("Initializing pipeline...")
-    pipeline = FallDetectionPipeline(args.config, device=args.device)
+    pipeline, is_yolo_world = load_pipeline(args.config, device=args.device)
     print(f"  Using device: {args.device if args.device else 'auto'}")
+    if is_yolo_world:
+        print(f"  Pipeline type: YOLO-World Fall Detection")
+    else:
+        print(f"  Pipeline type: Standard Fall Detection")
 
     # 打印检测器输入分辨率
     detector_input_size = pipeline.detector.input_size
     print(f"  Detector input size: {detector_input_size}x{detector_input_size}")
 
     if logger:
-        logger.info(f"  - Trigger threshold: {pipeline.trigger_thresh}")
+        logger.info(f"  - Pipeline type: {'YOLO-World' if is_yolo_world else 'Standard'}")
+        if not is_yolo_world:
+            logger.info(f"  - Trigger threshold: {pipeline.trigger_thresh}")
         logger.info(f"  - Skip frames: {pipeline.skip_frames}")
         logger.info(f"  - FPS: {pipeline.fps}")
         logger.info(f"  - Detector input size: {detector_input_size}x{detector_input_size}")
@@ -223,7 +252,8 @@ def main():
                 results.get("fusion_histories", {}),
             )
             if not args.headless:
-                cv2.imshow("Pipeline Demo", frame)
+                window_name = "YOLO-World Fall Demo" if is_yolo_world else "Pipeline Demo"
+                cv2.imshow(window_name, frame)
                 if cv2.waitKey(100) == 27:
                     break
         if not args.headless:
@@ -241,6 +271,7 @@ def main():
 
     writer = None
     if args.output:
+        os.makedirs(os.path.dirname(args.output) or ".", exist_ok=True)
         fourcc = cv2.VideoWriter_fourcc(*"mp4v")
         writer = cv2.VideoWriter(args.output, fourcc, fps, (w, h))
         print(f"Output video: {args.output} ({w}x{h} @ {fps:.1f}fps)")
@@ -312,7 +343,7 @@ def main():
 
                 # 调试日志
                 if logger:
-                    log_frame_details(logger, pipeline, frame_idx, results)
+                    log_frame_details(logger, pipeline, frame_idx, results, is_yolo_world=is_yolo_world)
 
                 frame_idx += 1
             else:
@@ -327,7 +358,8 @@ def main():
                 cv2.imwrite(fname, frame)
 
             if not args.headless:
-                cv2.imshow("Pipeline Demo", frame)
+                window_name = "YOLO-World Fall Demo" if is_yolo_world else "Pipeline Demo"
+                cv2.imshow(window_name, frame)
                 key = cv2.waitKey(delay) & 0xFF
                 if key == 27:  # ESC
                     break
