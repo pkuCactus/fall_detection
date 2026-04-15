@@ -1,6 +1,6 @@
 detector:
   conf_thresh: 0.3
-  model_path: null  # 使用默认 yolov8l-worldv2.pt，或指定自定义训练权重
+  model_path: yolov8l-worldv2.pt  # 使用默认 yolov8l-worldv2.pt，或指定自定义训练权重
 
 yolo_world_fall:
   classes:
@@ -43,8 +43,8 @@ fusion:
   gamma: 0.2
   alarm_thresh: 0.60
   alarm_min_frames: 3
-  sequence_check_frames: 6
-  cls_bypass_thresh: 0.75  # 允许高置信度直接预测绕过姿态序列检查（YOLO-World 可直接检测 lying）
+  sequence_check_frames: 25
+  cls_bypass_thresh: 1.0  # 允许高置信度直接预测绕过姿态序列检查（YOLO-World 可直接检测 lying）
   reset_seconds: 0.5
   cooldown_seconds: 3.0
   recovery_seconds: 0.5
