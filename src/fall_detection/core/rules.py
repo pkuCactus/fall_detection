@@ -27,6 +27,7 @@ class RuleEngine:
         self.fall_vy_thresh = cfg.get("fall_vy_thresh", 400.0)
         self.accel_thresh = cfg.get("accel_thresh", 150.0)
         self.visible_ratio_min = cfg.get("visible_ratio_min", 0.6)
+        self.no_keypoint_thresh = cfg.get("no_keypoint_thresh", 0.1)  # 关键点几乎不可见阈值
 
     def _compute_body_metrics(
         self, kpts: np.ndarray, bbox: List[float]
@@ -72,9 +73,9 @@ class RuleEngine:
             history: dict 包含 'centers': List[(cx, cy), ...].
 
         Returns:
-            (S_rule, {"A": bool, "B": bool, "C": bool, "D": bool, "E": bool}, debug_info)
+            (S_rule, {"A": bool, "B": bool, "C": bool, "D": bool, "E": bool, "F": bool}, debug_info)
         """
-        flags = {"A": False, "B": False, "C": False, "D": False, "E": False}
+        flags = {"A": False, "B": False, "C": False, "D": False, "E": False, "F": False}
 
         metrics = self._compute_body_metrics(kpts, bbox)
         bbox_h = metrics["bbox_h"]
@@ -181,11 +182,15 @@ class RuleEngine:
                 # 向下加速度大且当前姿态低 => 快速跌落特征
                 flags["E"] = (accel > self.accel_thresh) and (h_ratio < self.h_ratio_thresh)
 
-        # S_rule: 等权平均 (A,B,C,D,E)
-        score = sum(flags.values()) / 5.0
+        # ---- F: 关键点完全不可见检测 ----
+        # 当关键点几乎完全检测不到时，说明有异常（可能被遮挡或倒地后姿态极端）
+        flags["F"] = visible_ratio < self.no_keypoint_thresh
 
-        # 可见性不足时，规则分 cripple
-        if visible_ratio < self.visible_ratio_min:
+        # S_rule: 等权平均 (A,B,C,D,E,F)
+        score = sum(flags.values()) / 6.0
+
+        # 可见性不足时，规则分 cripple（但规则F触发时除外，因为F就是检测不可见）
+        if visible_ratio < self.visible_ratio_min and not flags["F"]:
             score *= 0.5
 
         debug_info = {

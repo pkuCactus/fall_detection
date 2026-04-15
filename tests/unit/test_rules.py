@@ -366,8 +366,8 @@ class TestScoreCalculation:
 
         score, flags, debug = engine.evaluate(kpts, bbox, history)
 
-        # 验证等权平均：S_rule = (A+B+C+D+E) / 5
-        expected_score = sum(flags.values()) / 5.0
+        # 验证等权平均：S_rule = (A+B+C+D+E+F) / 6
+        expected_score = sum(flags.values()) / 6.0
         assert abs(score - expected_score) < 1e-6
 
     def test_visibility_penalty(self):
@@ -381,9 +381,9 @@ class TestScoreCalculation:
 
         score, flags, debug = engine.evaluate(kpts, bbox, {})
 
-        # 可见性 < 0.6 时，得分应减半
-        if debug["visible_ratio"] < 0.6:
-            base_score = sum(flags.values()) / 5.0
+        # 可见性 < 0.6 且规则F未触发时，得分应减半
+        if debug["visible_ratio"] < 0.6 and not flags.get("F", False):
+            base_score = sum(flags.values()) / 6.0
             expected_score = base_score * 0.5
             assert abs(score - expected_score) < 1e-6
 
