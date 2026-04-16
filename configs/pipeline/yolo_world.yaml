@@ -1,6 +1,7 @@
 detector:
   conf_thresh: 0.3
   model_path: yolov8l-worldv2.pt  # 使用默认 yolov8l-worldv2.pt，或指定自定义训练权重
+  imgsz: null        # 推理分辨率，null使用模型默认；可填整数(如640)或[w,h]如[640,480]
 
 yolo_world_fall:
   classes:

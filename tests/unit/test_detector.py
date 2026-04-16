@@ -82,6 +82,46 @@ class TestPersonDetector:
 
         assert detector.imgsz == 640
 
+    def test_init_with_custom_imgsz_int(self, mocker):
+        """Test initialization with custom integer imgsz."""
+        mock_yolo = mocker.patch('fall_detection.core.detector.YOLO')
+        mock_model = MagicMock()
+        mock_model.args = {'imgsz': 640}
+        mock_yolo.return_value = mock_model
+
+        detector = PersonDetector(model_name='yolov8n', imgsz=320)
+
+        assert detector.imgsz == 320
+
+    def test_init_with_custom_imgsz_tuple(self, mocker):
+        """Test initialization with custom tuple imgsz (w, h)."""
+        mock_yolo = mocker.patch('fall_detection.core.detector.YOLO')
+        mock_model = MagicMock()
+        mock_model.args = {'imgsz': 640}
+        mock_yolo.return_value = mock_model
+
+        detector = PersonDetector(model_name='yolov8n', imgsz=[640, 480])
+
+        assert detector.imgsz == [640, 480]
+
+    def test_call_with_custom_imgsz(self, mocker):
+        """Test __call__ passes custom imgsz to model."""
+        mock_yolo = mocker.patch('fall_detection.core.detector.YOLO')
+        mock_model = MagicMock()
+        mock_model.args = {'imgsz': 640}
+        mock_yolo.return_value = mock_model
+
+        detector = PersonDetector(model_name='yolov8n', imgsz=[640, 480])
+
+        mock_result = MagicMock()
+        mock_result.boxes = []
+        mock_model.return_value = [mock_result]
+
+        img = np.zeros((480, 640, 3), dtype=np.uint8)
+        detector(img)
+
+        mock_model.assert_called_once_with(img, verbose=False, imgsz=[640, 480])
+
     def test_input_size_property(self, mocker):
         """Test input_size property returns imgsz."""
         mock_yolo = mocker.patch('fall_detection.core.detector.YOLO')
@@ -120,7 +160,7 @@ class TestPersonDetector:
         assert boxes[0]['bbox'] == [100.0, 200.0, 300.0, 400.0]
         assert boxes[0]['conf'] == 0.85
         assert boxes[0]['class_id'] == 0
-        mock_model.assert_called_once_with(img, verbose=False)
+        mock_model.assert_called_once_with(img, verbose=False, imgsz=640)
 
     def test_call_filters_non_person_classes(self, mocker):
         """Test __call__ filters out non-person class detections."""

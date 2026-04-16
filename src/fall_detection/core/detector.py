@@ -9,7 +9,7 @@ class PersonDetector:
     """封装 YOLOv8 人体检测器."""
 
     def __init__(self, model_name: str = "yolov8n", model_path: str = None, classes: list = None,
-                 device: str = None, model_type: str = "yolo"):
+                 device: str = None, model_type: str = "yolo", imgsz=None):
         if model_type not in ["yolo", "yolo_world"]:
             raise ValueError(f"Unsupported model_type: {model_type}. Supported types: 'yolo', 'yolo_world'.")
         MODEL = YOLO if model_type == "yolo" else YOLOWorld
@@ -18,7 +18,7 @@ class PersonDetector:
         else:
             self.model = MODEL(f"{model_name}.pt")
         self.model.to(normalize_device(device))
-        self.imgsz = getattr(self.model, "args", {}).get("imgsz", 640)
+        self.imgsz = imgsz if imgsz is not None else getattr(self.model, "args", {}).get("imgsz", 640)
         if classes and hasattr(self.model, "set_classes"):
             self.model.set_classes(classes)
 
@@ -39,7 +39,7 @@ class PersonDetector:
         Returns:
             List[Dict]: 每个元素包含 bbox [x1, y1, x2, y2], conf, class_id, class_name.
         """
-        results = self.model(img, verbose=False)
+        results = self.model(img, verbose=False, imgsz=self.imgsz)
         boxes = []
         for result in results:
             if result.boxes is None:

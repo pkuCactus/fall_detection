@@ -28,10 +28,11 @@ class FallDetectionPipeline:
 
         det_model_path = det_cfg.get("model_path")
         det_classes = det_cfg.get("classes")
+        det_imgsz = det_cfg.get("imgsz")
         if det_model_path:
-            self.detector = PersonDetector(model_path=det_model_path, classes=det_classes, device=device)
+            self.detector = PersonDetector(model_path=det_model_path, classes=det_classes, device=device, imgsz=det_imgsz)
         else:
-            self.detector = PersonDetector(model_name="yolov8n", classes=det_classes, device=device)
+            self.detector = PersonDetector(model_name="yolov8n", classes=det_classes, device=device, imgsz=det_imgsz)
         self.detector_conf_thresh = det_cfg.get("conf_thresh", 0.3)
 
         self.tracker = ByteTrackLite(

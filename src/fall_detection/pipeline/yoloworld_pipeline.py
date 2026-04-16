@@ -28,11 +28,13 @@ class YOLOWorldFallPipeline:
 
         classes = yw_cfg.get("classes")
         model_path = det_cfg.get("model_path")
+        det_imgsz = det_cfg.get("imgsz")
         self.detector = PersonDetector(
             model_path=model_path,
             classes=classes,
             device=device,
             model_type="yolo_world",
+            imgsz=det_imgsz,
         )
         self.detector_conf_thresh = det_cfg.get("conf_thresh", 0.3)
 
