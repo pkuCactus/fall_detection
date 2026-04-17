@@ -25,6 +25,8 @@ from ultralytics.utils.ops import make_divisible
 
 from fall_detection.core.layer import ConvUpsample, AnchorDetect
 
+DEFAULT_IMG_SIZE = 640
+
 
 def custom_parse_model(d, ch, verbose=True):
     """Parse a YOLO model.yaml dictionary into a PyTorch model.
@@ -45,6 +47,7 @@ def custom_parse_model(d, ch, verbose=True):
     reg_max = d.get("reg_max", 16)
     depth, width, kpt_shape = (d.get(x, 1.0) for x in ("depth_multiple", "width_multiple", "kpt_shape"))
     scale = d.get("scale")
+    version = d.get("version", "v3")
     if scales:
         if not scale:
             scale = next(iter(scales.keys()))
@@ -171,7 +174,6 @@ def custom_parse_model(d, ch, verbose=True):
         elif m in frozenset(
             {
                 Detect,
-                AnchorDetect,
                 WorldDetect,
                 YOLOEDetect,
                 Segment,
@@ -189,6 +191,8 @@ def custom_parse_model(d, ch, verbose=True):
                 args[2] = make_divisible(min(args[2], max_channels) * width, 8)
             if m in {Detect, AnchorDetect, YOLOEDetect, Segment, Segment26, YOLOESegment, YOLOESegment26, Pose, Pose26, OBB, OBB26}:
                 m.legacy = legacy
+        elif m is AnchorDetect:
+            args.extend([version, [ch[x] for x in f]])
         elif m is v10Detect:
             args.append([ch[x] for x in f])
         elif m is ImagePoolingAttn:
@@ -251,13 +255,18 @@ class CustomDetectionModel(DetectionModel):
             self.yaml['nc'] = nc
 
         # Build model using custom parse_model
-        self.model, self.save = custom_parse_model(deepcopy(self.yaml), ch=ch, verbose=verbose)
+        self.model, self.save = custom_parse_model(deepcopy(self.yaml), ch=ch, verbose=verbose and RANK == -1)
 
         # Set stride and other properties
         m = self.model[-1]  # last layer (Detect)
         if isinstance(m, AnchorDetect):
-            m.stride = torch.tensor([32.0, 16.0, 8.0])  # P5, P4, P3 strides
+            # infernce to get stride
+            self.train(True)  # ensure model is in training mode for correct output shape
+            outputs = self.forward(torch.zeros(1, ch, DEFAULT_IMG_SIZE, DEFAULT_IMG_SIZE))
+            m.stride = torch.tensor([DEFAULT_IMG_SIZE // x.shape[2] for x in outputs])  # P5, P4, P3 strides
+            LOGGER.info(f"AnchorDetect strides: {m.stride}")
             self.stride = m.stride
+            self._initialize_biases()  # Initialize biases for AnchorDetect
 
         # Build strides
         m = self.model[-1]
@@ -291,37 +300,25 @@ class CustomDetectionModel(DetectionModel):
             elif t in [nn.Hardswish, nn.LeakyReLU, nn.ReLU, nn.ReLU6, nn.SiLU]:
                 m.inplace = True
 
+        # Initialize detection head biases
+        m = self.model[-1]
+        if isinstance(m, AnchorDetect) and getattr(m, 'm', None) is not None:
+            m._initialize_biases()
+
+    def _initialize_biases(self):
+        """Initialize detection head biases for AnchorDetect."""
+        m = self.model[-1]
+        if isinstance(m, AnchorDetect) and getattr(m, 'm', None) is not None:
+            for mi, s in zip(m.m, [32, 16, 8]):
+                b = mi.bias.view(-1)
+                na = mi.out_channels // (m.nc + 5)
+                b = b.view(na, -1)
+                b.data[:, 4] += torch.log(torch.tensor(8 / (640 / s) ** 2))
+                b.data[:, 5:5 + m.nc] += torch.log(torch.tensor(0.6 / (m.nc - 0.999999)))
+                mi.bias = nn.Parameter(b.view(-1), requires_grad=True)
+
     def init_criterion(self):
         """Initialize loss criterion for training."""
-        from ultralytics.utils.loss import BboxLoss
-
-        # For AnchorDetect, use a custom loss or standard detection loss
-        class AnchorDetectionLoss(nn.Module):
-            def __init__(self, model):
-                super().__init__()
-                self.model = model
-                self.bce = nn.BCEWithLogitsLoss(reduction='none')
-
-            def __call__(self, preds, batch):
-                """Compute detection loss for anchor-based head."""
-                # This is a simplified loss - you may want to implement full YOLO loss
-                device = preds[0].device
-                loss = torch.tensor(0.0, device=device)
-
-                for i, pi in enumerate(preds):
-                    # pi shape: (bs, na, ny, nx, nc+5)
-                    # batch should contain targets
-                    if batch.get('batch_idx') is None:
-                        continue
-
-                    # Basic box regression + classification loss
-                    # This is a placeholder - implement proper YOLO anchor-based loss
-                    obj_loss = self.bce(pi[..., 4], torch.zeros_like(pi[..., 4]))
-                    cls_loss = self.bce(pi[..., 5:], torch.zeros_like(pi[..., 5:]))
-                    loss += obj_loss.mean() + cls_loss.mean()
-
-                return loss * 0, loss * 0, loss  # box_loss, cls_loss, total_loss
-
         return AnchorDetectionLoss(self)
 
     def forward(self, x, *args, **kwargs):
@@ -336,6 +333,115 @@ class CustomDetectionModel(DetectionModel):
         return x
 
 
+class AnchorDetectionLoss(nn.Module):
+    """Anchor-based detection loss for CustomDetectionModel."""
+
+    def __init__(self, model):
+        super().__init__()
+        self.device = next(model.parameters()).device
+        self.bce_cls = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([1.0], device=self.device))
+        self.bce_obj = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([1.0], device=self.device))
+        from ultralytics.utils.metrics import bbox_iou
+        self.bbox_iou = bbox_iou
+
+        m = model.model[-1]
+        self.na = m.na  # list of anchors per layer
+        self.nc = m.nc
+        self.nl = m.nl
+        self.stride = m.stride if hasattr(m.stride, '__iter__') else [m.stride] * self.nl
+        self.anchors = m.anchors  # (nl, max_na, 2)
+        self.gr = 1.0
+        self.box_gain = 0.05
+        self.cls_gain = 0.5
+        self.obj_gain = 1.0
+
+    def __call__(self, preds, batch):
+        """Compute detection loss for anchor-based head.
+
+        Args:
+            preds: list of (bs, na, ny, nx, nc+5) for each layer
+            batch: dict with 'batch_idx', 'cls', 'bboxes'
+        """
+        device = preds[0].device
+        l_cls = torch.zeros(1, device=device)
+        l_box = torch.zeros(1, device=device)
+        l_obj = torch.zeros(1, device=device)
+
+        targets = self._build_targets(preds, batch)
+        if targets is None:
+            for i, pi in enumerate(preds):
+                tobj = torch.zeros_like(pi[..., 4])
+                l_obj += self.bce_obj(pi[..., 4], tobj).mean()
+            return l_box, l_cls, l_box + l_cls + l_obj
+
+        for i, pi in enumerate(preds):
+            b, a, gj, gi = targets[i]  # image, anchor, gridy, gridx
+            tobj = torch.zeros_like(pi[..., 4])
+            n = b.shape[0]
+            if n:
+                ps = pi[b, a, gj, gi]  # (n, nc+5)
+                pxy = ps[:, :2].sigmoid() * 2 - 0.5
+                pwh = (ps[:, 2:4].sigmoid() * 2) ** 2 * targets['anchors'][i]
+                pbox = torch.cat((pxy, pwh), 1)
+                iou = self.bbox_iou(pbox, targets['tbox'][i], CIoU=True).squeeze()
+                l_box += (1.0 - iou).mean()
+                tobj[b, a, gj, gi] = iou.detach().clamp(0).type(tobj.dtype)
+                if self.nc > 1:
+                    t = torch.zeros_like(ps[:, 5:])
+                    t[range(n), targets['tcls'][i].long()] = 1
+                    l_cls += self.bce_cls(ps[:, 5:], t).mean()
+            l_obj += self.bce_obj(pi[..., 4], tobj).mean()
+
+        bs = preds[0].shape[0]
+        l_box *= self.box_gain * bs
+        l_obj *= self.obj_gain * bs
+        l_cls *= self.cls_gain * bs
+        return l_box, l_cls, l_box + l_obj + l_cls
+
+    def _build_targets(self, preds, batch):
+        """Build targets for anchor-based loss."""
+        batch_idx = batch.get('batch_idx')
+        if batch_idx is None or len(batch_idx) == 0:
+            return None
+
+        targets = torch.cat((batch_idx.unsqueeze(1), batch['cls'].unsqueeze(1), batch['bboxes']), 1)
+        nt = targets.shape[0]
+        if nt == 0:
+            return None
+
+        tcls, tbox, indices, anch = [], [], [], []
+        gain = torch.ones(6, device=self.device)
+
+        for i in range(self.nl):
+            na = self.na[i]
+            anchors = self.anchors[i, :na] / self.stride[i]  # normalized anchors
+            gain[2:6] = torch.tensor(preds[i].shape)[[3, 2, 3, 2]].float()  # nx, ny, nx, ny
+
+            t = targets * gain
+            if nt == 0:
+                r = torch.empty((0, 4), device=self.device)
+            else:
+                r = t[:, 4:6] / anchors[:, None]  # wh ratio
+            j = torch.max(r, 1. / r).max(2)[0] < 4.0  # anchor match threshold
+            t = t.unsqueeze(0).repeat(na, 1, 1)[j]
+            offsets = torch.zeros_like(t[:, 2:4])
+
+            b, c = t[:, :2].long().T
+            gxy = t[:, 2:4]
+            gwh = t[:, 4:6]
+            gij = gxy.long()
+            gi, gj = gij.T
+
+            a = torch.arange(na, device=self.device)[:, None].repeat(1, nt)[j].long()
+
+            tbox.append(torch.cat((gxy - gij.float(), gwh), 1))
+            anch.append(anchors[a] * self.stride[i])
+            indices.append((b, a, gj.clamp_(0, gain[3].long() - 1), gi.clamp_(0, gain[2].long() - 1)))
+            tcls.append(c)
+
+        return {'tcls': tcls, 'tbox': tbox, 'anchors': anch, **{i: indices[i] for i in range(self.nl)}}
+
+
 class CustomYOLO(YOLO):
     """Custom YOLO model with anchor-based detection support.
 
@@ -348,7 +454,7 @@ class CustomYOLO(YOLO):
         model = CustomYOLO("yolov8n.pt")
     """
 
-    def __init__(self, model='yolov8n.pt', task="detect", verbose=False):
+    def __init__(self, model='yolov8n.pt', task=None, verbose=False):
         """Initialize CustomYOLO model.
 
         Args:
