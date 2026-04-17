@@ -13,7 +13,7 @@ class ConvUpsample(nn.Module):
     def __init__(self, in_channels, out_channels, scale_factor=2, kernel_size=3):
         super().__init__()
         self.layer = nn.Sequential(
-             nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, padding=autopad(kernel_size), bias=False),
+             nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, padding=autopad(kernel_size), bias=True),
              nn.Upsample(scale_factor=scale_factor, mode='nearest'),
              nn.ReLU(inplace=True)
         )
