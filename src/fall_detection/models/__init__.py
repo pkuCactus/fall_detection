@@ -2,11 +2,10 @@
 
 from .classifier import FallClassifier
 from .simple_classifier import SimpleFallClassifier
-from .yolo import YOLO, YOLOWorld
+from .yolo import CustomYOLO
 
 __all__ = [
     "FallClassifier",
     "SimpleFallClassifier",
-    "YOLO",
-    "YOLOWorld"
+    "CustomYOLO"
 ]

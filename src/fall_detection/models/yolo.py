@@ -1,167 +1,228 @@
 """
-copyright (c) 2024 hjz. All rights reserved.
+copyright (c) 2024 pkuCactus. All rights reserved.
 Use of this source is goverend by the Apache License that can be found in the LICENSE file
 """
 
+import ast
+import contextlib
 from copy import deepcopy
-from typing import Dict, Any
 
 import torch
 import torch.nn as nn
 from ultralytics import YOLO, YOLOWorld
-from ultralytics.nn import tasks
-from ultralytics.nn.modules import conv
-from ultralytics.nn.tasks import DetectionModel, BaseModel
-from ultralytics.utils import LOGGER, RANK
+from ultralytics.nn.modules import (
+    Conv, Classify, Concat, Detect, Segment, Pose,
+    ConvTranspose, GhostConv, Bottleneck, GhostBottleneck, SPP,
+    SPPF, C2fPSA, C2PSA, DWConv, Focus, BottleneckCSP, C1, C2,
+    C2f, C3k2, RepNCSPELAN4, ELAN1, ADown, AConv, SPPELAN, C2fAttn,
+    C3, C3TR, C3Ghost, DWConvTranspose2d, C3x, RepC3, PSA, SCDown, C2fCIB, A2C2f,
+    AIFI, HGStem, HGBlock, ResNetLayer, ImagePoolingAttn, RTDETRDecoder, CBLinear, CBFuse, TorchVision, Index,
+    WorldDetect, YOLOEDetect, Segment26, YOLOESegment, YOLOESegment26, Pose26, OBB, OBB26, v10Detect
+)
+from ultralytics.nn.tasks import DetectionModel
+from ultralytics.utils import LOGGER, RANK, colorstr
+from ultralytics.utils.ops import make_divisible
 
-from fall_detection.core.layer import ConvBNReLU, ConvUpsample, AnchorDetect
-
-
-# Register custom layers to ultralytics parse_model
-setattr(conv, "ConvBNReLU", ConvBNReLU)
-setattr(conv, "ConvUpsample", ConvUpsample)
-setattr(conv, "AnchorDetect", AnchorDetect)
-
-tasks.parse_model.__globals__["ConvBNReLU"] = ConvBNReLU
-tasks.parse_model.__globals__["ConvUpsample"] = ConvUpsample
-tasks.parse_model.__globals__["AnchorDetect"] = AnchorDetect
+from fall_detection.core.layer import ConvUpsample, AnchorDetect
 
 
 def custom_parse_model(d, ch, verbose=True):
-    """Custom parse_model that supports AnchorDetect and custom layers.
+    """Parse a YOLO model.yaml dictionary into a PyTorch model.
 
     Args:
-        d: model dict from yaml
-        ch: input channels
-        verbose: print model info
+        d (dict): Model dictionary.
+        ch (int): Input channels.
+        verbose (bool): Whether to print model details.
 
     Returns:
-        nn.Sequential model and save list
+        (torch.nn.Sequential): PyTorch model.
+        (list): Sorted list of layer indices whose outputs need to be saved.
     """
-    import ast
+    # Args
+    legacy = True  # backward compatibility for v3/v5/v8/v9 models
+    max_channels = float("inf")
+    nc, act, scales, end2end = (d.get(x) for x in ("nc", "activation", "scales", "end2end"))
+    reg_max = d.get("reg_max", 16)
+    depth, width, kpt_shape = (d.get(x, 1.0) for x in ("depth_multiple", "width_multiple", "kpt_shape"))
+    scale = d.get("scale")
+    if scales:
+        if not scale:
+            scale = next(iter(scales.keys()))
+            LOGGER.warning(f"no model scale passed. Assuming scale='{scale}'.")
+        depth, width, max_channels = scales[scale]
 
-    # Get args from yaml
-    anchors = d.get('anchors', None)
-    nc, act, scale = (d.get(x) for x in ('nc', 'activation', 'scale'))
-    reg_max = d.get('reg_max', 16)
-    end2end = d.get('end2end', False)
-    legacy = d.get('legacy', False)
-
-    # Import necessary modules
-    import torch.nn as nn
-    from ultralytics.nn.modules import Conv, Concat
-
-    layers, save, c2 = [], [], ch[-1]
-    for i, (f, n, m, args) in enumerate(d['backbone'] + d['head']):
-        # Resolve module
-        if m == 'nn.Conv2d':
-            m_ = nn.Conv2d
-        elif m == 'ConvBNReLU':
-            m_ = ConvBNReLU
-        elif m == 'ConvUpsample':
-            m_ = ConvUpsample
-        elif m == 'AnchorDetect':
-            m_ = AnchorDetect
-        elif m == 'Concat':
-            m_ = Concat
-        elif m == 'Detect':
-            from ultralytics.nn.modules import Detect
-            m_ = Detect
-        elif m == 'C2f':
-            m_ = C2f
-        elif m == 'SPPF':
-            m_ = SPPF
-        elif m == 'Conv':
-            m_ = Conv
-        elif m == 'Upsample':
-            m_ = nn.Upsample
-        else:
-            # Try to get from ultralytics modules
-            try:
-                m_ = eval(m)
-            except:
-                raise ValueError(f"Unknown module: {m}")
-
-        # Resolve args
-        if args is None:
-            args = []
-        if isinstance(args, (int, float, str)):
-            args = [args]
-        elif isinstance(args, (list, tuple)) and len(args) == 1 and isinstance(args[0], (list, tuple)):
-            # Handle case where args is [[a, b, c]] instead of [a, b, c]
-            args = list(args[0])
-
-        n_ = n
-        n = n_ = max(round(n * 1), 1) if n > 1 else n  # depth gain
-
-        # Get input channels
-        if f == -1:
-            c1 = ch[-1]
-        elif isinstance(f, int):
-            c1 = ch[f]
-        elif isinstance(f, (list, tuple)):
-            c1 = [ch[x] for x in f]
-        else:
-            c1 = ch[f]
-
-        # Handle specific module types
-        if m_ is ConvBNReLU:
-            c2 = args[0]
-            args = [c1, *args]
-        elif m_ is ConvUpsample:
-            c2 = args[0]
-            args = [c1, *args]
-        elif m_ is nn.Conv2d:
-            c2 = args[0]
-            args = [c1, *args]
-        elif m_ is Conv:
-            c2 = args[0]
-            args = [c1, *args]
-        elif m_ is Concat:
-            c2 = sum(ch[x] for x in f)
-        elif m_ is AnchorDetect:
-            # Handle AnchorDetect specially
-            # Parse nc and anchors from args, supporting string references
-            arg_nc = args[0] if args else nc
-            arg_anchors = args[1] if len(args) > 1 else anchors
-            # Resolve string references
-            if isinstance(arg_nc, str):
-                arg_nc = nc if arg_nc == 'nc' else int(arg_nc)
-            if isinstance(arg_anchors, str):
-                arg_anchors = anchors if arg_anchors == 'anchors' else eval(arg_anchors)
-            # Get input channels from f (multi-input)
-            ch_list = [ch[x] for x in f] if isinstance(f, (list, tuple)) else [ch[f]]
-            args = [arg_nc, arg_anchors, ch_list]
-            # c2 is not set for Detect layers
-        elif m_ in (Detect,):
-            # Handle standard Detect
-            from ultralytics.nn.modules import Detect
-            args.extend([reg_max, end2end, [ch[x] for x in f]])
-        elif m_ is nn.Upsample:
-            c2 = c1
-        else:
-            c2 = c1
-
-        # Create module
-        m_ = nn.Sequential(*(m_(*args) for _ in range(n))) if n > 1 else m_(*args)
-        t = str(m_)[8:-2].replace("__main__.", "")
-        m_.np = sum(x.numel() for x in m_.parameters())
-        m_.i, m_.f, m_.type = i, f, t
-
+    if act:
+        Conv.default_act = eval(act)  # redefine default activation, i.e. Conv.default_act = torch.nn.SiLU()
         if verbose:
-            LOGGER.info(f"{i:>3}{f!s:>20}{n_:>3}{m_.np:10.0f}  {t:<45}{args!s:<30}")
+            LOGGER.info(f"{colorstr('activation:')} {act}")  # print
 
-        save.extend(x % i for x in ([f] if isinstance(f, int) else f) if x != -1)
+    if verbose:
+        LOGGER.info(f"\n{'':>3}{'from':>20}{'n':>3}{'params':>10}  {'module':<45}{'arguments':<30}")
+    ch = [ch]
+    layers, save, c2 = [], [], ch[-1]  # layers, savelist, ch out
+    base_modules = frozenset(
+        {
+            Classify,
+            Conv,
+            ConvUpsample,
+            ConvTranspose,
+            GhostConv,
+            Bottleneck,
+            GhostBottleneck,
+            SPP,
+            SPPF,
+            C2fPSA,
+            C2PSA,
+            DWConv,
+            Focus,
+            BottleneckCSP,
+            C1,
+            C2,
+            C2f,
+            C3k2,
+            RepNCSPELAN4,
+            ELAN1,
+            ADown,
+            AConv,
+            SPPELAN,
+            C2fAttn,
+            C3,
+            C3TR,
+            C3Ghost,
+            torch.nn.ConvTranspose2d,
+            torch.nn.Conv2d,
+            DWConvTranspose2d,
+            C3x,
+            RepC3,
+            PSA,
+            SCDown,
+            C2fCIB,
+            A2C2f,
+        }
+    )
+    repeat_modules = frozenset(  # modules with 'repeat' arguments
+        {
+            BottleneckCSP,
+            C1,
+            C2,
+            C2f,
+            C3k2,
+            C2fAttn,
+            C3,
+            C3TR,
+            C3Ghost,
+            C3x,
+            RepC3,
+            C2fPSA,
+            C2fCIB,
+            C2PSA,
+            A2C2f,
+        }
+    )
+    for i, (f, n, m, args) in enumerate(d["backbone"] + d["head"]):  # from, number, module, args
+        m = (
+            getattr(torch.nn, m[3:])
+            if "nn." in m
+            else getattr(__import__("torchvision").ops, m[16:])
+            if "torchvision.ops." in m
+            else globals()[m]
+        )  # get module
+        for j, a in enumerate(args):
+            if isinstance(a, str):
+                with contextlib.suppress(ValueError):
+                    args[j] = locals()[a] if a in locals() else d[a] if a in d else ast.literal_eval(a)
+        n = n_ = max(round(n * depth), 1) if n > 1 else n  # depth gain
+        if m in base_modules:
+            c1, c2 = ch[f], args[0]
+            if c2 != nc and m is not nn.Conv2d:  # if c2 != nc (e.g., Classify() output)
+                c2 = make_divisible(min(c2, max_channels) * width, 8)
+            if m is C2fAttn:  # set 1) embed channels and 2) num heads
+                args[1] = make_divisible(min(args[1], max_channels // 2) * width, 8)
+                args[2] = int(max(round(min(args[2], max_channels // 2 // 32)) * width, 1) if args[2] > 1 else args[2])
+
+            args = [c1, c2, *args[1:]]
+            if m in repeat_modules:
+                args.insert(2, n)  # number of repeats
+                n = 1
+            if m is C3k2:  # for M/L/X sizes
+                legacy = False
+                if scale in "mlx":
+                    args[3] = True
+            if m is A2C2f:
+                legacy = False
+                if scale in "lx":  # for L/X sizes
+                    args.extend((True, 1.2))
+            if m is C2fCIB:
+                legacy = False
+        elif m is AIFI:
+            args = [ch[f], *args]
+        elif m in frozenset({HGStem, HGBlock}):
+            c1, cm, c2 = ch[f], args[0], args[1]
+            args = [c1, cm, c2, *args[2:]]
+            if m is HGBlock:
+                args.insert(4, n)  # number of repeats
+                n = 1
+        elif m is ResNetLayer:
+            c2 = args[1] if args[3] else args[1] * 4
+        elif m is torch.nn.BatchNorm2d:
+            args = [ch[f]]
+        elif m is Concat:
+            c2 = sum(ch[x] for x in f)
+        elif m in frozenset(
+            {
+                Detect,
+                AnchorDetect,
+                WorldDetect,
+                YOLOEDetect,
+                Segment,
+                Segment26,
+                YOLOESegment,
+                YOLOESegment26,
+                Pose,
+                Pose26,
+                OBB,
+                OBB26,
+            }
+        ):
+            args.extend([reg_max, end2end, [ch[x] for x in f]])
+            if m is Segment or m is YOLOESegment or m is Segment26 or m is YOLOESegment26:
+                args[2] = make_divisible(min(args[2], max_channels) * width, 8)
+            if m in {Detect, AnchorDetect, YOLOEDetect, Segment, Segment26, YOLOESegment, YOLOESegment26, Pose, Pose26, OBB, OBB26}:
+                m.legacy = legacy
+        elif m is v10Detect:
+            args.append([ch[x] for x in f])
+        elif m is ImagePoolingAttn:
+            args.insert(1, [ch[x] for x in f])  # channels as second arg
+        elif m is RTDETRDecoder:  # special case, channels arg must be passed in index 1
+            args.insert(1, [ch[x] for x in f])
+        elif m is CBLinear:
+            c2 = args[0]
+            c1 = ch[f]
+            args = [c1, c2, *args[1:]]
+        elif m is CBFuse:
+            c2 = ch[f[-1]]
+        elif m in frozenset({TorchVision, Index}):
+            c2 = args[0]
+            c1 = ch[f]
+            args = [*args[1:]]
+        else:
+            c2 = ch[f]
+
+        m_ = torch.nn.Sequential(*(m(*args) for _ in range(n))) if n > 1 else m(*args)  # module
+        t = str(m)[8:-2].replace("__main__.", "")  # module type
+        m_.np = sum(x.numel() for x in m_.parameters())  # number params
+        m_.i, m_.f, m_.type = i, f, t  # attach index, 'from' index, type
+        if verbose:
+            LOGGER.info(f"{i:>3}{f!s:>20}{n_:>3}{m_.np:10.0f}  {t:<45}{args!s:<30}")  # print
+        save.extend(x % i for x in ([f] if isinstance(f, int) else f) if x != -1)  # append to savelist
         layers.append(m_)
-
         if i == 0:
             ch = []
         ch.append(c2)
+    return torch.nn.Sequential(*layers), sorted(save)
 
-    return nn.Sequential(*layers), sorted(save)
 
-
-class CustomDetectionModel(BaseModel):
+class CustomDetectionModel(DetectionModel):
     """Custom detection model with anchor-based detection head support.
 
     This class extends the BaseModel to support:
@@ -178,7 +239,7 @@ class CustomDetectionModel(BaseModel):
             nc: number of classes (overrides cfg if provided)
             verbose: print model info
         """
-        super().__init__()  # Initialize Module first
+        nn.Module.__init__(self)  # Initialize Module directly to bypass DetectionModel default build
         self.yaml = cfg if isinstance(cfg, dict) else self._load_yaml(cfg)
 
         # Define model
@@ -190,14 +251,13 @@ class CustomDetectionModel(BaseModel):
             self.yaml['nc'] = nc
 
         # Build model using custom parse_model
-        self.model, self.save = custom_parse_model(deepcopy(self.yaml), ch=[ch], verbose=verbose and RANK == -1)
+        self.model, self.save = custom_parse_model(deepcopy(self.yaml), ch=ch, verbose=verbose)
 
         # Set stride and other properties
         m = self.model[-1]  # last layer (Detect)
         if isinstance(m, AnchorDetect):
             m.stride = torch.tensor([32.0, 16.0, 8.0])  # P5, P4, P3 strides
             self.stride = m.stride
-            self._initialize_biases()  # Initialize biases for AnchorDetect
 
         # Build strides
         m = self.model[-1]
@@ -230,21 +290,6 @@ class CustomDetectionModel(BaseModel):
                 m.momentum = 0.03
             elif t in [nn.Hardswish, nn.LeakyReLU, nn.ReLU, nn.ReLU6, nn.SiLU]:
                 m.inplace = True
-
-        # Initialize detection head biases
-        m = self.model[-1]
-        if isinstance(m, AnchorDetect):
-            m._initialize_biases()
-
-    def _initialize_biases(self):
-        """Initialize detection head biases for AnchorDetect."""
-        m = self.model[-1]
-        if isinstance(m, AnchorDetect):
-            for mi, s in zip(m.m, [32, 16, 8]):
-                b = mi.bias.view(m.na, -1)
-                b.data[:, 4] += torch.log(torch.tensor(8 / (640 / s) ** 2))
-                b.data[:, 5:5 + m.nc] += torch.log(torch.tensor(0.6 / (m.nc - 0.999999)))
-                mi.bias = nn.Parameter(b.view(-1), requires_grad=True)
 
     def init_criterion(self):
         """Initialize loss criterion for training."""
@@ -296,14 +341,14 @@ class CustomYOLO(YOLO):
 
     Usage:
         # With anchor-based detection head
-        model = CustomYOLO("configs/model/ori_detector_anchor.yaml")
+        model = CustomYOLO("configs/model/custom_yolo.yaml")
         model.train(data="coco.yaml", epochs=100)
 
         # With standard YOLO model
         model = CustomYOLO("yolov8n.pt")
     """
 
-    def __init__(self, model='yolov8n.pt', task=None, verbose=False):
+    def __init__(self, model='yolov8n.pt', task="detect", verbose=False):
         """Initialize CustomYOLO model.
 
         Args:
@@ -311,38 +356,10 @@ class CustomYOLO(YOLO):
             task: task type (detect, segment, classify, pose)
             verbose: verbosity flag
         """
-        # Check if model is a custom anchor-based yaml
-        if isinstance(model, str) and model.endswith('.yaml'):
-            import yaml
-            with open(model, 'r') as f:
-                cfg = yaml.safe_load(f)
-            if cfg.get('anchors') is not None or any('AnchorDetect' in str(layer) for layer in cfg.get('head', [])):
-                # Use custom model for anchor-based detection
-                self._custom_anchor = True
-            else:
-                self._custom_anchor = False
-        else:
-            self._custom_anchor = False
-
         super().__init__(model=model, task=task, verbose=verbose)
 
-    def _new(self, model=None, task=None, verbose=False):
-        """Create new model."""
-        from ultralytics.nn.tasks import DetectionModel as BaseDetectionModel, yaml_model_load
-
-        # Load yaml config
-        cfg = model if isinstance(model, dict) else yaml_model_load(model)
-        self.model_cfg = cfg  # Store for later use
-
-        if getattr(self, '_custom_anchor', False):
-            # Use CustomDetectionModel for anchor-based models
-            self.model = CustomDetectionModel(cfg, verbose=verbose)
-            self.task = 'detect'
-        else:
-            # Use standard DetectionModel
-            self.model = BaseDetectionModel(cfg, ch=3, verbose=verbose and RANK == -1)
-            self.task = task or 'detect'
-
-
-# Backward compatibility
-__all__ = ["YOLO", "YOLOWorld", "CustomYOLO", "CustomDetectionModel", "ConvBNReLU", "ConvUpsample", "AnchorDetect", "custom_parse_model"]
+    @property
+    def task_map(self):
+        task_map = super().task_map
+        task_map["detect"]["model"] = CustomDetectionModel
+        return task_map
