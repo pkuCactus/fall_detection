@@ -62,27 +62,72 @@
         .trans-arrow { font-size: 1.4em; color: #1a73e8; }
         .trans-cond { background: #fff; padding: 8px 12px; border-radius: 6px; font-size: 0.75em; color: #5f6368; max-width: 180px; text-align: center; border: 1px dashed #1a73e8; }
         
-        /* State Flow Diagram */
-        .state-flow-diagram { display: flex; flex-direction: column; gap: 20px; padding: 20px; background: linear-gradient(135deg, #fff 0%, #f8f9fa 100%); border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
-        .state-row { display: flex; align-items: center; gap: 10px; }
-        .state-node { min-width: 100px; padding: 15px; border-radius: 10px; text-align: center; font-weight: bold; transition: transform 0.2s ease, box-shadow 0.2s ease; cursor: pointer; animation: fadeIn 0.3s ease forwards; }
-        .state-node:hover { transform: scale(1.05); box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
-        .state-node.normal-node { background: linear-gradient(135deg, #34a853 0%, #2e7d32 100%); color: #fff; }
-        .state-node.suspected-node { background: linear-gradient(135deg, #fbbc04 0%, #f57c00 100%); color: #fff; }
-        .state-node.falling-node { background: linear-gradient(135deg, #ea4335 0%, #c62828 100%); color: #fff; }
-        .state-node.alarm-node { background: linear-gradient(135deg, #c62828 0%, #b71c1c 100%); color: #fff; }
-        .state-node.recovering-node { background: linear-gradient(135deg, #4285f4 0%, #1565c0 100%); color: #fff; }
-        .state-conditions { flex: 1; display: flex; flex-direction: column; gap: 8px; }
-        .condition-box { padding: 10px 15px; background: #f8f9fa; border-radius: 8px; font-size: 0.85em; border-left: 3px solid; transition: background 0.2s ease; }
-        .condition-box:hover { background: #f0f0f0; }
-        .condition-box.cond-green { border-left-color: #34a853; }
-        .condition-box.cond-red { border-left-color: #ea4335; }
-        .condition-box.cond-yellow { border-left-color: #fbbc04; }
-        .condition-box.cond-blue { border-left-color: #4285f4; }
-        .condition-box.cond-gray { border-left-color: #999; }
-        .flow-arrow { color: #1a73e8; font-size: 1.5em; transition: transform 0.2s ease; }
-        .flow-arrow:hover { transform: translateX(5px); }
-        @keyframes fadeIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
+/* State Flow Diagram - Optimized */
+         .state-machine-diagram { display: grid; grid-template-columns: 180px 1fr; gap: 0; padding: 0; background: #fff; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); overflow: hidden; }
+         .state-column { display: flex; flex-direction: column; gap: 0; border-right: 2px solid #e0e0e0; background: linear-gradient(180deg, #f8f9fa 0%, #fff 100%); }
+         .transitions-column { display: flex; flex-direction: column; gap: 0; padding: 0; background: #fff; }
+         .state-row-item { display: flex; align-items: stretch; min-height: 120px; border-bottom: 1px solid #e8e8e8; }
+         .state-row-item:last-child { border-bottom: none; }
+         .state-cell { display: flex; align-items: center; justify-content: center; padding: 20px 15px; min-width: 180px; }
+         .transitions-cell { display: flex; flex-direction: column; gap: 10px; padding: 15px 20px; flex: 1; }
+         .state-circle { width: 90px; height: 90px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.85em; text-align: center; box-shadow: 0 3px 10px rgba(0,0,0,0.15); transition: all 0.3s ease; cursor: pointer; position: relative; }
+         .state-circle:hover { transform: scale(1.08); box-shadow: 0 6px 20px rgba(0,0,0,0.25); }
+         .state-circle::after { content: ''; position: absolute; inset: -4px; border-radius: 50%; border: 2px dashed transparent; transition: border-color 0.3s; }
+         .state-circle:hover::after { border-color: currentColor; opacity: 0.3; }
+         .state-circle.normal { background: linear-gradient(135deg, #34a853 0%, #2e7d32 100%); color: #fff; }
+         .state-circle.suspected { background: linear-gradient(135deg, #fbbc04 0%, #f57c00 100%); color: #fff; }
+         .state-circle.falling { background: linear-gradient(135deg, #ea4335 0%, #c62828 100%); color: #fff; animation: pulse 2s infinite; }
+         .state-circle.alarm { background: linear-gradient(135deg, #c62828 0%, #b71c1c 100%); color: #fff; }
+         .state-circle.recovering { background: linear-gradient(135deg, #4285f4 0%, #1565c0 100%); color: #fff; }
+         @keyframes pulse { 0%, 100% { box-shadow: 0 3px 10px rgba(234,67,53,0.3); } 50% { box-shadow: 0 3px 20px rgba(234,67,53,0.6); } }
+         .transition-arrow { display: flex; align-items: center; gap: 12px; padding: 12px 15px; background: #f8f9fa; border-radius: 10px; border: 1px solid #e0e0e0; transition: all 0.2s ease; }
+         .transition-arrow:hover { background: #f0f0f0; border-color: #bbb; transform: translateX(3px); }
+         .arrow-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.2em; flex-shrink: 0; }
+         .arrow-icon.to-suspected { background: #fff3e0; color: #f57c00; }
+         .arrow-icon.to-falling { background: #fce8e6; color: #ea4335; }
+         .arrow-icon.to-alarm { background: #fce8e6; color: #c62828; }
+         .arrow-icon.to-recovering { background: #e8f0fe; color: #4285f4; }
+         .arrow-icon.to-normal { background: #e6f4ea; color: #34a853; }
+         .arrow-icon.keep { background: #f5f5f5; color: #757575; }
+         .arrow-line { flex: 1; display: flex; align-items: center; gap: 8px; }
+         .arrow-text { font-size: 0.8em; color: #5f6368; flex: 1; }
+         .arrow-target { padding: 6px 12px; border-radius: 6px; font-weight: 600; font-size: 0.75em; white-space: nowrap; }
+         .target-suspected { background: #fff3e0; color: #f57c00; border: 1px solid #fbbc04; }
+         .target-falling { background: #fce8e6; color: #ea4335; border: 1px solid #ea4335; }
+         .target-alarm { background: #fce8e6; color: #c62828; border: 1px solid #c62828; }
+         .target-recovering { background: #e8f0fe; color: #4285f4; border: 1px solid #4285f4; }
+         .target-normal { background: #e6f4ea; color: #34a853; border: 1px solid #34a853; }
+         .target-keep { background: #f5f5f5; color: #757575; border: 1px solid #bdbdbd; }
+         .condition-label { font-weight: 600; color: #1a73e8; margin-right: 6px; }
+         .priority-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; font-size: 0.7em; margin-left: 8px; }
+         .priority-high { background: #fce8e6; color: #ea4335; }
+         .priority-key { background: #e8f0fe; color: #4285f4; }
+         .divider-line { height: 1px; background: #e0e0e0; margin: 8px 0; }
+         /* State Overview Flow */
+         .state-overview { background: #fff; padding: 20px; border-radius: 12px; margin: 15px 0; border: 1px solid #e0e0e0; }
+         .overview-flow { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; margin-bottom: 15px; }
+         .overview-node { padding: 12px 16px; border-radius: 8px; font-weight: 700; font-size: 0.85em; white-space: nowrap; }
+         .overview-node.normal-ov { background: #e6f4ea; color: #34a853; border: 2px solid #34a853; }
+         .overview-node.suspected-ov { background: #fff3e0; color: #f57c00; border: 2px solid #fbbc04; }
+         .overview-node.falling-ov { background: #fce8e6; color: #ea4335; border: 2px solid #ea4335; }
+         .overview-node.alarm-ov { background: #ea4335; color: #fff; border: 2px solid #c62828; }
+         .overview-node.recovering-ov { background: #e8f0fe; color: #4285f4; border: 2px solid #4285f4; }
+         .overview-arrow { color: #1a73e8; font-size: 1.4em; position: relative; }
+         .overview-arrow::after { content: attr(data-label); position: absolute; top: -18px; left: 50%; transform: translateX(-50%); font-size: 0.55em; color: #5f6368; white-space: nowrap; background: #f8f9fa; padding: 2px 6px; border-radius: 4px; }
+         .overview-loops { display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; padding-top: 10px; border-top: 1px dashed #ddd; }
+         .loop-item { display: flex; align-items: center; gap: 10px; background: #f8f9fa; padding: 8px 12px; border-radius: 8px; }
+         .loop-label { font-weight: 600; color: #1a73e8; font-size: 0.85em; }
+         .loop-desc { color: #5f6368; font-size: 0.8em; }
+         /* Variables Grid */
+         .vars-grid { display: flex; flex-wrap: wrap; gap: 12px; margin: 15px 0; }
+         .var-card { display: flex; align-items: center; gap: 10px; background: #f8f9fa; padding: 10px 15px; border-radius: 10px; border: 1px solid #e0e0e0; min-width: 280px; }
+         .var-name { font-family: 'Courier New', monospace; color: #1a73e8; font-weight: 600; font-size: 0.9em; }
+         .var-state { padding: 4px 10px; border-radius: 6px; font-size: 0.75em; font-weight: 600; }
+         .var-state.var-normal { background: #e6f4ea; color: #34a853; }
+         .var-state.var-suspected { background: #fff3e0; color: #f57c00; }
+         .var-state.var-alarm { background: #fce8e6; color: #ea4335; }
+         .var-state.var-recovering { background: #e8f0fe; color: #4285f4; }
+         .var-desc { color: #5f6368; font-size: 0.85em; }
         
         /* Formula */
         .formula-box { background: #fff; padding: 15px; border-radius: 10px; margin: 15px 0; text-align: center; border: 1px solid #e0e0e0; }
@@ -661,15 +706,41 @@ flags["F"] = visible_ratio < 0.1  <span class="code-comment"># <17%可见</span>
 <!-- State Machine -->
 <h3>5.2 状态机转换详解</h3>
 
+<h4>状态流转概览</h4>
+<div class="state-overview">
+    <div class="overview-flow">
+        <div class="overview-node normal-ov">NORMAL</div>
+        <div class="overview-arrow" data-label="连续高分≥3帧">⟶</div>
+        <div class="overview-node suspected-ov">SUSPECTED</div>
+        <div class="overview-arrow" data-label="above_count≥min_frames">⟶</div>
+        <div class="overview-node falling-ov">FALLING</div>
+        <div class="overview-arrow" data-label="自动">⟶</div>
+        <div class="overview-node alarm-ov">ALARM_SENT</div>
+        <div class="overview-arrow" data-label="低分≥3秒">⟶</div>
+        <div class="overview-node recovering-ov">RECOVERING</div>
+        <div class="overview-arrow" data-label="低分≥0.5秒">⟶</div>
+        <div class="overview-node normal-ov">NORMAL</div>
+    </div>
+    <div class="overview-loops">
+        <div class="loop-item">
+            <span class="loop-label">SUSPECTED ⇄ NORMAL</span>
+            <span class="loop-desc">比例恢复: below_count > above_count</span>
+        </div>
+        <div class="loop-item">
+            <span class="loop-label">RECOVERING → ALARM_SENT</span>
+            <span class="loop-desc">高分立即返回告警</span>
+        </div>
+    </div>
+</div>
+
 <h4>核心变量说明</h4>
-<table class="param-table">
-    <tr><th>变量</th><th>作用状态</th><th>含义</th></tr>
-    <tr><td>_consecutive_above</td><td>NORMAL</td><td>连续超阈值帧数，低分时立即归零</td></tr>
-    <tr><td>_above_count</td><td>SUSPECTED</td><td>累计超阈值帧数</td></tr>
-    <tr><td>_below_count</td><td>SUSPECTED</td><td>累计低于阈值帧数</td></tr>
-    <tr><td>_miss_frames</td><td>ALARM_SENT</td><td>连续低于阈值帧数</td></tr>
-    <tr><td>_recovery_frames</td><td>RECOVERING</td><td>恢复期累计帧数</td></tr>
-</table>
+<div class="vars-grid">
+    <div class="var-card"><div class="var-name">_consecutive_above</div><div class="var-state var-normal">NORMAL</div><div class="var-desc">连续超阈值帧数，低分归零</div></div>
+    <div class="var-card"><div class="var-name">_above_count</div><div class="var-state var-suspected">SUSPECTED</div><div class="var-desc">累计超阈值帧数</div></div>
+    <div class="var-card"><div class="var-name">_below_count</div><div class="var-state var-suspected">SUSPECTED</div><div class="var-desc">累计低于阈值帧数</div></div>
+    <div class="var-card"><div class="var-name">_miss_frames</div><div class="var-state var-alarm">ALARM_SENT</div><div class="var-desc">连续低于阈值帧数</div></div>
+    <div class="var-card"><div class="var-name">_recovery_frames</div><div class="var-state var-recovering">RECOVERING</div><div class="var-desc">恢复期累计帧数</div></div>
+</div>
 
 <h4>完整转换条件表</h4>
 <table style="width:100%;margin:15px 0">
@@ -770,70 +841,116 @@ flags["F"] = visible_ratio < 0.1  <span class="code-comment"># <17%可见</span>
 </table>
 
 <h4>状态转换流程图</h4>
-<div class="state-flow-diagram">
-<!-- NORMAL row -->
-<div class="state-row">
-    <div class="state-node normal-node">NORMAL</div>
-    <div class="state-conditions">
-        <div style="display:flex;align-items:center;gap:10px">
-            <div class="condition-box cond-green"><strong>条件:</strong> is_above_thresh && consecutive_above ≥ 3</div>
-            <div class="flow-arrow">→</div>
-            <div class="state-node suspected-node" style="min-width:90px;padding:12px;font-size:0.95em">SUSPECTED</div>
+<div class="state-machine-diagram">
+    <div class="state-column">
+        <div class="state-row-item">
+            <div class="state-cell"><div class="state-circle normal">NORMAL</div></div>
         </div>
-        <div class="condition-box cond-gray"><strong>条件:</strong> !is_above_thresh → consecutive_above = 0 (保持NORMAL)</div>
-    </div>
-</div>
-<!-- SUSPECTED row -->
-<div class="state-row">
-    <div class="state-node suspected-node">SUSPECTED</div>
-    <div class="state-conditions">
-        <div style="display:flex;align-items:center;gap:10px">
-            <div class="condition-box cond-red" style="flex:1"><strong>→ FALLING:</strong> is_above_thresh && above_count ≥ min_frames && (cls_bypass || fall_sequence || fallback)</div>
-            <div class="state-node falling-node" style="min-width:80px;padding:10px;font-size:0.85em">FALLING<br>(1帧)</div>
+        <div class="state-row-item">
+            <div class="state-cell"><div class="state-circle suspected">SUSPECTED</div></div>
         </div>
-        <div style="display:flex;align-items:center;gap:10px">
-            <div class="condition-box cond-green" style="flex:1"><strong>→ NORMAL:</strong> !is_above_thresh && below_count > above_count <span style="color:#ea4335;font-weight:bold">（比例恢复）</span></div>
-            <div class="state-node normal-node" style="min-width:80px;padding:10px;font-size:0.85em">NORMAL</div>
+        <div class="state-row-item">
+            <div class="state-cell"><div class="state-circle falling">FALLING<br><span style="font-size:0.65em">(瞬态)</span></div></div>
         </div>
-        <div class="condition-box cond-yellow"><strong>保持:</strong> 高分累积 above_count++ 或 低分累积 below_count++（未满足转换条件）</div>
-    </div>
-</div>
-<!-- FALLING row -->
-<div class="state-row">
-    <div class="state-node falling-node">FALLING</div>
-    <div class="state-conditions">
-        <div style="display:flex;align-items:center;gap:10px">
-            <div class="condition-box cond-red"><strong>自动转换:</strong> should_alarm = True, cooldown_counter = cooldown_frames</div>
-            <div class="flow-arrow">→</div>
-            <div class="state-node alarm-node" style="min-width:100px">ALARM_SENT</div>
+        <div class="state-row-item">
+            <div class="state-cell"><div class="state-circle alarm">ALARM_SENT</div></div>
+        </div>
+        <div class="state-row-item">
+            <div class="state-cell"><div class="state-circle recovering">RECOVERING</div></div>
         </div>
     </div>
-</div>
-<!-- ALARM_SENT row -->
-<div class="state-row">
-    <div class="state-node alarm-node">ALARM_SENT</div>
-    <div class="state-conditions">
-        <div class="condition-box cond-gray"><strong>保持:</strong> is_above_thresh → miss_frames = 0 (重置计数)</div>
-        <div style="display:flex;align-items:center;gap:10px">
-            <div class="condition-box cond-blue" style="flex:1"><strong>→ RECOVERING:</strong> !is_above_thresh && miss_frames ≥ 75帧 (3秒)</div>
-            <div class="state-node recovering-node" style="min-width:80px;padding:10px;font-size:0.85em">RECOVERING</div>
+    <div class="transitions-column">
+        <div class="state-row-item">
+            <div class="transitions-cell">
+                <div class="transition-arrow">
+                    <div class="arrow-icon to-suspected">→</div>
+                    <div class="arrow-line">
+                        <div class="arrow-text"><span class="condition-label">高分触发:</span> is_above_thresh && consecutive_above ≥ 3<span class="priority-badge priority-key">连续超阈值</span></div>
+                        <div class="arrow-target target-suspected">SUSPECTED</div>
+                    </div>
+                </div>
+                <div class="transition-arrow">
+                    <div class="arrow-icon keep">○</div>
+                    <div class="arrow-line">
+                        <div class="arrow-text"><span class="condition-label">低分保持:</span> !is_above_thresh → consecutive_above = 0</div>
+                        <div class="arrow-target target-keep">保持NORMAL</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="state-row-item">
+            <div class="transitions-cell">
+                <div class="transition-arrow">
+                    <div class="arrow-icon to-falling">→</div>
+                    <div class="arrow-line">
+                        <div class="arrow-text"><span class="condition-label">确认跌倒:</span> above_count ≥ min_frames && (cls_bypass || fall_sequence || fallback)<span class="priority-badge priority-high">核心路径</span></div>
+                        <div class="arrow-target target-falling">FALLING</div>
+                    </div>
+                </div>
+                <div class="transition-arrow">
+                    <div class="arrow-icon to-normal">→</div>
+                    <div class="arrow-line">
+                        <div class="arrow-text"><span class="condition-label">比例恢复:</span> below_count > above_count<span class="priority-badge priority-key">低分帧数需超过高分帧数</span></div>
+                        <div class="arrow-target target-normal">NORMAL</div>
+                    </div>
+                </div>
+                <div class="transition-arrow">
+                    <div class="arrow-icon keep">○</div>
+                    <div class="arrow-line">
+                        <div class="arrow-text"><span class="condition-label">累积:</span> 高分→above_count++ | 低分→below_count++ (未满足转换条件)</div>
+                        <div class="arrow-target target-keep">保持</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="state-row-item">
+            <div class="transitions-cell">
+                <div class="transition-arrow">
+                    <div class="arrow-icon to-alarm">→</div>
+                    <div class="arrow-line">
+                        <div class="arrow-text"><span class="condition-label">自动转告警:</span> should_alarm=True, cooldown_counter=cooldown_frames<span class="priority-badge priority-high">仅1帧</span></div>
+                        <div class="arrow-target target-alarm">ALARM_SENT</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="state-row-item">
+            <div class="transitions-cell">
+                <div class="transition-arrow">
+                    <div class="arrow-icon keep">○</div>
+                    <div class="arrow-line">
+                        <div class="arrow-text"><span class="condition-label">高分保持:</span> is_above_thresh → miss_frames = 0 (重置计数)</div>
+                        <div class="arrow-target target-keep">保持ALARM</div>
+                    </div>
+                </div>
+                <div class="transition-arrow">
+                    <div class="arrow-icon to-recovering">→</div>
+                    <div class="arrow-line">
+                        <div class="arrow-text"><span class="condition-label">进入恢复:</span> !is_above_thresh && miss_frames ≥ 75帧 (3秒)<span class="priority-badge priority-key">连续低分</span></div>
+                        <div class="arrow-target target-recovering">RECOVERING</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="state-row-item">
+            <div class="transitions-cell">
+                <div class="transition-arrow">
+                    <div class="arrow-icon to-alarm">→</div>
+                    <div class="arrow-line">
+                        <div class="arrow-text"><span class="condition-label">高分回告警:</span> is_above_thresh<span class="priority-badge priority-high">立即返回</span></div>
+                        <div class="arrow-target target-alarm">ALARM_SENT</div>
+                    </div>
+                </div>
+                <div class="transition-arrow">
+                    <div class="arrow-icon to-normal">→</div>
+                    <div class="arrow-line">
+                        <div class="arrow-text"><span class="condition-label">确认恢复:</span> !is_above_thresh && recovery_frames ≥ 12帧 (0.5秒)</div>
+                        <div class="arrow-target target-normal">NORMAL</div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
-</div>
-<!-- RECOVERING row -->
-<div class="state-row">
-    <div class="state-node recovering-node">RECOVERING</div>
-    <div class="state-conditions">
-        <div style="display:flex;align-items:center;gap:10px">
-            <div class="condition-box cond-red" style="flex:1"><strong>→ ALARM_SENT:</strong> is_above_thresh (高分立即回告警)</div>
-            <div class="state-node alarm-node" style="min-width:80px;padding:10px;font-size:0.85em">ALARM_SENT</div>
-        </div>
-        <div style="display:flex;align-items:center;gap:10px">
-            <div class="condition-box cond-green" style="flex:1"><strong>→ NORMAL:</strong> !is_above_thresh && recovery_frames ≥ 12帧 (0.5秒)</div>
-            <div class="state-node normal-node" style="min-width:80px;padding:10px;font-size:0.85em">NORMAL</div>
-        </div>
-    </div>
-</div>
 </div>
 
 <div class="note note-danger">
@@ -843,8 +960,6 @@ flags["F"] = visible_ratio < 0.1  <span class="code-comment"># <17%可见</span>
         <li>FALLING状态仅持续<strong>1帧</strong>，唯一触发 should_alarm=True 的时刻</li>
         <li>RECOVERING高分时会<strong>立即</strong>回到ALARM_SENT，防止过早恢复</li>
     </ul>
-</div>
-</pre>
 </div>
 
 <!-- State Description -->
