@@ -1,475 +1,317 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>方案2：YOLO-World 跌倒得分 + 状态机融合设计</title>
+<style>
+  :root { --primary:#1a73e8; --success:#34a853; --warning:#fbbc04; --danger:#ea4335; --dark:#202124; --gray:#5f6368; --bg:#f5f7fa; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:'Segoe UI',system-ui,sans-serif; background:var(--bg); color:var(--dark); line-height:1.6; padding:24px; }
+  .wrap { max-width:960px; margin:0 auto; background:#fff; border-radius:12px; padding:32px; box-shadow:0 2px 12px rgba(0,0,0,.08); }
+  h2 { color:var(--primary); border-bottom:2px solid var(--primary); padding-bottom:8px; margin:28px 0 16px; font-size:1.4em; }
+  h3 { color:var(--dark); margin:20px 0 10px; font-size:1.15em; }
+  h4 { color:var(--primary); margin:12px 0 6px; }
+  .subtitle { color:var(--gray); font-size:.95em; margin-bottom:20px; }
+  .flow { display:flex; flex-wrap:wrap; justify-content:center; gap:10px; margin:16px 0; align-items:stretch; }
+  .flow-box { border:2px solid var(--primary); border-radius:8px; padding:12px 16px; background:#e8f0fe; font-weight:bold; text-align:center; margin:6px; }
+  .rule-card { background:#fff; border-left:4px solid var(--primary); padding:14px 18px; margin:10px 0; border-radius:0 8px 8px 0; box-shadow:0 1px 4px rgba(0,0,0,.06); }
+  .state-node { padding:8px 16px; border-radius:20px; font-weight:bold; display:inline-block; margin:4px; border:2px solid; }
+  .normal { background:#e6f4ea; border-color:var(--success); color:#155724; }
+  .suspected { background:#fff8e1; border-color:var(--warning); color:#856404; }
+  .falling { background:#fce8e6; border-color:var(--danger); color:#721c24; }
+  .alarm { background:var(--danger); border-color:#c62828; color:#fff; }
+  .recovering { background:#e8f0fe; border-color:var(--primary); color:#0c5460; }
+  .arrow-text { color:var(--gray); font-size:16px; margin:0 8px; }
+  .panel { background:#f8f9fa; padding:16px; border-radius:10px; margin:12px 0; }
+  .panel-blue { background:#e8f0fe; border:1px solid #bfd3f8; }
+  .panel-yellow { background:#fff8e1; border:1px solid #ffe082; }
+  .panel-red { background:#fce8e6; border:1px solid #f5b7b1; }
+  .panel-green { background:#e6f4ea; border:1px solid #a8dab5; }
+  table { width:100%; border-collapse:collapse; margin:12px 0; font-size:.9em; }
+  th,td { border:1px solid #dee2e6; padding:8px 10px; text-align:left; }
+  th { background:#f8f9fa; color:var(--primary); font-weight:600; }
+  tr:nth-child(even) td { background:#fafafa; }
+  code { background:#f1f3f4; padding:2px 6px; border-radius:4px; font-family:'Courier New',monospace; font-size:.9em; }
+  pre { background:#f8f9fa; padding:12px; border-radius:6px; overflow-x:auto; font-family:'Courier New',monospace; font-size:.85em; border:1px solid #e0e0e0; }
+  .badge { display:inline-block; padding:3px 10px; border-radius:4px; font-size:.8em; font-weight:600; color:#fff; }
+  .bg-purple { background:#6f42c1; }
+  .bg-teal { background:#17a2b8; }
+  .bg-orange { background:#fd7e14; }
+  .highlight { color:var(--danger); font-weight:bold; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
 <h2>YOLO-World 跌倒得分 + 状态机融合设计 — 方案2：YOLO-World Pipeline</h2>
 <p class="subtitle">开放词汇类别映射 → 运动/宽高比辅助 → 状态机融合决策（无规则引擎、无分类器）</p>
 
-<style>
-  .flow-box {
-    border: 2px solid #007bff;
-    border-radius: 8px;
-    padding: 12px 16px;
-    background: #e7f3ff;
-    font-weight: bold;
-    text-align: center;
-    margin: 8px;
-  }
-  .decision-box {
-    border: 2px solid #ffc107;
-    border-radius: 50%;
-    width: 60px;
-    height: 60px;
-    background: #fff3cd;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 12px;
-    font-weight: bold;
-    margin: 8px;
-  }
-  .rule-section {
-    background: white;
-    border-left: 4px solid #007bff;
-    padding: 16px 20px;
-    margin: 12px 0;
-    border-radius: 0 8px 8px 0;
-  }
-  .state-node {
-    padding: 10px 18px;
-    border-radius: 20px;
-    font-weight: bold;
-    display: inline-block;
-    margin: 5px;
-    border: 2px solid;
-  }
-  .normal { background: #d4edda; border-color: #28a745; color: #155724; }
-  .suspected { background: #fff3cd; border-color: #ffc107; color: #856404; }
-  .falling { background: #f8d7da; border-color: #dc3545; color: #721c24; }
-  .alarm { background: #dc3545; border-color: #dc3545; color: white; }
-  .recovering { background: #d1ecf1; border-color: #17a2b8; color: #0c5460; }
-  .arrow-text { color: #6c757d; font-size: 16px; margin: 0 8px; }
-</style>
+<h3>一、整体流程概览</h3>
+<div class="panel" style="text-align:center;">
+  <div style="display:inline-block;">
+    <div class="flow-box" style="border-color:#6f42c1;background:#e2e3f3;">YOLO-World<br/><small style="font-weight:normal;">开放词汇检测</small></div>
+    <div class="arrow-text">↓ bbox + class_name + conf</div>
+  </div>
+  <div style="display:inline-block;">
+    <div class="flow-box" style="border-color:var(--warning);background:#fff8e1;">ByteTrack-lite<br/><small style="font-weight:normal;">IoU关联类别到轨迹</small></div>
+    <div class="arrow-text">↓ Track + det_info</div>
+  </div>
+  <div style="display:inline-block;">
+    <div class="flow-box" style="border-color:#17a2b8;background:#d1ecf1;">跌倒得分计算<br/><small style="font-weight:normal;">类别映射 + 运动 + 宽高比</small></div>
+    <div class="arrow-text">↓ S_fall ∈ [0, 1]</div>
+  </div>
+  <div style="display:inline-block;">
+    <div class="flow-box" style="border-color:var(--danger);background:#fce8e6;">融合决策器<br/><small style="font-weight:normal;">状态机防抖动</small></div>
+    <div class="arrow-text">↓ S_final ≥ 0.60?</div>
+  </div>
+  <div style="display:inline-block;">
+    <div class="flow-box" style="border-color:#c62828;background:#c62828;color:#fff;">跌倒告警</div>
+  </div>
+</div>
 
-<div style="max-width:900px;margin:20px auto;font-size:14px;line-height:1.6;">
+<h3>二、YOLO-World 开放词汇类别映射</h3>
+<div style="display:flex;gap:18px;" class="panel">
+  <div style="flex:1;">
+    <h4 style="margin-top:0;color:var(--dark);">posture_map（姿态映射）</h4>
+    <table>
+      <tr><th>检测类别</th><th>姿态标签</th><th>说明</th></tr>
+      <tr><td>person standing</td><td>standing</td><td>直立姿态</td></tr>
+      <tr><td>person sitting</td><td>sitting</td><td>坐姿</td></tr>
+      <tr><td>person squatting</td><td>crouching</td><td>蹲姿</td></tr>
+      <tr><td>person bending</td><td>crouching</td><td>弯腰</td></tr>
+      <tr><td>person half up or crouching</td><td>crouching</td><td>半蹲</td></tr>
+      <tr><td>person kneeling</td><td>crouching</td><td>跪姿</td></tr>
+      <tr><td>person crawling or crawling-like</td><td>lying</td><td>爬行</td></tr>
+      <tr><td>person lying on floor</td><td>lying</td><td>躺卧</td></tr>
+    </table>
+  </div>
+  <div style="flex:1;">
+    <h4 style="margin-top:0;color:var(--dark);">fall_scores（跌倒基础分映射）</h4>
+    <table>
+      <tr><th>检测类别</th><th>base_score</th><th>说明</th></tr>
+      <tr><td>person standing</td><td>0.00</td><td>非跌倒</td></tr>
+      <tr><td>person sitting</td><td>0.15</td><td>低疑似</td></tr>
+      <tr><td>person squatting</td><td>0.25</td><td>疑似</td></tr>
+      <tr><td>person bending</td><td>0.35</td><td>疑似</td></tr>
+      <tr><td>person half up or crouching</td><td>0.45</td><td>较高疑似</td></tr>
+      <tr><td>person kneeling</td><td>0.30</td><td>疑似</td></tr>
+      <tr><td>person crawling or crawling-like</td><td>0.55</td><td>高疑似</td></tr>
+      <tr><td>person lying on floor</td><td>0.95</td><td>极高疑似</td></tr>
+    </table>
+  </div>
+</div>
 
-  <!-- 一、整体流程概览 -->
-  <h3 style="color:#007bff;margin-top:30px;">一、整体流程概览</h3>
+<h3>三、跌倒得分计算（_compute_fall_score）</h3>
 
-  <div style="background:#f8f9fa;padding:20px;border-radius:10px;text-align:center;">
-    <div style="display:inline-block;">
-      <div class="flow-box" style="border-color:#6f42c1;background:#e2e3f3;">YOLO-World<br/><small style="font-weight:normal;">开放词汇检测</small></div>
-      <div class="arrow-text">↓ bbox + class_name + conf</div>
+<div class="panel-blue" style="text-align:center;">
+  <div style="font-weight:bold;font-size:15px;margin-bottom:12px;color:var(--primary);">三项叠加得分</div>
+  <div style="display:flex;gap:12px;justify-content:center;align-items:center;flex-wrap:wrap;">
+    <div style="text-align:center;">
+      <div style="background:#6f42c1;color:#fff;padding:10px;border-radius:6px;font-weight:bold;">base_score<br/><small style="font-weight:normal;">× det_conf</small></div>
+      <div style="font-size:12px;margin-top:4px;color:#6f42c1;">类别基础分 × 检测置信度</div>
     </div>
+    <div style="font-size:20px;color:var(--primary);">+</div>
+    <div style="text-align:center;">
+      <div style="background:#17a2b8;color:#fff;padding:10px;border-radius:6px;font-weight:bold;">motion_bonus<br/><small style="font-weight:normal;">× 0.1</small></div>
+      <div style="font-size:12px;margin-top:4px;color:#0c5460;">垂直下降速度辅助</div>
+    </div>
+    <div style="font-size:20px;color:var(--primary);">+</div>
+    <div style="text-align:center;">
+      <div style="background:#fd7e14;color:#fff;padding:10px;border-radius:6px;font-weight:bold;">aspect_bonus</div>
+      <div style="font-size:12px;margin-top:4px;color:#856404;">宽高比辅助</div>
+    </div>
+    <div style="font-size:20px;color:var(--primary);">=</div>
+    <div style="text-align:center;">
+      <div style="background:var(--danger);color:#fff;padding:10px;border-radius:6px;font-weight:bold;">S_fall</div>
+      <div style="font-size:12px;margin-top:4px;color:#721c24;">clip 到 [0, 1]</div>
+    </div>
+  </div>
+</div>
 
-    <div style="display:inline-block;">
-      <div class="flow-box" style="border-color:#ffc107;background:#fff3cd;">
-        ByteTrack-lite<br/><small style="font-weight:normal;">IoU关联类别到轨迹</small>
+<div style="display:grid;gap:12px;margin-top:16px;">
+  <div class="rule-card">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <h4 style="color:#17a2b8;margin:0;">运动辅助：垂直快速下降（motion_bonus）</h4>
+        <div style="font-size:12px;color:var(--gray);margin-top:4px;">检测垂直方向快速下落，跌倒过程通常伴随明显的 vy 增大</div>
       </div>
-      <div class="arrow-text">↓ Track + det_info</div>
     </div>
-
-    <div style="display:inline-block;">
-      <div class="flow-box" style="border-color:#17a2b8;background:#d1ecf1;">
-        跌倒得分计算<br/><small style="font-weight:normal;">类别映射 + 运动 + 宽高比</small>
-      </div>
-      <div class="arrow-text">↓ S_fall ∈ [0, 1]</div>
-    </div>
-
-    <div style="display:inline-block;">
-      <div class="flow-box" style="border-color:#dc3545;background:#f8d7da;">
-        融合决策器<br/><small style="font-weight:normal;">状态机防抖动</small>
-      </div>
-      <div class="arrow-text">↓ S_final ≥ alarm_thresh?</div>
-    </div>
-
-    <div style="display:inline-block;">
-      <div class="flow-box" style="border-color:#dc3545;background:#dc3545;color:white;">
-        跌倒告警
+    <div class="panel" style="margin-top:10px;">
+      <pre style="border:none;background:transparent;padding:0;">centers = track_history[tid]  # 最近 0.5s 中心点（默认13帧）
+arr = np.array(centers, dtype=np.float32)
+vy = arr[-1, 1] - arr[-2, 1]   # 最近两帧垂直位移
+if vy > 50:
+    motion_bonus = min(0.5, vy / 400.0)</pre>
+      <div style="font-size:12px;color:var(--gray);margin-top:8px;">
+        • vy 单位：像素/帧（原始位移）<br/>
+        • 上限 0.5，避免极端速度导致得分溢出
       </div>
     </div>
   </div>
 
-  <!-- 二、YOLO-World 类别映射 -->
-  <h3 style="color:#007bff;margin-top:30px;">二、YOLO-World 开放词汇类别映射</h3>
-
-  <div style="display:flex;gap:20px;background:#f8f9fa;padding:20px;border-radius:10px;">
-    <div style="flex:1;">
-      <h4 style="margin:0;color:#495057;">posture_map（姿态映射）</h4>
-      <table style="width:100%;margin-top:10px;border-collapse:collapse;font-size:13px;">
-        <tr style="background:#e9ecef;">
-          <td style="padding:8px;border:1px solid #dee2e6;font-weight:bold;">检测类别</td>
-          <td style="padding:8px;border:1px solid #dee2e6;font-weight:bold;">姿态标签</td>
-          <td style="padding:8px;border:1px solid #dee2e6;font-weight:bold;">说明</td>
-        </tr>
-        <tr>
-          <td style="padding:8px;border:1px solid #dee2e6;">standing</td>
-          <td style="padding:8px;border:1px solid #dee2e6;">standing</td>
-          <td style="padding:8px;border:1px solid #dee2e6;">直立姿态</td>
-        </tr>
-        <tr style="background:#f8f9fa;">
-          <td style="padding:8px;border:1px solid #dee2e6;">sitting</td>
-          <td style="padding:8px;border:1px solid #dee2e6;">sitting</td>
-          <td style="padding:8px;border:1px solid #dee2e6;">坐姿</td>
-        </tr>
-        <tr>
-          <td style="padding:8px;border:1px solid #dee2e6;">crouching</td>
-          <td style="padding:8px;border:1px solid #dee2e6;">crouching</td>
-          <td style="padding:8px;border:1px solid #dee2e6;">蹲姿</td>
-        </tr>
-        <tr style="background:#f8f9fa;">
-          <td style="padding:8px;border:1px solid #dee2e6;">lying</td>
-          <td style="padding:8px;border:1px solid #dee2e6;">lying</td>
-          <td style="padding:8px;border:1px solid #dee2e6;">躺卧</td>
-        </tr>
-        <tr>
-          <td style="padding:8px;border:1px solid #dee2e6;">fallen</td>
-          <td style="padding:8px;border:1px solid #dee2e6;">lying</td>
-          <td style="padding:8px;border:1px solid #dee2e6;">已跌倒</td>
-        </tr>
-        <tr style="background:#f8f9fa;">
-          <td style="padding:8px;border:1px solid #dee2e6;">unknown / 其他</td>
-          <td style="padding:8px;border:1px solid #dee2e6;">unknown</td>
-          <td style="padding:8px;border:1px solid #dee2e6;">未知姿态</td>
-        </tr>
-      </table>
+  <div class="rule-card">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <h4 style="color:#fd7e14;margin:0;">宽高比辅助：倒下的人更宽（aspect_bonus）</h4>
+        <div style="font-size:12px;color:var(--gray);margin-top:4px;">跌倒后人体通常横向展开，bbox 宽高比明显大于正常直立状态</div>
+      </div>
     </div>
-
-    <div style="flex:1;">
-      <h4 style="margin:0;color:#495057;">fall_scores（跌倒基础分映射）</h4>
-      <table style="width:100%;margin-top:10px;border-collapse:collapse;font-size:13px;">
-        <tr style="background:#e9ecef;">
-          <td style="padding:8px;border:1px solid #dee2e6;font-weight:bold;">检测类别</td>
-          <td style="padding:8px;border:1px solid #dee2e6;font-weight:bold;">base_score</td>
-          <td style="padding:8px;border:1px solid #dee2e6;font-weight:bold;">说明</td>
-        </tr>
-        <tr>
-          <td style="padding:8px;border:1px solid #dee2e6;">standing</td>
-          <td style="padding:8px;border:1px solid #dee2e6;">0.0</td>
-          <td style="padding:8px;border:1px solid #dee2e6;">非跌倒</td>
-        </tr>
-        <tr style="background:#f8f9fa;">
-          <td style="padding:8px;border:1px solid #dee2e6;">sitting</td>
-          <td style="padding:8px;border:1px solid #dee2e6;">0.0</td>
-          <td style="padding:8px;border:1px solid #dee2e6;">非跌倒</td>
-        </tr>
-        <tr>
-          <td style="padding:8px;border:1px solid #dee2e6;">crouching</td>
-          <td style="padding:8px;border:1px solid #dee2e6;">0.3</td>
-          <td style="padding:8px;border:1px solid #dee2e6;">疑似</td>
-        </tr>
-        <tr style="background:#f8f9fa;">
-          <td style="padding:8px;border:1px solid #dee2e6;">lying</td>
-          <td style="padding:8px;border:1px solid #dee2e6;">0.7</td>
-          <td style="padding:8px;border:1px solid #dee2e6;">高疑似</td>
-        </tr>
-        <tr>
-          <td style="padding:8px;border:1px solid #dee2e6;">fallen</td>
-          <td style="padding:8px;border:1px solid #dee2e6;">1.0</td>
-          <td style="padding:8px;border:1px solid #dee2e6;">跌倒</td>
-        </tr>
-        <tr style="background:#f8f9fa;">
-          <td style="padding:8px;border:1px solid #dee2e6;">unknown</td>
-          <td style="padding:8px;border:1px solid #dee2e6;">0.0</td>
-          <td style="padding:8px;border:1px solid #dee2e6;">无信息</td>
-        </tr>
-      </table>
-    </div>
-  </div>
-
-  <!-- 三、跌倒得分计算 -->
-  <h3 style="color:#007bff;margin-top:30px;">三、跌倒得分计算（_compute_fall_score）</h3>
-
-  <div style="background:#e7f3ff;padding:20px;border-radius:10px;">
-    <div style="text-align:center;font-weight:bold;font-size:15px;margin-bottom:15px;color:#007bff;">
-      三项叠加得分
-    </div>
-
-    <div style="background:white;padding:15px;border-radius:8px;">
-      <div style="display:flex;gap:15px;justify-content:center;align-items:center;flex-wrap:wrap;">
-        <div style="text-align:center;">
-          <div style="background:#6f42c1;color:white;padding:10px;border-radius:6px;font-weight:bold;">
-            base_score<br/><small style="font-weight:normal;">× det_conf</small>
-          </div>
-          <div style="font-size:12px;margin-top:5px;color:#6f42c1;">
-            类别基础分 × 检测置信度
-          </div>
-        </div>
-
-        <div style="font-size:20px;color:#007bff;">+</div>
-
-        <div style="text-align:center;">
-          <div style="background:#17a2b8;color:white;padding:10px;border-radius:6px;font-weight:bold;">
-            motion_bonus<br/><small style="font-weight:normal;">× 0.1</small>
-          </div>
-          <div style="font-size:12px;margin-top:5px;color:#0c5460;">
-            垂直下降速度辅助
-          </div>
-        </div>
-
-        <div style="font-size:20px;color:#007bff;">+</div>
-
-        <div style="text-align:center;">
-          <div style="background:#fd7e14;color:white;padding:10px;border-radius:6px;font-weight:bold;">
-            aspect_bonus
-          </div>
-          <div style="font-size:12px;margin-top:5px;color:#856404;">
-            宽高比辅助
-          </div>
-        </div>
-
-        <div style="font-size:20px;color:#007bff;">=</div>
-
-        <div style="text-align:center;">
-          <div style="background:#dc3545;color:white;padding:10px;border-radius:6px;font-weight:bold;">
-            S_fall
-          </div>
-          <div style="font-size:12px;margin-top:5px;color:#721c24;">
-            clip 到 [0, 1]
-          </div>
-        </div>
+    <div class="panel" style="margin-top:10px;">
+      <pre style="border:none;background:transparent;padding:0;">aspect = w / max(h, 1.0)
+if aspect > 1.2:
+    aspect_bonus = min(0.2, (aspect - 1.2) * 0.3)</pre>
+      <div style="font-size:12px;color:var(--gray);margin-top:8px;">
+        • 正常直立 aspect ≈ 0.3~0.6<br/>
+        • 躺下 aspect 通常 > 1.2，上限 0.2
       </div>
     </div>
   </div>
+</div>
 
-  <div style="display:grid;gap:15px;margin-top:20px;">
-    <!-- 运动辅助 -->
-    <div class="rule-section">
-      <div style="display:flex;justify-content:space-between;align-items:center;">
-        <div>
-          <h4 style="color:#17a2b8;margin:0;">运动辅助：垂直快速下降（motion_bonus）</h4>
-          <div style="font-size:12px;color:#6c757d;margin-top:5px;">
-            检测垂直方向快速下落，跌倒过程通常伴随明显的 vy 增大
-          </div>
-        </div>
-      </div>
+<h3>四、融合得分计算</h3>
 
-      <div style="margin-top:12px;background:#f8f9fa;padding:12px;border-radius:6px;">
-        <div style="font-family:monospace;font-size:14px;margin:8px 0;">
-          vy = centers[-1].y - centers[-2].y
-        </div>
-        <div style="font-size:13px;margin:8px 0;">
-          if vy > 50:
-        </div>
-        <div style="font-family:monospace;font-size:14px;margin:8px 0;padding-left:20px;">
-          motion_bonus = min(0.5, vy / 400.0)
-        </div>
-        <div style="font-size:12px;color:#6c757d;margin-top:10px;">
-          • vy 单位：像素/帧（原始位移，未乘 fps）<br/>
-          • 上限 0.5，避免极端速度导致得分溢出
-        </div>
-      </div>
+<div class="panel-blue" style="text-align:center;">
+  <div style="font-weight:bold;font-size:15px;margin-bottom:12px;color:var(--primary);">S_fall 同时充当 rule_score 和 cls_score</div>
+  <div style="display:flex;gap:12px;justify-content:center;align-items:center;flex-wrap:wrap;">
+    <div style="text-align:center;">
+      <div style="background:var(--warning);padding:8px 12px;border-radius:6px;font-weight:bold;">S_fall</div>
+      <div style="font-size:12px;margin-top:4px;color:#856404;">× α=0.3（规则权重）</div>
     </div>
-
-    <!-- 宽高比辅助 -->
-    <div class="rule-section">
-      <div style="display:flex;justify-content:space-between;align-items:center;">
-        <div>
-          <h4 style="color:#fd7e14;margin:0;">宽高比辅助：倒下的人更宽（aspect_bonus）</h4>
-          <div style="font-size:12px;color:#6c757d;margin-top:5px;">
-            跌倒后人体通常横向展开，bbox 宽高比明显大于正常直立状态
-          </div>
-        </div>
-      </div>
-
-      <div style="margin-top:12px;background:#f8f9fa;padding:12px;border-radius:6px;">
-        <div style="font-family:monospace;font-size:14px;margin:8px 0;">
-          aspect = w / max(h, 1.0)
-        </div>
-        <div style="font-size:13px;margin:8px 0;">
-          if aspect > 1.2:
-        </div>
-        <div style="font-family:monospace;font-size:14px;margin:8px 0;padding-left:20px;">
-          aspect_bonus = min(0.2, (aspect - 1.2) × 0.3)
-        </div>
-        <div style="font-size:12px;color:#6c757d;margin-top:10px;">
-          • 正常直立 aspect ≈ 0.3~0.6<br/>
-          • 躺下 aspect 通常 > 1.2，上限 0.2
-        </div>
-      </div>
+    <div style="font-size:20px;color:var(--primary);">+</div>
+    <div style="text-align:center;">
+      <div style="background:var(--success);color:#fff;padding:8px 12px;border-radius:6px;font-weight:bold;">S_fall</div>
+      <div style="font-size:12px;margin-top:4px;color:#155724;">× β=0.5（分类器权重）</div>
+    </div>
+    <div style="font-size:20px;color:var(--primary);">+</div>
+    <div style="text-align:center;">
+      <div style="background:#17a2b8;color:#fff;padding:8px 12px;border-radius:6px;font-weight:bold;">S_temporal</div>
+      <div style="font-size:12px;margin-top:4px;color:#0c5460;">× γ=0.20</div>
+    </div>
+    <div style="font-size:20px;color:var(--primary);">=</div>
+    <div style="text-align:center;">
+      <div style="background:var(--danger);color:#fff;padding:8px 12px;border-radius:6px;font-weight:bold;">S_final</div>
+      <div style="font-size:12px;margin-top:4px;color:#721c24;">≥ 0.60 告警</div>
     </div>
   </div>
+  <div class="panel" style="margin-top:14px;font-size:12px;text-align:left;">
+    <strong>S_temporal说明：</strong>最近最多 fps 帧 S_fall 的滑动平均，抑制单帧抖动。
+    由于 S_fall 同时作为 rule_score 和 cls_score 输入 FusionDecision，状态机行为与方案1完全一致。
+  </div>
+</div>
 
-  <!-- 四、融合得分计算 -->
-  <h3 style="color:#007bff;margin-top:30px;">四、融合得分计算</h3>
+<h3>五、状态机流程</h3>
 
-  <div style="background:#e7f3ff;padding:20px;border-radius:10px;">
-    <div style="text-align:center;font-weight:bold;font-size:15px;margin-bottom:15px;color:#007bff;">
-      S_fall 同时充当 rule_score 和 cls_score
+<!-- 精简流程图 -->
+<div class="panel" style="text-align:center;padding:18px 10px;">
+  <div style="font-weight:bold;font-size:15px;margin-bottom:14px;color:var(--dark);">5状态防抖机制（与方案1共用 FusionDecision）</div>
+  <!-- 主干 -->
+  <div style="display:flex;justify-content:center;align-items:center;gap:2px;flex-wrap:wrap;">
+    <div class="state-node normal" style="padding:8px 14px;">NORMAL</div>
+    <div style="position:relative;padding:0 6px;">
+      <div style="font-size:18px;color:var(--success);">→</div>
+      <div style="position:absolute;top:-16px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:11px;color:var(--gray);">S≥0.60, 3帧</div>
     </div>
-
-    <div style="background:white;padding:15px;border-radius:8px;">
-      <div style="display:flex;gap:15px;justify-content:center;align-items:center;flex-wrap:wrap;">
-        <div style="text-align:center;">
-          <div style="background:#ffc107;padding:10px;border-radius:6px;font-weight:bold;">
-            S_fall
-          </div>
-          <div style="font-size:12px;margin-top:5px;color:#856404;">
-            × α=0.35（规则权重）
-          </div>
-        </div>
-
-        <div style="font-size:20px;color:#007bff;">+</div>
-
-        <div style="text-align:center;">
-          <div style="background:#28a745;color:white;padding:10px;border-radius:6px;font-weight:bold;">
-            S_fall
-          </div>
-          <div style="font-size:12px;margin-top:5px;color:#155724;">
-            × β=0.45（分类器权重）
-          </div>
-        </div>
-
-        <div style="font-size:20px;color:#007bff;">+</div>
-
-        <div style="text-align:center;">
-          <div style="background:#17a2b8;color:white;padding:10px;border-radius:6px;font-weight:bold;">
-            S_temporal
-          </div>
-          <div style="font-size:12px;margin-top:5px;color:#0c5460;">
-            × γ=0.20
-          </div>
-        </div>
-
-        <div style="font-size:20px;color:#007bff;">=</div>
-
-        <div style="text-align:center;">
-          <div style="background:#dc3545;color:white;padding:10px;border-radius:6px;font-weight:bold;">
-            S_final
-          </div>
-          <div style="font-size:12px;margin-top:5px;color:#721c24;">
-            ≥ alarm_thresh 告警
-          </div>
-        </div>
-      </div>
+    <div class="state-node suspected" style="padding:8px 14px;">SUSPECTED</div>
+    <div style="position:relative;padding:0 6px;">
+      <div style="font-size:18px;color:var(--warning);">→</div>
+      <div style="position:absolute;top:-16px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:11px;color:var(--gray);">3帧+序列检查</div>
     </div>
-
-    <div style="background:#d1ecf1;padding:12px;border-radius:6px;margin-top:15px;font-size:12px;">
-      <strong>S_temporal说明：</strong>最近最多 fps 帧 S_fall 的滑动平均，抑制单帧抖动。
-      由于 S_fall 同时作为 rule_score 和 cls_score 输入 FusionDecision，状态机行为与方案1完全一致。
+    <div class="state-node falling" style="padding:8px 14px;">FALLING</div>
+    <div style="font-size:18px;color:var(--danger);">→</div>
+    <div class="state-node alarm" style="padding:8px 14px;">ALARM_SENT</div>
+  </div>
+  <!-- 下行恢复 -->
+  <div style="margin:2px 0;color:var(--gray);font-size:16px;">↓ S&lt;0.60, 75帧(3s)</div>
+  <div style="display:flex;justify-content:center;align-items:center;gap:2px;flex-wrap:wrap;">
+    <div class="state-node recovering" style="padding:8px 14px;">RECOVERING</div>
+    <div style="position:relative;padding:0 6px;">
+      <div style="font-size:18px;color:var(--success);">→</div>
+      <div style="position:absolute;top:-16px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:11px;color:var(--gray);">13帧正常(0.5s)</div>
     </div>
+    <div class="state-node normal" style="padding:8px 14px;">NORMAL</div>
+  </div>
+  <div style="margin-top:6px;font-size:11px;color:var(--danger);">RECOVERING 中 S≥0.60 → 立即回到 ALARM_SENT</div>
+</div>
+
+<!-- 状态转换条件表 -->
+<table>
+  <tr><th style="width:15%;">当前状态</th><th style="width:18%;">输入条件</th><th style="width:15%;">目标状态</th><th>说明</th></tr>
+  <tr><td style="background:#e6f4ea;font-weight:bold;">NORMAL</td><td>S≥0.60</td><td style="background:#fff8e1;font-weight:bold;">SUSPECTED</td><td>连续3帧超阈值</td></tr>
+  <tr><td style="background:#e6f4ea;font-weight:bold;">NORMAL</td><td>S&lt;0.60</td><td style="background:#e6f4ea;font-weight:bold;">NORMAL</td><td>consecutive_above清零</td></tr>
+  <tr><td style="background:#fff8e1;font-weight:bold;">SUSPECTED</td><td>S≥0.60</td><td style="background:#fce8e6;font-weight:bold;">FALLING</td><td>above_count≥3 + 序列检查(25帧) 或 cls_bypass</td></tr>
+  <tr><td style="background:#fff8e1;font-weight:bold;">SUSPECTED</td><td>S&lt;0.60</td><td style="background:#e6f4ea;font-weight:bold;">NORMAL</td><td>below_count &gt; above_count 比例恢复</td></tr>
+  <tr><td style="background:#fce8e6;font-weight:bold;">FALLING</td><td>自动</td><td style="background:#dc3545;color:#fff;font-weight:bold;">ALARM_SENT</td><td>should_alarm=True, cooldown=3s</td></tr>
+  <tr><td style="background:#dc3545;color:#fff;font-weight:bold;">ALARM_SENT</td><td>S&lt;0.60</td><td style="background:#d1ecf1;font-weight:bold;">RECOVERING</td><td>miss_frames≥75 (3s)</td></tr>
+  <tr><td style="background:#dc3545;color:#fff;font-weight:bold;">ALARM_SENT</td><td>S≥0.60</td><td style="background:#dc3545;color:#fff;font-weight:bold;">ALARM_SENT</td><td>miss_frames清零，保持告警</td></tr>
+  <tr><td style="background:#d1ecf1;font-weight:bold;">RECOVERING</td><td>S≥0.60</td><td style="background:#dc3545;color:#fff;font-weight:bold;">ALARM_SENT</td><td>高分立即回归</td></tr>
+  <tr><td style="background:#d1ecf1;font-weight:bold;">RECOVERING</td><td>S&lt;0.60</td><td style="background:#e6f4ea;font-weight:bold;">NORMAL</td><td>recovery_frames≥13 (0.5s)</td></tr>
+</table>
+
+<div class="panel-blue" style="border:2px solid var(--primary);">
+  <strong style="color:var(--primary);font-size:14px;">cls_bypass 加速通道（默认1.0=禁用）</strong>
+  <div style="font-size:12px;margin-top:6px;color:#0c5460;">cls_score ≥ cls_bypass_thresh 时：绕过姿态序列检查 + alarm_min_frames减半(最小2)</div>
+</div>
+<div class="panel-red" style="border:2px solid var(--danger);">
+  <strong style="color:#721c24;font-size:14px;">冷却期 cooldown_seconds=3.0s</strong>
+  <div style="font-size:12px;margin-top:6px;color:#721c24;">进入 ALARM_SENT 后 cooldown_frames 内不重复告警</div>
+</div>
+
+<h3>六、姿态序列检查</h3>
+
+<div class="panel-yellow" style="border:2px solid var(--warning);">
+  <div style="font-weight:bold;font-size:15px;color:#856404;margin-bottom:12px;">检查最近 sequence_check_frames=25 帧（默认25帧≈1秒）姿态历史</div>
+
+  <div style="display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;">
+    <div class="state-node normal" style="padding:6px 10px;font-size:12px;">站/坐</div>
+    <div style="font-size:16px;color:#856404;">→</div>
+    <div class="state-node" style="background:#fff8e1;border-color:#fd7e14;color:#856404;padding:6px 10px;border-radius:20px;font-size:12px;border:2px solid;font-weight:bold;">蹲</div>
+    <div style="font-size:16px;color:#856404;">→</div>
+    <div class="state-node falling" style="padding:6px 10px;font-size:12px;">躺 ✓</div>
   </div>
 
-  <!-- 五、状态机流程 -->
-  <h3 style="color:#007bff;margin-top:30px;">五、状态机流程</h3>
-
-  <div style="background:#f8f9fa;padding:25px;border-radius:10px;">
-    <div style="text-align:center;font-weight:bold;font-size:16px;margin-bottom:20px;color:#495057;">
-      5状态防抖机制（与方案1共用 FusionDecision）
-    </div>
-
-    <!-- 状态流转 -->
-    <div style="display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;">
-      <div class="state-node normal" style="padding:12px 20px;">NORMAL</div>
-      <div style="font-size:18px;color:#28a745;">→</div>
-      <div style="background:#d4edda;padding:6px 10px;border-radius:4px;font-size:11px;">
-        S ≥ alarm_thresh<br/>连续 enter_suspected_min_frames 帧
-      </div>
-      <div style="font-size:18px;color:#ffc107;">→</div>
-      <div class="state-node suspected" style="padding:12px 20px;">SUSPECTED</div>
-      <div style="font-size:18px;color:#fd7e14;">→</div>
-      <div style="background:#fff3cd;padding:6px 10px;border-radius:4px;font-size:11px;">
-        连续 alarm_min_frames 帧<br/>+ 姿态序列检查<br/>(cls_bypass 可绕过)
-      </div>
-      <div style="font-size:18px;color:#dc3545;">→</div>
-      <div class="state-node falling" style="padding:12px 20px;">FALLING</div>
-      <div style="font-size:18px;color:#dc3545;">→</div>
-      <div class="state-node alarm" style="padding:12px 20px;">ALARM_SENT</div>
-    </div>
-
-    <!-- 恢复流程 -->
-    <div style="margin-top:20px;">
-      <div style="text-align:center;font-size:14px;color:#6c757d;margin-bottom:10px;">
-        ↓ S < alarm_thresh 连续 alarm_reset_frames 帧
-      </div>
-
-      <div style="display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;">
-        <div class="state-node recovering" style="padding:12px 20px;">RECOVERING</div>
-        <div style="font-size:18px;color:#17a2b8;">→</div>
-        <div style="background:#d1ecf1;padding:6px 10px;border-radius:4px;font-size:11px;">
-          连续 recovery_frames 帧正常
-        </div>
-        <div style="font-size:18px;color:#28a745;">→</div>
-        <div class="state-node normal" style="padding:12px 20px;">NORMAL</div>
-      </div>
-    </div>
-
-    <!-- cls_bypass -->
-    <div style="background:#e7f3ff;padding:12px;border-radius:6px;margin-top:15px;border:2px solid #007bff;">
-      <strong style="color:#007bff;font-size:14px;">高置信度加速通道（cls_bypass_thresh）</strong>
-      <div style="font-size:12px;margin-top:8px;color:#0c5460;">
-        当 S_fall ≥ cls_bypass_thresh（默认1.0=禁用）时：<br/>
-        • 绕过姿态序列检查，直接进入 FALLING<br/>
-        • alarm_min_frames 减半（最小为2）
-      </div>
-    </div>
-
-    <!-- 冷却期 -->
-    <div style="background:#f8d7da;padding:12px;border-radius:6px;margin-top:15px;border:2px solid #dc3545;">
-      <strong style="color:#721c24;font-size:14px;">冷却期机制（cooldown_seconds，默认5秒）</strong>
-      <div style="font-size:12px;margin-top:8px;color:#721c24;">
-        进入 ALARM_SENT 后，cooldown_frames 内不重复告警。
-      </div>
-    </div>
+  <div style="background:#fff;padding:10px;border-radius:6px;margin-top:12px;font-size:13px;">
+    <strong>检查要求（四项必须全部满足）：</strong>
+    <ul style="margin:5px 0;padding-left:20px;">
+      <li>最近窗口内包含 upright 姿态（standing 或 sitting）</li>
+      <li>最近窗口内包含 fall 姿态（crouching 或 lying）</li>
+      <li>当前帧姿态为 fall 姿态</li>
+      <li><span class="highlight">fall 姿态数量 严格大于 upright 姿态数量（fall majority）</span></li>
+    </ul>
+    <strong style="color:var(--danger);">防误判：</strong>一直躺着（无转换）→ 不告警。
   </div>
 
-  <!-- 六、姿态序列检查 -->
-  <h3 style="color:#007bff;margin-top:30px;">六、姿态序列检查</h3>
-
-  <div style="background:#fff3cd;padding:20px;border-radius:10px;border:2px solid #ffc107;">
-    <div style="font-weight:bold;font-size:15px;color:#856404;margin-bottom:15px;">
-      检查最近 sequence_check_frames 帧（默认8帧）姿态历史
-    </div>
-
-    <div style="display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;">
-      <div class="state-node normal" style="padding:8px 12px;font-size:12px;">站/坐</div>
-      <div style="font-size:16px;color:#856404;">→</div>
-      <div class="state-node" style="background:#fff3cd;border-color:#fd7e14;color:#856404;padding:8px 12px;border-radius:20px;font-size:12px;border:2px solid;font-weight:bold;">蹲</div>
-      <div style="font-size:16px;color:#856404;">→</div>
-      <div class="state-node falling" style="padding:8px 12px;font-size:12px;">躺 ✓</div>
-    </div>
-
-    <div style="background:white;padding:12px;border-radius:6px;margin-top:15px;font-size:13px;">
-      <strong>检查要求（四项必须全部满足）：</strong>
-      <ul style="margin:5px 0;padding-left:20px;">
-        <li>最近窗口内包含 upright 姿态（standing 或 sitting）</li>
-        <li>最近窗口内包含 fall 姿态（crouching 或 lying）</li>
-        <li>当前帧姿态为 fall 姿态</li>
-        <li><span style="color:#dc3545;font-weight:bold;">fall 姿态数量 严格大于 upright 姿态数量（fall majority）</span></li>
-      </ul>
-      <strong style="color:#dc3545;">防误判：</strong>一直躺着（无转换）→ 不告警。
-    </div>
-
-    <div style="background:#f8d7da;padding:10px;border-radius:6px;margin-top:12px;border:1px solid #dc3545;font-size:12px;">
-      <strong>Fallback 机制：</strong>若长期在 SUSPECTED 且未恢复（above_count ≥ max(sequence_check_frames, alarm_min_frames×2)），且当前姿态为 crouching/lying/unknown，则允许直接进入 FALLING。
-    </div>
+  <div class="panel-red" style="margin-top:10px;border:1px solid var(--danger);font-size:12px;">
+    <strong>Fallback 机制：</strong>若长期在 SUSPECTED 且未恢复（above_count ≥ max(25, 3×2)=25），且当前姿态为 crouching/lying/unknown，则允许直接进入 FALLING。
   </div>
+</div>
 
-  <!-- 七、Debug 信息 -->
-  <h3 style="color:#007bff;margin-top:30px;">七、Debug 信息输出</h3>
+<h3>七、Debug 信息输出</h3>
 
-  <div style="background:#f8f9fa;padding:20px;border-radius:10px;">
-    <div style="font-family:monospace;font-size:13px;background:#212529;color:#fff;padding:15px;border-radius:6px;">
-      {<br/>
-      &nbsp;&nbsp;"posture": "lying",&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;// posture_map[class_name]<br/>
-      &nbsp;&nbsp;"class_name": "fallen",&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;// YOLO-World 原始输出类别<br/>
-      &nbsp;&nbsp;"det_conf": 0.892,&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;// 检测置信度<br/>
-      &nbsp;&nbsp;"aspect": 1.45,&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;// bbox 宽高比<br/>
-      &nbsp;&nbsp;"motion_bonus": 0.125,&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;// 运动辅助加分<br/>
-      &nbsp;&nbsp;"aspect_bonus": 0.075&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;// 宽高比辅助加分<br/>
-      }
-    </div>
+<div class="panel">
+  <pre>{
+  "posture": "lying",               // posture_map[class_name]
+  "class_name": "person lying on floor",  // YOLO-World 原始输出类别
+  "det_conf": 0.892,                // 检测置信度
+  "aspect": 1.45,                   // bbox 宽高比
+  "motion_bonus": 0.125,            // 运动辅助加分
+  "aspect_bonus": 0.075             // 宽高比辅助加分
+}</pre>
+</div>
+
+<div class="panel-green" style="margin-top:24px;border:2px solid var(--success);">
+  <h4 style="color:#155724;margin:0;font-size:16px;">流程总结</h4>
+  <div style="margin-top:12px;font-size:14px;color:#155724;">
+    <ol style="margin:0;padding-left:22px;line-height:1.7;">
+      <li><strong>开放词汇检测</strong>：YOLO-World 直接输出多姿态类别（8类）</li>
+      <li><strong>跟踪关联</strong>：ByteTrack-lite 跟踪 + IoU 匹配检测框类别到轨迹</li>
+      <li><strong>跌倒得分</strong>：fall_scores 映射基础分 × det_conf + motion_bonus × 0.1 + aspect_bonus</li>
+      <li><strong>融合得分</strong>：S_fall 同时作为 rule_score 和 cls_score，+ S_temporal 时序平滑 → S_final（α=0.3, β=0.5, γ=0.2）</li>
+      <li><strong>状态机决策</strong>：3帧 → SUSPECTED → 3帧 + 姿态序列检查(25帧窗口) → FALLING告警</li>
+      <li><strong>冷却防抖</strong>：cooldown_seconds=3.0s 冷却 + recovery_seconds=0.5s 恢复 → 防止重复告警</li>
+    </ol>
   </div>
-
-  <!-- 总结 -->
-  <div style="background:#d4edda;padding:20px;border-radius:10px;margin-top:30px;border:2px solid #28a745;">
-    <h4 style="color:#155724;margin:0;font-size:16px;">流程总结</h4>
-    <div style="margin-top:15px;font-size:14px;color:#155724;">
-      <ol style="margin:0;padding-left:25px;line-height:1.8;">
-        <li><strong>开放词汇检测</strong>：YOLO-World 直接输出多姿态类别（standing/sitting/crouching/lying/fallen）</li>
-        <li><strong>跟踪关联</strong>：ByteTrack-lite 跟踪 + IoU 匹配检测框类别到轨迹</li>
-        <li><strong>跌倒得分</strong>：fall_scores 映射基础分 × det_conf + motion_bonus × 0.1 + aspect_bonus</li>
-        <li><strong>融合得分</strong>：S_fall 同时作为 rule_score 和 cls_score，+ S_temporal 时序平滑 → S_final</li>
-        <li><strong>状态机决策</strong>：enter_suspected_min_frames → SUSPECTED → alarm_min_frames + 姿态序列检查 → FALLING告警</li>
-        <li><strong>冷却防抖</strong>：cooldown_seconds 冷却 + recovery_seconds 恢复 → 防止重复告警</li>
-      </ol>
-    </div>
-  </div>
+</div>
 
 </div>
+</body>
+</html>

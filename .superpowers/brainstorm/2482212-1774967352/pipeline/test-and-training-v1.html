@@ -1,212 +1,249 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>方案1：测试流程 & 分阶段训练流程</title>
+<style>
+  :root { --primary:#1a73e8; --success:#34a853; --warning:#fbbc04; --danger:#ea4335; --dark:#202124; --gray:#5f6368; --bg:#f5f7fa; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:'Segoe UI',system-ui,sans-serif; background:var(--bg); color:var(--dark); line-height:1.6; padding:24px; }
+  .wrap { max-width:960px; margin:0 auto; background:#fff; border-radius:12px; padding:32px; box-shadow:0 2px 12px rgba(0,0,0,.08); }
+  h2 { color:var(--primary); border-bottom:2px solid var(--primary); padding-bottom:8px; margin:28px 0 16px; font-size:1.4em; }
+  h3 { color:var(--dark); margin:20px 0 10px; font-size:1.15em; }
+  h4 { color:var(--primary); margin:12px 0 6px; }
+  .subtitle { color:var(--gray); font-size:.95em; margin-bottom:20px; }
+  .panel { background:#f8f9fa; padding:14px 18px; border-radius:8px; margin:10px 0; }
+  .panel-blue { background:#e8f0fe; border:1px solid #bfd3f8; }
+  .panel-yellow { background:#fff8e1; border:1px solid #ffe082; }
+  .panel-red { background:#fce8e6; border:1px solid #f5b7b1; }
+  .panel-green { background:#e6f4ea; border:1px solid #a8dab5; }
+  .panel-purple { background:#f3e5f5; border:1px solid #ce93d8; }
+  .panel-dark { background:#212529; color:#fff; border:1px solid #000; }
+  .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  @media(max-width:720px){ .grid-2 { grid-template-columns:1fr; } }
+  table { width:100%; border-collapse:collapse; margin:12px 0; font-size:.9em; }
+  th,td { border:1px solid #dee2e6; padding:8px 10px; text-align:left; }
+  th { background:#f8f9fa; color:var(--primary); font-weight:600; }
+  tr:nth-child(even) td { background:#fafafa; }
+  code { background:#f1f3f4; padding:2px 6px; border-radius:4px; font-family:'Courier New',monospace; font-size:.9em; }
+  pre { background:#f8f9fa; padding:10px; border-radius:6px; overflow-x:auto; font-family:'Courier New',monospace; font-size:.85em; border:1px solid #e0e0e0; }
+  ul,ol { padding-left:22px; }
+  li { margin:5px 0; }
+  hr { border:none; border-top:1px solid #ddd; margin:24px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
 <h2>测试流程 & 分阶段训练流程 — 方案1：Keypoint Pipeline</h2>
 <p class="subtitle">444个测试用例 + 7阶段训练流程 + DDP多GPU支持</p>
 
-<div style="max-width:950px;margin:20px auto;font-size:14px;line-height:1.7;">
+<h3>一、整体测试流程（Test Pipeline）</h3>
 
-  <h3 style="color:#055160;">一、整体测试流程（Test Pipeline）</h3>
+<div class="panel-blue">
+  <h4>测试统计</h4>
+  <ul>
+    <li><strong>总测试用例</strong>：444个（unit tests + integration tests）</li>
+    <li><strong>单元测试覆盖率</strong>：90%+（核心模块detector/tracker/pose/rules/fusion/classifier/pipeline）</li>
+    <li><strong>运行方式</strong>：<code>bash scripts/shell/run_tests.sh</code> 或 <code>PYTHONPATH=src pytest tests/ -v</code></li>
+    <li><strong>覆盖率检查</strong>：<code>PYTHONPATH=src pytest tests/ --cov=src/fall_detection --cov-fail-under=90</code></li>
+  </ul>
+</div>
 
-  <div style="background:#e7f3ff;padding:14px 18px;border-radius:8px;margin:10px 0;">
-    <h4>测试统计</h4>
-    <ul>
-      <li><strong>总测试用例</strong>：444个（unit tests + integration tests）</li>
-      <li><strong>单元测试覆盖率</strong>：90%+（核心模块detector/tracker/pose/rules/fusion/classifier/pipeline）</li>
-      <li><strong>运行方式</strong>：<code>bash scripts/shell/run_tests.sh</code> 或 <code>PYTHONPATH=src pytest tests/ -v</code></li>
-      <li><strong>覆盖率检查</strong>：<code>PYTHONPATH=src pytest tests/ --cov=src/fall_detection --cov-fail-under=90</code></li>
-    </ul>
-  </div>
+<div class="panel-green">
+  <h4>阶段1：模块级单元测试（16个单元测试文件）</h4>
+  <ul>
+    <li><strong>检测器</strong>：test_detector.py - 检测输出格式、置信度阈值、模型加载</li>
+    <li><strong>跟踪器</strong>：test_tracker.py - ByteTrack-lite跟踪、ID分配、状态转换、卡尔曼滤波</li>
+    <li><strong>关键点</strong>：test_pose_estimator.py - 姿态估计输出、关键点匹配、IoU关联</li>
+    <li><strong>规则引擎</strong>：test_rules.py - 六个判定规则（A/B/C/D/E/F）、姿态分类、cls_score辅助、得分计算</li>
+    <li><strong>融合决策</strong>：test_fusion.py - 状态机流转、姿态序列检查（fall majority）、cls_bypass、冷却期机制</li>
+    <li><strong>分类器</strong>：test_classifier.py、test_simple_classifier.py - 融合/简单分类器推理、权重加载</li>
+    <li><strong>Pipeline</strong>：test_pipeline.py - 抽帧逻辑、缓存机制、关键点跟踪器、端到端处理</li>
+    <li><strong>数据处理</strong>：test_augmentation.py、test_datasets.py - 数据增强、数据集加载</li>
+    <li><strong>工具</strong>：test_convert_voc_to_yolo.py、test_export.py - VOC转换、模型导出</li>
+    <li><strong>辅助工具</strong>：test_utils_*.py、test_scheduler.py - 可视化、几何计算、调度器</li>
+  </ul>
+</div>
 
-  <div style="background:#f1f8ff;padding:14px 18px;border-radius:8px;margin:10px 0;">
-    <h4>阶段1：模块级单元测试（16个单元测试文件）</h4>
-    <ul>
-      <li><strong>检测器</strong>：test_detector.py - 检测输出格式、置信度阈值、模型加载</li>
-      <li><strong>跟踪器</strong>：test_tracker.py - ByteTrack-lite跟踪、ID分配、状态转换、卡尔曼滤波</li>
-      <li><strong>关键点</strong>：test_pose_estimator.py - 姿态估计输出、关键点匹配、IoU关联</li>
-      <li><strong>规则引擎</strong>：test_rules.py - 六个判定规则（A/B/C/D/E/F）、姿态分类、cls_score辅助、得分计算</li>
-      <li><strong>融合决策</strong>：test_fusion.py - 状态机流转、姿态序列检查（fall majority）、cls_bypass、冷却期机制</li>
-      <li><strong>分类器</strong>：test_classifier.py、test_simple_classifier.py - 融合/简单分类器推理、权重加载</li>
-      <li><strong>Pipeline</strong>：test_pipeline.py - 抽帧逻辑、缓存机制、关键点跟踪器、端到端处理</li>
-      <li><strong>数据处理</strong>：test_augmentation.py、test_datasets.py - 数据增强、数据集加载</li>
-      <li><strong>工具</strong>：test_convert_voc_to_yolo.py、test_export.py - VOC转换、模型导出</li>
-      <li><strong>辅助工具</strong>：test_utils_*.py、test_scheduler.py - 可视化、几何计算、调度器</li>
-    </ul>
-  </div>
+<div class="panel-yellow">
+  <h4>阶段2：集成测试（6个集成测试文件）</h4>
+  <ul>
+    <li><strong>训练脚本测试</strong>：test_training_detector.py、test_training_pose.py、test_training_classifier.py、test_training_simple_classifier.py - DDP训练、参数解析、模型保存</li>
+    <li><strong>工具脚本测试</strong>：test_training_scripts.py、test_extract_features.py - 特征提取、脚本help信息</li>
+  </ul>
+</div>
 
-  <div style="background:#fff3cd;padding:14px 18px;border-radius:8px;margin:10px 0;">
-    <h4>阶段2：集成测试（6个集成测试文件）</h4>
-    <ul>
-      <li><strong>训练脚本测试</strong>：test_training_detector.py、test_training_pose.py、test_training_classifier.py、test_training_simple_classifier.py - DDP训练、参数解析、模型保存</li>
-      <li><strong>工具脚本测试</strong>：test_training_scripts.py、test_extract_features.py - 特征提取、脚本help信息</li>
-    </ul>
-  </div>
+<div class="panel-blue">
+  <h4>阶段3：端到端 Inference Pipeline 测试</h4>
+  <ul>
+    <li><strong>视频级测试</strong>：<code>scripts/eval/evaluate_pipeline.py</code> - 给定1080p视频，输出跌倒事件检测结果</li>
+    <li><strong>评估指标</strong>：事件级TP/FP/FN、漏报率、误报率，对比<code>event_gt.json</code>标注</li>
+    <li><strong>实时性能</strong>：<code>scripts/eval/benchmark_speed.py</code> - FPS、延迟P50/P99、不同抽帧率下的端到端延迟</li>
+    <li><strong>阈值搜索</strong>：<code>scripts/shell/run_evaluate_pipeline.sh</code> - 网格搜索trigger_thresh/alarm_thresh最优组合</li>
+  </ul>
+</div>
 
-  <div style="background:#d1ecf1;padding:14px 18px;border-radius:8px;margin:10px 0;">
-    <h4>阶段3：端到端 Inference Pipeline 测试</h4>
-    <ul>
-      <li><strong>视频级测试</strong>：<code>scripts/eval/evaluate_pipeline.py</code> - 给定1080p视频，输出跌倒事件检测结果</li>
-      <li><strong>评估指标</strong>：事件级TP/FP/FN、漏报率、误报率，对比<code>event_gt.json</code>标注</li>
-      <li><strong>实时性能</strong>：<code>scripts/eval/benchmark_speed.py</code> - FPS、延迟P50/P99、不同抽帧率下的端到端延迟</li>
-      <li><strong>阈值搜索</strong>：<code>scripts/shell/run_evaluate_pipeline.sh</code> - 网格搜索trigger_thresh/alarm_thresh最优组合</li>
-    </ul>
-  </div>
+<div class="panel-purple">
+  <h4>阶段4：端侧模拟部署验证</h4>
+  <ul>
+    <li><strong>模型转换</strong>：PyTorch → ONNX，<code>src/fall_detection/utils/export.py</code>提供导出接口</li>
+    <li><strong>YOLO-World导出</strong>：<code>scripts/tools/export_yolo_world.py</code>支持非正方形分辨率（832×448）</li>
+    <li><strong>量化验证</strong>：INT8量化前后精度对比（检测mAP、关键点PCK、分类器accuracy）</li>
+    <li><strong>资源评估</strong>：峰值DDR、模型加载flash大小、每帧前向耗时benchmark</li>
+  </ul>
+</div>
 
-  <div style="background:#e2e3f5;padding:14px 18px;border-radius:8px;margin:10px 0;">
-    <h4>阶段4：端侧模拟部署验证</h4>
-    <ul>
-      <li><strong>模型转换</strong>：PyTorch → ONNX，<code>src/fall_detection/utils/export.py</code>提供导出接口</li>
-      <li><strong>YOLO-World导出</strong>：<code>scripts/tools/export_yolo_world.py</code>支持非正方形分辨率（832x448）</li>
-      <li><strong>量化验证</strong>：INT8量化前后精度对比（检测mAP、关键点PCK、分类器accuracy）</li>
-      <li><strong>资源评估</strong>：峰值DDR、模型加载flash大小、每帧前向耗时benchmark</li>
-    </ul>
-  </div>
+<hr>
 
-  <hr style="border:none;border-top:1px solid #ddd;margin:28px 0;"/>
+<h3>二、7阶段训练流程（Training Pipeline）</h3>
 
-  <h3 style="color:#3d3d7a;">二、7阶段训练流程（Training Pipeline）</h3>
+<div class="panel">
+  <p><strong>核心原则：</strong>检测器和姿态估计器独立预训练；跟踪器基于检测结果调参；分类器串行训练；最后端到端串联评估。</p>
+  <p><strong>DDP支持：</strong>所有训练脚本支持多GPU分布式训练，使用<code>--ngpus N</code>参数。</p>
+  <p><strong>配置文件：</strong><code>configs/training/*.yaml</code>提供训练参数配置（detector.yaml、pose.yaml、classifier.yaml、simple_classifier.yaml等）。</p>
+</div>
 
-  <div style="background:#f8f9fa;padding:14px 18px;border-radius:8px;margin:10px 0;">
-    <p><strong>核心原则：</strong>检测器和姿态估计器独立预训练；跟踪器基于检测结果调参；分类器串行训练；最后端到端串联评估。</p>
-    <p><strong>DDP支持：</strong>所有训练脚本支持多GPU分布式训练，使用<code>--ngpus N</code>参数。</p>
-    <p><strong>配置文件：</strong><code>configs/training/*.yaml</code>提供训练参数配置（detector.yaml、pose.yaml、classifier.yaml、simple_classifier.yaml等）。</p>
-  </div>
-
-  <div style="display:flex;gap:12px;margin:16px 0;align-items:stretch;">
-    <div style="flex:1;background:#e8f4e8;padding:14px;border-radius:8px;">
-      <h4><strong>阶段1：人体检测器训练</strong></h4>
-      <p><strong>数据集</strong>：YOLO格式（COCO person + 私有跌倒人体框）</p>
-      <p><strong>脚本</strong>：<code>scripts/train/train_detector.py</code></p>
-      <p><strong>Shell</strong>：<code>bash scripts/shell/run_train_detector.sh --ngpus 2</code></p>
-      <p><strong>配置</strong>：<code>configs/training/detector.yaml</code></p>
-      <ol>
-        <li>YOLOv8n预训练初始化</li>
-        <li>私有数据fine-tune，输入832×448</li>
-        <li>支持DDP多GPU训练</li>
-      </ol>
-      <p><strong>输出</strong>：<code>outputs/detector/best.pt</code></p>
-    </div>
-    <div style="flex:1;background:#f8d7da;padding:14px;border-radius:8px;">
-      <h4><strong>阶段2：姿态估计器微调</strong></h4>
-      <p><strong>数据集</strong>：YOLO格式（COCO keypoints 17点标注）</p>
-      <p><strong>脚本</strong>：<code>scripts/train/train_pose.py</code></p>
-      <p><strong>Shell</strong>：<code>bash scripts/shell/run_train_pose.sh --ngpus 2</code></p>
-      <p><strong>配置</strong>：<code>configs/training/pose.yaml</code></p>
-      <ol>
-        <li>YOLOv8n-pose预训练初始化</li>
-        <li>输入128×96或256×192（权衡精度与DDR）</li>
-        <li>可补充跌倒场景关键点标注做domain adaptation</li>
-      </ol>
-      <p><strong>输出</strong>：<code>outputs/pose/best.pt</code></p>
-    </div>
-  </div>
-
-  <div style="display:flex;gap:12px;margin:16px 0;align-items:stretch;">
-    <div style="flex:1;background:#d1ecf1;padding:14px;border-radius:8px;">
-      <h4><strong>阶段3：跟踪器参数调优</strong></h4>
-      <p><strong>方式</strong>：纯调参，不训练神经网络</p>
-      <p><strong>脚本</strong>：<code>scripts/eval/tune_tracker.py</code></p>
-      <p><strong>Shell</strong>：<code>bash scripts/shell/run_tune_tracker.sh --video-dir data/videos</code></p>
-      <ol>
-        <li>在阶段1检测器输出的视频序列上运行ByteTrack-lite</li>
-        <li>网格搜索：track_thresh/match_thresh/max_age/min_hits</li>
-        <li>评估MOTA/IDF1，确认ID Switch可接受</li>
-      </ol>
-      <p><strong>输出</strong>：<code>outputs/tracker/tune_result.json</code></p>
-    </div>
-    <div style="flex:1;background:#eeefff;padding:14px;border-radius:8px;">
-      <h4><strong>阶段4：特征提取</strong></h4>
-      <p><strong>目的</strong>：为融合分类器准备训练数据</p>
-      <p><strong>脚本</strong>：<code>scripts/tools/extract_features.py</code></p>
-      <p><strong>Shell</strong>：<code>bash scripts/shell/run_extract_features.sh --video-dir data/videos --label-file data/labels.json</code></p>
-      <ol>
-        <li>用阶段1检测器 + 阶段2姿态估计器提取特征</li>
-        <li>ROI图像（96×96）+ 关键点坐标（17×3）+ 运动特征（8-d：vx,vy,ax,ay,w,h,h_ratio,n_ground）</li>
-        <li>缓存为.npz文件，避免重复前向推理</li>
-      </ol>
-      <p><strong>输出</strong>：<code>outputs/cache/*.npz</code></p>
-    </div>
-  </div>
-
-  <div style="display:flex;gap:12px;margin:16px 0;align-items:stretch;">
-    <div style="flex:1;background:#e2e3f5;padding:14px;border-radius:8px;">
-      <h4><strong>阶段5：融合分类器训练</strong></h4>
-      <p><strong>数据</strong>：<code>outputs/cache/*.npz</code> + <code>data/labels.json</code></p>
-      <p><strong>脚本</strong>：<code>scripts/train/train_classifier.py</code></p>
-      <p><strong>Shell</strong>：<code>bash scripts/shell/run_train_classifier.sh --ngpus 2 --batch-size 16</code></p>
-      <p><strong>配置</strong>：<code>configs/training/classifier.yaml</code></p>
-      <ol>
-        <li>3分支网络（图像ROI 96×96 + 17关键点 + 8维运动）</li>
-        <li>训练100~200 epochs，Dropout防过拟合</li>
-        <li>难例挖掘，补充非跌倒难例数据</li>
-      </ol>
-      <p><strong>输出</strong>：<code>outputs/classifier/best.pt</code></p>
-    </div>
-    <div style="flex:1;background:#d4edda;padding:14px;border-radius:8px;">
-      <h4><strong>阶段6：简单分类器训练</strong></h4>
-      <p><strong>数据</strong>：COCO/VOC格式（跌倒/非跌倒图像bbox标注）</p>
-      <p><strong>脚本</strong>：<code>scripts/train/train_simple_classifier.py</code></p>
-      <p><strong>Shell</strong>：<code>bash scripts/shell/run_train_simple_classifier.sh --config configs/training/simple_classifier.yaml --ngpus 2</code></p>
-      <p><strong>配置</strong>：<code>configs/training/simple_classifier.yaml</code>或<code>simple_classifier_voc.yaml</code></p>
-      <ol>
-        <li>单分支轻量CNN（仅96×96图像输入）</li>
-        <li>2-class分类（normal/fall），softmax输出</li>
-        <li>数据增强、早停、学习率warmup</li>
-      </ol>
-      <p><strong>输出</strong>：<code>outputs/simple_classifier/best.pt</code></p>
-    </div>
-  </div>
-
-  <div style="background:#212529;color:#fff;padding:14px;border-radius:8px;margin:16px 0;">
-    <h4><strong>阶段7：端到端评估与阈值搜索</strong></h4>
-    <p><strong>脚本</strong>：<code>scripts/eval/evaluate_pipeline.py</code></p>
-    <p><strong>Shell</strong>：<code>bash scripts/shell/run_evaluate_pipeline.sh --video-dir data/videos --gt-file data/event_gt.json</code></p>
+<div class="grid-2">
+  <div class="panel-green">
+    <h4>阶段1：人体检测器训练</h4>
+    <p><strong>数据集</strong>：YOLO格式（COCO person + 私有跌倒人体框）</p>
+    <p><strong>脚本</strong>：<code>scripts/train/train_detector.py</code></p>
+    <p><strong>Shell</strong>：<code>bash scripts/shell/run_train_detector.sh --ngpus 2</code></p>
+    <p><strong>配置</strong>：<code>configs/training/detector.yaml</code></p>
     <ol>
-      <li>冻结所有模块权重，在验证集上跑完整pipeline</li>
-      <li>网格搜索阈值：trigger_thresh [0.5, 0.6, 0.7]、alarm_thresh [0.6, 0.7, 0.8]</li>
-      <li>评估事件级TP/FP/FN，计算最优阈值组合</li>
-      <li>输出最终部署模型 + 配置文件</li>
+      <li>YOLOv8n预训练初始化</li>
+      <li>私有数据fine-tune，输入832×448</li>
+      <li>支持DDP多GPU训练</li>
     </ol>
-    <p><strong>输出</strong>：<code>outputs/eval/eval_result.json</code></p>
+    <p><strong>输出</strong>：<code>outputs/detector/best.pt</code></p>
   </div>
-
-  <div style="background:#f1f8ff;padding:12px 18px;border-radius:8px;margin:14px 0;">
-    <h4>一键运行完整训练流程</h4>
-    <pre style="background:#fff;padding:10px;border-radius:4px;border:1px solid #e1e4e8;">NGPUS=2 bash scripts/shell/run_all_training.sh</pre>
-    <p>自动执行阶段1→7，输出所有训练产物。</p>
+  <div class="panel-red">
+    <h4>阶段2：姿态估计器微调</h4>
+    <p><strong>数据集</strong>：YOLO格式（COCO keypoints 17点标注）</p>
+    <p><strong>脚本</strong>：<code>scripts/train/train_pose.py</code></p>
+    <p><strong>Shell</strong>：<code>bash scripts/shell/run_train_pose.sh --ngpus 2</code></p>
+    <p><strong>配置</strong>：<code>configs/training/pose.yaml</code></p>
+    <ol>
+      <li>YOLOv8n-pose预训练初始化</li>
+      <li>输入128×96或256×192（权衡精度与DDR）</li>
+      <li>可补充跌倒场景关键点标注做domain adaptation</li>
+    </ol>
+    <p><strong>输出</strong>：<code>outputs/pose/best.pt</code></p>
   </div>
+</div>
 
-  <hr style="border:none;border-top:1px solid #ddd;margin:28px 0;"/>
-
-  <h3 style="color:#3d3d7a;">三、数据格式与工具支持</h3>
-
-  <div style="display:flex;gap:12px;margin:16px 0;align-items:stretch;">
-    <div style="flex:1;background:#fff3cd;padding:14px;border-radius:8px;">
-      <h4><strong>数据格式</strong></h4>
-      <ul>
-        <li><strong>检测/姿态训练</strong>：YOLO格式（images/ + labels/*.txt + data.yaml）</li>
-        <li><strong>简单分类器训练</strong>：COCO/VOC格式（images/ + annotations/*.json/xml）</li>
-        <li><strong>融合分类器标签</strong>：<code>data/labels.json</code>（video_name → label + frames）</li>
-        <li><strong>端到端评估GT</strong>：<code>data/event_gt.json</code>（video_name → [start, end]时间段列表）</li>
-      </ul>
-    </div>
-    <div style="flex:1;background:#e7f3ff;padding:14px;border-radius:8px;">
-      <h4><strong>工具支持</strong></h4>
-      <ul>
-        <li><strong>VOC转YOLO</strong>：<code>scripts/tools/convert_voc_to_yolo.py</code> - 支持YOLO-World风格映射</li>
-        <li><strong>YOLO自动标注</strong>：<code>tools/annotate/yolo_annotate.py</code> - YOLOv8人体检测生成VOC标注</li>
-        <li><strong>VLM自动标注</strong>：<code>tools/annotate/vlm_annotate.py</code> - Claude/阿里百炼API分析图像生成标注</li>
-        <li><strong>YOLO-World工具</strong>：<code>scripts/shell/run_validate_yolo_world.sh</code>、<code>run_export_yolo_world.sh</code> - 验证/导出工具</li>
-        <li><strong>Requirements生成</strong>：<code>scripts/tools/generate_requirements.py</code> - 指定CUDA版本生成requirements.txt</li>
-      </ul>
-    </div>
+<div class="grid-2">
+  <div class="panel-blue">
+    <h4>阶段3：跟踪器参数调优</h4>
+    <p><strong>方式</strong>：纯调参，不训练神经网络</p>
+    <p><strong>脚本</strong>：<code>scripts/eval/tune_tracker.py</code></p>
+    <p><strong>Shell</strong>：<code>bash scripts/shell/run_tune_tracker.sh --video-dir data/videos</code></p>
+    <ol>
+      <li>在阶段1检测器输出的视频序列上运行ByteTrack-lite</li>
+      <li>网格搜索：track_thresh/match_thresh/max_age/min_hits</li>
+      <li>评估MOTA/IDF1，确认ID Switch可接受</li>
+    </ol>
+    <p><strong>输出</strong>：<code>outputs/tracker/tune_result.json</code></p>
   </div>
+  <div class="panel-purple">
+    <h4>阶段4：特征提取</h4>
+    <p><strong>目的</strong>：为融合分类器准备训练数据</p>
+    <p><strong>脚本</strong>：<code>scripts/tools/extract_features.py</code></p>
+    <p><strong>Shell</strong>：<code>bash scripts/shell/run_extract_features.sh --video-dir data/videos --label-file data/labels.json</code></p>
+    <ol>
+      <li>用阶段1检测器 + 阶段2姿态估计器提取特征</li>
+      <li>ROI图像（96×96）+ 关键点坐标（17×3）+ 运动特征（8-d：vx,vy,ax,ay,w,h,h_ratio,n_ground）</li>
+      <li>缓存为.npz文件，避免重复前向推理</li>
+    </ol>
+    <p><strong>输出</strong>：<code>outputs/cache/*.npz</code></p>
+  </div>
+</div>
 
-  <div style="background:#d1ecf1;padding:12px 18px;border-radius:8px;margin:14px 0;">
-    <h4>训练可复现性保障</h4>
+<div class="grid-2">
+  <div class="panel-purple">
+    <h4>阶段5：融合分类器训练</h4>
+    <p><strong>数据</strong>：<code>outputs/cache/*.npz</code> + <code>data/labels.json</code></p>
+    <p><strong>脚本</strong>：<code>scripts/train/train_classifier.py</code></p>
+    <p><strong>Shell</strong>：<code>bash scripts/shell/run_train_classifier.sh --ngpus 2 --batch-size 16</code></p>
+    <p><strong>配置</strong>：<code>configs/training/classifier.yaml</code></p>
+    <ol>
+      <li>3分支网络（图像ROI 96×96 + 17关键点 + 8维运动）</li>
+      <li>训练100~200 epochs，Dropout防过拟合</li>
+      <li>难例挖掘，补充非跌倒难例数据</li>
+    </ol>
+    <p><strong>输出</strong>：<code>outputs/classifier/best.pt</code></p>
+  </div>
+  <div class="panel-green">
+    <h4>阶段6：简单分类器训练</h4>
+    <p><strong>数据</strong>：COCO/VOC格式（跌倒/非跌倒图像bbox标注）</p>
+    <p><strong>脚本</strong>：<code>scripts/train/train_simple_classifier.py</code></p>
+    <p><strong>Shell</strong>：<code>bash scripts/shell/run_train_simple_classifier.sh --config configs/training/simple_classifier.yaml --ngpus 2</code></p>
+    <p><strong>配置</strong>：<code>configs/training/simple_classifier.yaml</code>或<code>simple_classifier_voc.yaml</code></p>
+    <ol>
+      <li>单分支轻量CNN（仅96×96图像输入）</li>
+      <li>2-class分类（normal/fall），softmax输出</li>
+      <li>数据增强、早停、学习率warmup</li>
+    </ol>
+    <p><strong>输出</strong>：<code>outputs/simple_classifier/best.pt</code></p>
+  </div>
+</div>
+
+<div class="panel-dark">
+  <h4>阶段7：端到端评估与阈值搜索</h4>
+  <p><strong>脚本</strong>：<code>scripts/eval/evaluate_pipeline.py</code></p>
+  <p><strong>Shell</strong>：<code>bash scripts/shell/run_evaluate_pipeline.sh --video-dir data/videos --gt-file data/event_gt.json</code></p>
+  <ol>
+    <li>冻结所有模块权重，在验证集上跑完整pipeline</li>
+    <li>网格搜索阈值：trigger_thresh [0.5, 0.6, 0.7]、alarm_thresh [0.6, 0.7, 0.8]</li>
+    <li>评估事件级TP/FP/FN，计算最优阈值组合</li>
+    <li>输出最终部署模型 + 配置文件</li>
+  </ol>
+  <p><strong>输出</strong>：<code>outputs/eval/eval_result.json</code></p>
+</div>
+
+<div class="panel-blue">
+  <h4>一键运行完整训练流程</h4>
+  <pre>NGPUS=2 bash scripts/shell/run_all_training.sh</pre>
+  <p>自动执行阶段1→7，输出所有训练产物。</p>
+</div>
+
+<hr>
+
+<h3>三、数据格式与工具支持</h3>
+
+<div class="grid-2">
+  <div class="panel-yellow">
+    <h4>数据格式</h4>
     <ul>
-      <li><strong>配置文件</strong>：<code>configs/training/*.yaml</code>记录所有训练参数</li>
-      <li><strong>随机种子</strong>：所有训练脚本支持<code>seed</code>参数（默认666）</li>
-      <li><strong>Checkpoint保存</strong>：每个阶段保存<code>best.pt</code>和<code>last.pt</code></li>
-      <li><strong>训练日志</strong>：<code>outputs/*/train.log</code>记录loss/accuracy曲线</li>
+      <li><strong>检测/姿态训练</strong>：YOLO格式（images/ + labels/*.txt + data.yaml）</li>
+      <li><strong>简单分类器训练</strong>：COCO/VOC格式（images/ + annotations/*.json/xml）</li>
+      <li><strong>融合分类器标签</strong>：<code>data/labels.json</code>（video_name → label + frames）</li>
+      <li><strong>端到端评估GT</strong>：<code>data/event_gt.json</code>（video_name → [start, end]时间段列表）</li>
     </ul>
   </div>
+  <div class="panel-blue">
+    <h4>工具支持</h4>
+    <ul>
+      <li><strong>VOC转YOLO</strong>：<code>scripts/tools/convert_voc_to_yolo.py</code> - 支持YOLO-World风格映射</li>
+      <li><strong>YOLO自动标注</strong>：<code>tools/annotate/yolo_annotate.py</code> - YOLOv8人体检测生成VOC标注</li>
+      <li><strong>VLM自动标注</strong>：<code>tools/annotate/vlm_annotate.py</code> - Claude/阿里百炼API分析图像生成标注</li>
+      <li><strong>YOLO-World工具</strong>：<code>scripts/shell/run_validate_yolo_world.sh</code>、<code>run_export_yolo_world.sh</code> - 验证/导出工具</li>
+      <li><strong>Requirements生成</strong>：<code>scripts/tools/generate_requirements.py</code> - 指定CUDA版本生成requirements.txt</li>
+    </ul>
+  </div>
+</div>
+
+<div class="panel-blue">
+  <h4>训练可复现性保障</h4>
+  <ul>
+    <li><strong>配置文件</strong>：<code>configs/training/*.yaml</code>记录所有训练参数</li>
+    <li><strong>随机种子</strong>：所有训练脚本支持<code>seed</code>参数（默认666）</li>
+    <li><strong>Checkpoint保存</strong>：每个阶段保存<code>best.pt</code>和<code>last.pt</code></li>
+    <li><strong>训练日志</strong>：<code>outputs/*/train.log</code>记录loss/accuracy曲线</li>
+  </ul>
+</div>
 
 </div>
+</body>
+</html>

@@ -1,154 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>方案2：测试流程 & 分阶段训练流程</title>
+<style>
+  :root { --primary:#1a73e8; --success:#34a853; --warning:#fbbc04; --danger:#ea4335; --dark:#202124; --gray:#5f6368; --bg:#f5f7fa; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:'Segoe UI',system-ui,sans-serif; background:var(--bg); color:var(--dark); line-height:1.6; padding:24px; }
+  .wrap { max-width:960px; margin:0 auto; background:#fff; border-radius:12px; padding:32px; box-shadow:0 2px 12px rgba(0,0,0,.08); }
+  h2 { color:var(--primary); border-bottom:2px solid var(--primary); padding-bottom:8px; margin:28px 0 16px; font-size:1.4em; }
+  h3 { color:var(--dark); margin:20px 0 10px; font-size:1.15em; }
+  h4 { color:var(--primary); margin:12px 0 6px; }
+  .subtitle { color:var(--gray); font-size:.95em; margin-bottom:20px; }
+  .panel { background:#f8f9fa; padding:14px 18px; border-radius:8px; margin:10px 0; }
+  .panel-blue { background:#e8f0fe; border:1px solid #bfd3f8; }
+  .panel-yellow { background:#fff8e1; border:1px solid #ffe082; }
+  .panel-red { background:#fce8e6; border:1px solid #f5b7b1; }
+  .panel-green { background:#e6f4ea; border:1px solid #a8dab5; }
+  .panel-dark { background:#212529; color:#fff; border:1px solid #000; }
+  .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  @media(max-width:720px){ .grid-2 { grid-template-columns:1fr; } }
+  table { width:100%; border-collapse:collapse; margin:12px 0; font-size:.9em; }
+  th,td { border:1px solid #dee2e6; padding:8px 10px; text-align:left; }
+  th { background:#f8f9fa; color:var(--primary); font-weight:600; }
+  tr:nth-child(even) td { background:#fafafa; }
+  code { background:#f1f3f4; padding:2px 6px; border-radius:4px; font-family:'Courier New',monospace; font-size:.9em; }
+  pre { background:#f8f9fa; padding:10px; border-radius:6px; overflow-x:auto; font-family:'Courier New',monospace; font-size:.85em; border:1px solid #e0e0e0; }
+  ul,ol { padding-left:22px; }
+  li { margin:5px 0; }
+  hr { border:none; border-top:1px solid #ddd; margin:24px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
 <h2>测试流程 & 分阶段训练流程 — 方案2：YOLO-World Pipeline</h2>
 <p class="subtitle">开放词汇检测 + 运动/宽高比辅助 + 状态机融合 | 简化训练流程</p>
 
-<div style="max-width:950px;margin:20px auto;font-size:14px;line-height:1.7;">
+<h3>一、整体测试流程（Test Pipeline）</h3>
 
-  <h3 style="color:#055160;">一、整体测试流程（Test Pipeline）</h3>
+<div class="panel-blue">
+  <h4>测试统计</h4>
+  <ul>
+    <li><strong>总测试用例</strong>：444个（与方案1共用大部分单元测试，pipeline 层独立测试）</li>
+    <li><strong>单元测试覆盖率</strong>：90%+（detector/tracker/fusion 共用，pipeline 独立）</li>
+    <li><strong>运行方式</strong>：<code>PYTHONPATH=src pytest tests/unit/test_pipeline.py -v</code>（需区分 pipeline 类型）</li>
+  </ul>
+</div>
 
-  <div style="background:#e7f3ff;padding:14px 18px;border-radius:8px;margin:10px 0;">
-    <h4>测试统计</h4>
-    <ul>
-      <li><strong>总测试用例</strong>：444个（与方案1共用大部分单元测试，pipeline 层独立测试）</li>
-      <li><strong>单元测试覆盖率</strong>：90%+（detector/tracker/fusion 共用，pipeline 独立）</li>
-      <li><strong>运行方式</strong>：<code>PYTHONPATH=src pytest tests/unit/test_pipeline.py -v</code>（需区分 pipeline 类型）</li>
-    </ul>
+<div class="panel-green">
+  <h4>阶段1：模块级单元测试（复用 + 新增）</h4>
+  <ul>
+    <li><strong>检测器</strong>：test_detector.py - YOLO-World 模型加载、开放词汇类别输出、imgsz 适配</li>
+    <li><strong>跟踪器</strong>：test_tracker.py - ByteTrack-lite 共用</li>
+    <li><strong>融合决策</strong>：test_fusion.py - FusionDecision 共用</li>
+    <li><strong>YOLO-World Pipeline</strong>：test_yoloworld_pipeline.py - 抽帧逻辑、det_info 缓存、跌倒得分计算、运动/宽高比 bonus</li>
+    <li><strong>几何工具</strong>：test_utils_geometry.py - iou 计算（用于匹配检测框到轨迹）</li>
+  </ul>
+</div>
+
+<div class="panel-blue">
+  <h4>阶段2：端到端 Inference Pipeline 测试</h4>
+  <ul>
+    <li><strong>视频级测试</strong>：<code>scripts/eval/evaluate_pipeline.py</code> - 给定1080p视频，输出跌倒事件检测结果</li>
+    <li><strong>评估指标</strong>：事件级TP/FP/FN、漏报率、误报率，对比 <code>event_gt.json</code> 标注</li>
+    <li><strong>实时性能</strong>：<code>scripts/eval/benchmark_speed.py</code> - FPS、延迟P50/P99</li>
+    <li><strong>阈值搜索</strong>：网格搜索 alarm_thresh / cls_bypass_thresh 最优组合</li>
+  </ul>
+</div>
+
+<div class="panel-yellow">
+  <h4>阶段3：端侧模拟部署验证</h4>
+  <ul>
+    <li><strong>模型转换</strong>：PyTorch → ONNX，<code>scripts/tools/export_yolo_world.py</code> 支持非正方形分辨率（832×448）</li>
+    <li><strong>量化验证</strong>：INT8量化前后精度对比（检测mAP、姿态分类 accuracy）</li>
+    <li><strong>资源评估</strong>：峰值DDR（~6.5M）、模型加载flash大小、每帧前向耗时 benchmark</li>
+  </ul>
+</div>
+
+<hr>
+
+<h3>二、简化训练流程（Training Pipeline）</h3>
+
+<div class="panel">
+  <p><strong>核心原则：</strong>YOLO-World 开放词汇检测器支持零样本/少样本姿态类别检测，无需独立姿态估计器和分类器训练。</p>
+  <p><strong>DDP支持：</strong>YOLO-World 训练脚本支持多GPU分布式训练，使用 <code>--ngpus N</code> 参数。</p>
+  <p><strong>配置文件：</strong><code>configs/training/yoloworld.yaml</code> 提供训练参数配置。</p>
+</div>
+
+<div class="grid-2">
+  <div class="panel-green">
+    <h4>阶段1：YOLO-World 检测器训练/微调</h4>
+    <p><strong>数据集</strong>：YOLO格式（COCO person + 私有跌倒多姿态标注）</p>
+    <p><strong>脚本</strong>：<code>scripts/train/train_yoloworld.py</code></p>
+    <p><strong>Shell</strong>：<code>bash scripts/shell/run_train_yoloworld.sh --ngpus 2</code></p>
+    <p><strong>配置</strong>：<code>configs/training/yoloworld.yaml</code></p>
+    <ol>
+      <li>YOLO-World 预训练初始化（开放词汇能力）</li>
+      <li>微调多姿态类别：standing/sitting/crouching/lying/fallen</li>
+      <li>输入 832×448，支持非正方形分辨率</li>
+      <li>支持DDP多GPU训练</li>
+    </ol>
+    <p><strong>输出</strong>：<code>outputs/yoloworld/best.pt</code></p>
   </div>
-
-  <div style="background:#f1f8ff;padding:14px 18px;border-radius:8px;margin:10px 0;">
-    <h4>阶段1：模块级单元测试（复用 + 新增）</h4>
-    <ul>
-      <li><strong>检测器</strong>：test_detector.py - YOLO-World 模型加载、开放词汇类别输出、imgsz 适配</li>
-      <li><strong>跟踪器</strong>：test_tracker.py - ByteTrack-lite 共用</li>
-      <li><strong>融合决策</strong>：test_fusion.py - FusionDecision 共用</li>
-      <li><strong>YOLO-World Pipeline</strong>：test_yoloworld_pipeline.py - 抽帧逻辑、det_info 缓存、跌倒得分计算、运动/宽高比 bonus</li>
-      <li><strong>几何工具</strong>：test_utils_geometry.py - iou 计算（用于匹配检测框到轨迹）</li>
-    </ul>
+  <div class="panel-blue">
+    <h4>阶段2：跟踪器参数调优</h4>
+    <p><strong>方式</strong>：纯调参，不训练神经网络</p>
+    <p><strong>脚本</strong>：<code>scripts/eval/tune_tracker.py</code></p>
+    <p><strong>Shell</strong>：<code>bash scripts/shell/run_tune_tracker.sh --video-dir data/videos</code></p>
+    <ol>
+      <li>在 YOLO-World 检测输出的视频序列上运行 ByteTrack-lite</li>
+      <li>网格搜索：track_thresh / match_thresh / max_age / min_hits</li>
+      <li>评估 MOTA / IDF1，确认类别切换（class switch）可接受</li>
+    </ol>
+    <p><strong>输出</strong>：<code>outputs/tracker/tune_result.json</code></p>
   </div>
+</div>
 
-  <div style="background:#d1ecf1;padding:14px 18px;border-radius:8px;margin:10px 0;">
-    <h4>阶段2：端到端 Inference Pipeline 测试</h4>
-    <ul>
-      <li><strong>视频级测试</strong>：<code>scripts/eval/evaluate_pipeline.py</code> - 给定1080p视频，输出跌倒事件检测结果</li>
-      <li><strong>评估指标</strong>：事件级TP/FP/FN、漏报率、误报率，对比 <code>event_gt.json</code> 标注</li>
-      <li><strong>实时性能</strong>：<code>scripts/eval/benchmark_speed.py</code> - FPS、延迟P50/P99</li>
-      <li><strong>阈值搜索</strong>：网格搜索 alarm_thresh / cls_bypass_thresh 最优组合</li>
-    </ul>
+<div class="grid-2">
+  <div class="panel-red">
+    <h4>阶段3：跌倒得分配置调优</h4>
+    <p><strong>方式</strong>：配置调优，无需神经网络训练</p>
+    <p><strong>配置</strong>：<code>configs/pipeline/yolo_world.yaml</code></p>
+    <ol>
+      <li>配置 fall_scores：映射类别到基础跌倒分（0.0~1.0）</li>
+      <li>配置 posture_map：映射类别到姿态标签（用于状态机序列检查）</li>
+      <li>调整 motion_window_frames、运动阈值</li>
+      <li>调整 aspect 阈值和 bonus 系数</li>
+    </ol>
+    <p><strong>输出</strong>：优化后的 <code>yolo_world.yaml</code></p>
   </div>
-
-  <div style="background:#e2e3f5;padding:14px 18px;border-radius:8px;margin:10px 0;">
-    <h4>阶段3：端侧模拟部署验证</h4>
-    <ul>
-      <li><strong>模型转换</strong>：PyTorch → ONNX，<code>scripts/tools/export_yolo_world.py</code> 支持非正方形分辨率（832×448）</li>
-      <li><strong>量化验证</strong>：INT8量化前后精度对比（检测mAP、姿态分类 accuracy）</li>
-      <li><strong>资源评估</strong>：峰值DDR（~6.5M）、模型加载flash大小、每帧前向耗时 benchmark</li>
-    </ul>
+  <div class="panel-dark">
+    <h4>阶段4：端到端评估与阈值搜索</h4>
+    <p><strong>脚本</strong>：<code>scripts/eval/evaluate_pipeline.py --pipeline yoloworld</code></p>
+    <p><strong>Shell</strong>：<code>bash scripts/shell/run_evaluate_yoloworld_pipeline.sh</code></p>
+    <ol>
+      <li>冻结 YOLO-World 权重，在验证集上跑完整 pipeline</li>
+      <li>网格搜索阈值：alarm_thresh [0.5, 0.6, 0.7]、cls_bypass_thresh [0.9, 0.95, 1.0]</li>
+      <li>评估事件级 TP/FP/FN，计算最优阈值组合</li>
+      <li>输出最终部署模型 + 配置文件</li>
+    </ol>
+    <p><strong>输出</strong>：<code>outputs/eval/yoloworld_eval_result.json</code></p>
   </div>
+</div>
 
-  <hr style="border:none;border-top:1px solid #ddd;margin:28px 0;"/>
+<hr>
 
-  <h3 style="color:#3d3d7a;">二、简化训练流程（Training Pipeline）</h3>
+<h3>三、方案2 vs 方案1 训练流程对比</h3>
 
-  <div style="background:#f8f9fa;padding:14px 18px;border-radius:8px;margin:10px 0;">
-    <p><strong>核心原则：</strong>YOLO-World 开放词汇检测器支持零样本/少样本姿态类别检测，无需独立姿态估计器和分类器训练。</p>
-    <p><strong>DDP支持：</strong>YOLO-World 训练脚本支持多GPU分布式训练，使用 <code>--ngpus N</code> 参数。</p>
-    <p><strong>配置文件：</strong><code>configs/training/yoloworld.yaml</code> 提供训练参数配置。</p>
+<div class="grid-2">
+  <div class="panel-yellow">
+    <h4>方案1：Keypoint Pipeline（7阶段）</h4>
+    <ol>
+      <li>检测器训练（YOLOv8n）</li>
+      <li>姿态估计器微调（YOLOv8n-pose）</li>
+      <li>跟踪器调优</li>
+      <li>特征提取（ROI+关键点+运动）</li>
+      <li>融合分类器训练（3分支）</li>
+      <li>简单分类器训练（单分支）</li>
+      <li>端到端评估</li>
+    </ol>
   </div>
-
-  <div style="display:flex;gap:12px;margin:16px 0;align-items:stretch;">
-    <div style="flex:1;background:#e8f4e8;padding:14px;border-radius:8px;">
-      <h4><strong>阶段1：YOLO-World 检测器训练/微调</strong></h4>
-      <p><strong>数据集</strong>：YOLO格式（COCO person + 私有跌倒多姿态标注）</p>
-      <p><strong>脚本</strong>：<code>scripts/train/train_yoloworld.py</code></p>
-      <p><strong>Shell</strong>：<code>bash scripts/shell/run_train_yoloworld.sh --ngpus 2</code></p>
-      <p><strong>配置</strong>：<code>configs/training/yoloworld.yaml</code></p>
-      <ol>
-        <li>YOLO-World 预训练初始化（开放词汇能力）</li>
-        <li>微调多姿态类别：standing/sitting/crouching/lying/fallen</li>
-        <li>输入 832×448，支持非正方形分辨率</li>
-        <li>支持DDP多GPU训练</li>
-      </ol>
-      <p><strong>输出</strong>：<code>outputs/yoloworld/best.pt</code></p>
-    </div>
-    <div style="flex:1;background:#d1ecf1;padding:14px;border-radius:8px;">
-      <h4><strong>阶段2：跟踪器参数调优</strong></h4>
-      <p><strong>方式</strong>：纯调参，不训练神经网络</p>
-      <p><strong>脚本</strong>：<code>scripts/eval/tune_tracker.py</code></p>
-      <p><strong>Shell</strong>：<code>bash scripts/shell/run_tune_tracker.sh --video-dir data/videos</code></p>
-      <ol>
-        <li>在 YOLO-World 检测输出的视频序列上运行 ByteTrack-lite</li>
-        <li>网格搜索：track_thresh / match_thresh / max_age / min_hits</li>
-        <li>评估 MOTA / IDF1，确认类别切换（class switch）可接受</li>
-      </ol>
-      <p><strong>输出</strong>：<code>outputs/tracker/tune_result.json</code></p>
-    </div>
+  <div class="panel-blue">
+    <h4>方案2：YOLO-World Pipeline（4阶段）</h4>
+    <ol>
+      <li>YOLO-World 检测器训练/微调</li>
+      <li>跟踪器调优</li>
+      <li>跌倒得分配置调优</li>
+      <li>端到端评估</li>
+    </ol>
+    <p style="font-size:12px;color:#6c757d;">
+      省去姿态估计器、特征提取、融合分类器、简单分类器四个训练阶段，训练周期大幅缩短。
+    </p>
   </div>
+</div>
 
-  <div style="display:flex;gap:12px;margin:16px 0;align-items:stretch;">
-    <div style="flex:1;background:#f8d7da;padding:14px;border-radius:8px;">
-      <h4><strong>阶段3：跌倒得分配置调优</strong></h4>
-      <p><strong>方式</strong>：配置调优，无需神经网络训练</p>
-      <p><strong>配置</strong>：<code>configs/pipeline/yolo_world.yaml</code></p>
-      <ol>
-        <li>配置 fall_scores：映射类别到基础跌倒分（0.0~1.0）</li>
-        <li>配置 posture_map：映射类别到姿态标签（用于状态机序列检查）</li>
-        <li>调整 motion_window_frames、运动阈值</li>
-        <li>调整 aspect 阈值和 bonus 系数</li>
-      </ol>
-      <p><strong>输出</strong>：优化后的 <code>yolo_world.yaml</code></p>
-    </div>
-    <div style="flex:1;background:#212529;color:#fff;padding:14px;border-radius:8px;">
-      <h4><strong>阶段4：端到端评估与阈值搜索</strong></h4>
-      <p><strong>脚本</strong>：<code>scripts/eval/evaluate_pipeline.py --pipeline yoloworld</code></p>
-      <p><strong>Shell</strong>：<code>bash scripts/shell/run_evaluate_yoloworld_pipeline.sh</code></p>
-      <ol>
-        <li>冻结 YOLO-World 权重，在验证集上跑完整 pipeline</li>
-        <li>网格搜索阈值：alarm_thresh [0.5, 0.6, 0.7]、cls_bypass_thresh [0.9, 0.95, 1.0]</li>
-        <li>评估事件级 TP/FP/FN，计算最优阈值组合</li>
-        <li>输出最终部署模型 + 配置文件</li>
-      </ol>
-      <p><strong>输出</strong>：<code>outputs/eval/yoloworld_eval_result.json</code></p>
-    </div>
-  </div>
-
-  <hr style="border:none;border-top:1px solid #ddd;margin:28px 0;"/>
-
-  <h3 style="color:#3d3d7a;">三、方案2 vs 方案1 训练流程对比</h3>
-
-  <div style="display:flex;gap:12px;margin:16px 0;align-items:stretch;">
-    <div style="flex:1;background:#fff3cd;padding:14px;border-radius:8px;">
-      <h4><strong>方案1：Keypoint Pipeline（7阶段）</strong></h4>
-      <ol>
-        <li>检测器训练（YOLOv8n）</li>
-        <li>姿态估计器微调（YOLOv8n-pose）</li>
-        <li>跟踪器调优</li>
-        <li>特征提取（ROI+关键点+运动）</li>
-        <li>融合分类器训练（3分支）</li>
-        <li>简单分类器训练（单分支）</li>
-        <li>端到端评估</li>
-      </ol>
-    </div>
-    <div style="flex:1;background:#e7f3ff;padding:14px;border-radius:8px;">
-      <h4><strong>方案2：YOLO-World Pipeline（4阶段）</strong></h4>
-      <ol>
-        <li>YOLO-World 检测器训练/微调</li>
-        <li>跟踪器调优</li>
-        <li>跌倒得分配置调优</li>
-        <li>端到端评估</li>
-      </ol>
-      <p style="font-size:12px;color:#6c757d;">
-        省去姿态估计器、特征提取、融合分类器、简单分类器四个训练阶段，训练周期大幅缩短。
-      </p>
-    </div>
-  </div>
-
-  <div style="background:#d1ecf1;padding:12px 18px;border-radius:8px;margin:14px 0;">
-    <h4>训练可复现性保障</h4>
-    <ul>
-      <li><strong>配置文件</strong>：<code>configs/training/yoloworld.yaml</code> 记录所有训练参数</li>
-      <li><strong>随机种子</strong>：支持 <code>seed</code> 参数（默认666）</li>
-      <li><strong>Checkpoint保存</strong>：保存 <code>best.pt</code> 和 <code>last.pt</code></li>
-      <li><strong>训练日志</strong>：<code>outputs/yoloworld/train.log</code> 记录 loss/mAP 曲线</li>
-    </ul>
-  </div>
+<div class="panel-blue">
+  <h4>训练可复现性保障</h4>
+  <ul>
+    <li><strong>配置文件</strong>：<code>configs/training/yoloworld.yaml</code> 记录所有训练参数</li>
+    <li><strong>随机种子</strong>：支持 <code>seed</code> 参数（默认666）</li>
+    <li><strong>Checkpoint保存</strong>：保存 <code>best.pt</code> 和 <code>last.pt</code></li>
+    <li><strong>训练日志</strong>：<code>outputs/yoloworld/train.log</code> 记录 loss/mAP 曲线</li>
+  </ul>
+</div>
 
 </div>
+</body>
+</html>

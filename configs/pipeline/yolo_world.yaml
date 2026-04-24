@@ -39,17 +39,18 @@ tracker:
   min_hits: 3
 
 fusion:
-  alpha: 0.3
-  beta: 0.5
-  gamma: 0.2
-  alarm_thresh: 0.60
+  alpha: 0.3      # 降低规则权重，避免纯规则主导
+  beta: 0.5       # 启用分类器过滤（模型已存在）
+  gamma: 0.2      # 保持时序平滑权重
+  alarm_thresh: 0.60  # 提高告警阈值，减少日常动作误报
   alarm_min_frames: 3
-  sequence_check_frames: 25
-  cls_bypass_thresh: 1.0  # 允许高置信度直接预测绕过姿态序列检查（YOLO-World 可直接检测 lying）
-  suspected_reset_seconds: 0.75
-  alarm_reset_seconds: 3.0
-  cooldown_seconds: 3.0
-  recovery_seconds: 0.5
+  enter_suspected_min_frames: 3  # 连续多少帧超阈值才进入SUSPECTED
+  sequence_check_frames: 25    # 姿态转换序列检查窗口（帧）
+  cls_bypass_thresh: 1.0      # 分类器高置信度阈值，超过可绕过姿态序列检查（1.0=禁用）（YOLO-World 可直接检测 lying）
+  suspected_reset_seconds: 0.75  # suspected状态恢复时间（秒）
+  alarm_reset_seconds: 3.0       # alarm状态恢复时间（秒）
+  cooldown_seconds: 3.0    # 3秒冷却期，防止频繁上报
+  recovery_seconds: 0.5    # 0.5秒恢复确认期，快速恢复正常
 
 pipeline:
   skip_frames: 2
