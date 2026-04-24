@@ -63,8 +63,8 @@
         .trans-cond { background: #fff; padding: 8px 12px; border-radius: 6px; font-size: 0.75em; color: #5f6368; max-width: 180px; text-align: center; border: 1px dashed #1a73e8; }
         
 /* State Graph SVG Diagram */
-         .state-graph-container { background: #fff; border-radius: 16px; padding: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); margin: 20px 0; }
-         .state-graph-svg { width: 100%; max-width: 950px; height: auto; min-height: 480px; }
+         .state-graph-container { background: #fff; border-radius: 16px; padding: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); margin: 20px auto; max-width: 950px; }
+         .state-graph-svg { width: 100%; height: auto; min-height: 440px; display: block; }
          .graph-node { cursor: pointer; transition: filter 0.3s ease; }
          .graph-node:hover { filter: brightness(1.1); }
          .node-circle { transition: all 0.3s ease; }
@@ -94,6 +94,10 @@
          .legend-node { width: 14px; height: 14px; border-radius: 50%; }
          .legend-node.alarm { background: linear-gradient(135deg, #c62828, #b71c1c); }
          .legend-node.falling { background: linear-gradient(135deg, #ea4335, #c62828); }
+         .legend-node.normal { background: linear-gradient(135deg, #34a853, #2e7d32); }
+         /* Graph tooltip */
+         .state-tooltip { position: absolute; background: rgba(0,0,0,0.85); color: #fff; padding: 8px 12px; border-radius: 6px; font-size: 12px; pointer-events: none; opacity: 0; transition: opacity 0.3s; z-index: 100; max-width: 200px; }
+         .graph-node:hover .state-tooltip { opacity: 1; }
          /* State Overview Flow */
          .state-overview { background: #fff; padding: 20px; border-radius: 12px; margin: 15px 0; border: 1px solid #e0e0e0; }
          .overview-flow { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; margin-bottom: 15px; }
