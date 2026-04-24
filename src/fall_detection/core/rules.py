@@ -286,7 +286,11 @@ class RuleEngine:
             else:
                 posture = "standing" if h_ratio > 0.65 else "sitting"
         elif h_ratio > self.POSTURE_CROUCHING_THRESH:
-            posture = "crouching"
+            # 上半身相对直立时判为 sitting 而非 crouching，减少坐姿误判
+            if hip_ratio < self.POSTURE_HIP_RATIO_THRESH:
+                posture = "sitting"
+            else:
+                posture = "crouching"
         else:
             posture = "lying"
 

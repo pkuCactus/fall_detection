@@ -326,7 +326,27 @@ class TestPostureClassification:
         assert 0.5 < debug["h_ratio"] <= 0.75
 
     def test_crouching_posture(self):
-        """测试蹲姿分类."""
+        """测试蹲姿分类（hip_ratio >= threshold 时仍为 crouching）."""
+        engine = RuleEngine(fps=25)
+        kpts = np.zeros((17, 3))
+        kpts[0] = [50, 0, 0.9]  # nose
+        kpts[1] = [45, 5, 0.9]  # left eye
+        kpts[2] = [55, 5, 0.9]  # right eye
+        kpts[5] = [30, 10, 0.9]  # left shoulder
+        kpts[6] = [70, 10, 0.9]  # right shoulder
+        kpts[11] = [40, 50, 0.9]  # left hip
+        kpts[12] = [60, 50, 0.9]  # right hip
+        kpts[15] = [40, 45, 0.9]  # left ankle
+        kpts[16] = [60, 45, 0.9]  # right ankle
+        bbox = [0, 0, 100, 100]
+
+        score, flags, debug = engine.evaluate(kpts, bbox, {})
+
+        assert debug["posture"] == "crouching"
+        assert 0.35 < debug["h_ratio"] <= 0.5
+
+    def test_low_hip_crouching_becomes_sitting(self):
+        """测试 hip_ratio 较低时 crouching 范围被修正为 sitting."""
         engine = RuleEngine(fps=25)
         kpts = np.zeros((17, 3))
         kpts[0] = [50, 100, 0.9]  # nose
@@ -342,7 +362,7 @@ class TestPostureClassification:
 
         score, flags, debug = engine.evaluate(kpts, bbox, {})
 
-        assert debug["posture"] == "crouching"
+        assert debug["posture"] == "sitting"
         assert 0.35 < debug["h_ratio"] <= 0.5
 
     def test_lying_posture(self):

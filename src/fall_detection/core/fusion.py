@@ -141,7 +141,8 @@ class FusionDecision:
     def _check_fall_sequence(self) -> bool:
         """
         检查姿态历史是否包含"站/坐 -> 跌"的转换序列.
-        要求：最近 sequence_check_frames 帧内，既有站立/坐姿，又有倒下/躺卧姿态.
+        要求：最近 sequence_check_frames 帧内，既有站立/坐姿，又有倒下/躺卧姿态，
+        且 fall 姿态数量严格大于 upright 姿态数量.
         """
         if len(self._posture_history) < self.sequence_check_frames:
             logger.debug(
@@ -155,15 +156,19 @@ class FusionDecision:
 
         has_upright = any(p in upright_postures for p in recent)
         has_fall = any(p in fall_postures for p in recent)
-        # 进一步约束：最近一帧最好是跌倒姿态或分值仍高
         current_is_fall = recent[-1] in fall_postures
 
-        result = has_upright and has_fall and current_is_fall
+        # fall 姿态数量必须严格大于 upright 姿态数量
+        fall_count = sum(1 for p in recent if p in fall_postures)
+        upright_count = sum(1 for p in recent if p in upright_postures)
+        fall_majority = fall_count > upright_count
+
+        result = has_upright and has_fall and current_is_fall and fall_majority
         logger.debug(
-            "[Fusion] _check_fall_sequence: recent=%s, has_upright=%s, has_fall=%s, current_is_fall=%s, result=%s",
+            "[Fusion] _check_fall_sequence: recent=%s, fall_count=%d, upright_count=%d, current_is_fall=%s, result=%s",
             recent,
-            has_upright,
-            has_fall,
+            fall_count,
+            upright_count,
             current_is_fall,
             result,
         )
