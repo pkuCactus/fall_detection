@@ -634,25 +634,11 @@ aspect_bonus = <span class="code-number">0.0</span>
             <text class="edge-label-text" x="0" y="3" text-anchor="middle">比例恢复</text>
         </g>
 
-        <!-- Edge: SUSPECTED self-loop -->
-        <path class="edge-path loop-edge" d="M 155 175 C 120 175, 120 210, 155 200" stroke="#9e9e9e" marker-end="url(#arrowhead-loop)"/>
-        <g transform="translate(100, 190)">
-            <rect class="edge-label-box" x="-28" y="-8" width="56" height="16" fill="#f5f5f5"/>
-            <text class="edge-label-cond" x="0" y="2" text-anchor="middle">累积计数</text>
-        </g>
-
         <!-- Edge: FALLING → ALARM_SENT -->
         <path class="edge-path main-edge" d="M 500 198 L 500 242" stroke="#c62828" marker-end="url(#arrowhead-danger)"/>
         <g transform="translate(555, 220)">
             <rect class="edge-label-box edge-danger" x="-40" y="-10" width="80" height="20"/>
             <text class="edge-label-text" x="0" y="3" text-anchor="middle">告警触发!</text>
-        </g>
-
-        <!-- Edge: ALARM_SENT self-loop -->
-        <path class="edge-path loop-edge" d="M 460 300 C 420 300, 420 340, 460 330" stroke="#c62828" marker-end="url(#arrowhead-danger)"/>
-        <g transform="translate(400, 320)">
-            <rect class="edge-label-box" x="-26" y="-8" width="52" height="16" fill="#fce8e6" stroke="#ea4335"/>
-            <text class="edge-label-cond" x="0" y="2" text-anchor="middle">高分归零</text>
         </g>
 
         <!-- Edge: ALARM_SENT → RECOVERING -->
@@ -674,13 +660,6 @@ aspect_bonus = <span class="code-number">0.0</span>
         <g transform="translate(520, 35)">
             <rect class="edge-label-box edge-success" x="-40" y="-10" width="80" height="20"/>
             <text class="edge-label-text" x="0" y="3" text-anchor="middle">低分≥12帧</text>
-        </g>
-
-        <!-- Edge: RECOVERING self-loop -->
-        <path class="edge-path loop-edge" d="M 820 300 C 850 300, 850 340, 820 330" stroke="#9e9e9e" marker-end="url(#arrowhead-loop)"/>
-        <g transform="translate(875, 320)">
-            <rect class="edge-label-box" x="-22" y="-8" width="44" height="16" fill="#f5f5f5"/>
-            <text class="edge-label-cond" x="0" y="2" text-anchor="middle">累积</text>
         </g>
 
         <!-- Start indicator -->
