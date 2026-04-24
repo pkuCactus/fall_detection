@@ -1,0 +1,984 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>跌倒检测Pipeline流程图</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: #f5f7fa; color: #2c3e50; line-height: 1.6; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        h1 { text-align: center; color: #1a73e8; margin-bottom: 30px; font-size: 2.2em; }
+        h2 { color: #ea4335; border-bottom: 2px solid #ea4335; padding-bottom: 10px; margin: 30px 0 20px; }
+        h3 { color: #34a853; margin: 20px 0 10px; }
+        h4 { color: #1a73e8; margin: 15px 0 8px; }
+        
+        /* Flow Containers */
+        .flow-container { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin: 20px 0; }
+        .flow-box { background: #fff; border: 2px solid #1a73e8; border-radius: 12px; padding: 12px 18px; min-width: 160px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .flow-box.main { border-color: #ea4335; background: #fce8e6; }
+        .flow-box.skip { border-color: #999; background: #f0f0f0; }
+        .flow-box h4 { color: #1a73e8; margin-bottom: 6px; font-size: 1em; }
+        .flow-box p { font-size: 0.8em; color: #5f6368; }
+        .flow-box.data { border-color: #34a853; background: #e6f4ea; }
+        .arrow { color: #1a73e8; font-size: 1.8em; padding: 8px; }
+        .arrow-down { display: flex; justify-content: center; color: #1a73e8; font-size: 1.8em; margin: 8px 0; }
+        
+        /* Cards */
+        .card { background: #fff; border-radius: 12px; padding: 20px; margin: 15px 0; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+        .card-header { font-weight: bold; color: #1a73e8; margin-bottom: 12px; border-bottom: 1px solid #ddd; padding-bottom: 8px; }
+        
+        /* Rules Section */
+        .rules-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 15px; }
+        .rule-card { background: #fff; border-radius: 10px; padding: 15px; border-left: 4px solid; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+        .rule-card.A { border-left-color: #ea4335; }
+        .rule-card.B { border-left-color: #34a853; }
+        .rule-card.C { border-left-color: #fbbc04; }
+        .rule-card.D { border-left-color: #4285f4; }
+        .rule-card.E { border-left-color: #9c27b0; }
+        .rule-card.F { border-left-color: #ff7043; }
+        .rule-title { font-weight: bold; color: #1a73e8; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+        .rule-badge { background: #ea4335; color: white; padding: 3px 8px; border-radius: 4px; font-size: 0.85em; }
+        .rule-condition { background: #f8f9fa; padding: 12px; border-radius: 6px; margin: 10px 0; font-family: 'Courier New', monospace; font-size: 0.8em; border: 1px solid #e0e0e0; }
+        .rule-desc { color: #5f6368; font-size: 0.85em; }
+        
+        /* Posture Section */
+        .posture-flow { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 15px 0; align-items: center; }
+        .posture-box { padding: 8px 16px; border-radius: 8px; text-align: center; font-weight: 500; }
+        .posture-box.standing { background: #34a853; color: #fff; }
+        .posture-box.sitting { background: #4285f4; color: #fff; }
+        .posture-box.crouching { background: #fbbc04; color: #fff; }
+        .posture-box.lying { background: #ea4335; color: #fff; }
+        .posture-box.unknown { background: #9c27b0; color: #fff; }
+        
+        /* State Machine */
+        .state-machine { display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; margin: 20px 0; align-items: center; }
+        .state-box { min-width: 120px; padding: 15px; border-radius: 10px; text-align: center; font-weight: bold; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .state-normal { background: #e6f4ea; border: 2px solid #34a853; color: #34a853; }
+        .state-suspected { background: #fff3e0; border: 2px solid #fbbc04; color: #f57c00; }
+        .state-falling { background: #fce8e6; border: 2px solid #ea4335; color: #ea4335; }
+        .state-alarm { background: #ea4335; border: 2px solid #c62828; color: #fff; }
+        .state-recovering { background: #e8f0fe; border: 2px solid #4285f4; color: #4285f4; }
+        .state-trans { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+        .trans-arrow { font-size: 1.4em; color: #1a73e8; }
+        .trans-cond { background: #fff; padding: 8px 12px; border-radius: 6px; font-size: 0.75em; color: #5f6368; max-width: 180px; text-align: center; border: 1px dashed #1a73e8; }
+        
+        /* State Flow Diagram */
+        .state-flow-diagram { display: flex; flex-direction: column; gap: 20px; padding: 20px; background: linear-gradient(135deg, #fff 0%, #f8f9fa 100%); border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+        .state-row { display: flex; align-items: center; gap: 10px; }
+        .state-node { min-width: 100px; padding: 15px; border-radius: 10px; text-align: center; font-weight: bold; transition: transform 0.2s ease, box-shadow 0.2s ease; cursor: pointer; animation: fadeIn 0.3s ease forwards; }
+        .state-node:hover { transform: scale(1.05); box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
+        .state-node.normal-node { background: linear-gradient(135deg, #34a853 0%, #2e7d32 100%); color: #fff; }
+        .state-node.suspected-node { background: linear-gradient(135deg, #fbbc04 0%, #f57c00 100%); color: #fff; }
+        .state-node.falling-node { background: linear-gradient(135deg, #ea4335 0%, #c62828 100%); color: #fff; }
+        .state-node.alarm-node { background: linear-gradient(135deg, #c62828 0%, #b71c1c 100%); color: #fff; }
+        .state-node.recovering-node { background: linear-gradient(135deg, #4285f4 0%, #1565c0 100%); color: #fff; }
+        .state-conditions { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+        .condition-box { padding: 10px 15px; background: #f8f9fa; border-radius: 8px; font-size: 0.85em; border-left: 3px solid; transition: background 0.2s ease; }
+        .condition-box:hover { background: #f0f0f0; }
+        .condition-box.cond-green { border-left-color: #34a853; }
+        .condition-box.cond-red { border-left-color: #ea4335; }
+        .condition-box.cond-yellow { border-left-color: #fbbc04; }
+        .condition-box.cond-blue { border-left-color: #4285f4; }
+        .condition-box.cond-gray { border-left-color: #999; }
+        .flow-arrow { color: #1a73e8; font-size: 1.5em; transition: transform 0.2s ease; }
+        .flow-arrow:hover { transform: translateX(5px); }
+        @keyframes fadeIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
+        
+        /* Formula */
+        .formula-box { background: #fff; padding: 15px; border-radius: 10px; margin: 15px 0; text-align: center; border: 1px solid #e0e0e0; }
+        .formula { font-family: 'Courier New', monospace; color: #1a73e8; font-size: 1.1em; padding: 10px; background: #f8f9fa; border-radius: 6px; display: inline-block; }
+        .formula-desc { margin-top: 8px; color: #5f6368; font-size: 0.85em; }
+        
+        /* Tables */
+        table { width: 100%; border-collapse: collapse; margin: 15px 0; background: #fff; }
+        th, td { border: 1px solid #e0e0e0; padding: 10px; text-align: left; }
+        th { background: #f8f9fa; color: #1a73e8; font-weight: 600; }
+        td { background: #fff; }
+        .param-table th:first-child { width: 180px; color: #34a853; }
+        
+        /* Code Block */
+        .code-block { background: #f8f9fa; border-radius: 8px; padding: 12px; margin: 10px 0; overflow-x: auto; border: 1px solid #e0e0e0; }
+        .code-block pre { font-family: 'Courier New', monospace; font-size: 0.8em; color: #2c3e50; white-space: pre; }
+        .code-keyword { color: #d73a49; }
+        .code-string { color: #032f62; }
+        .code-number { color: #005cc5; }
+        .code-comment { color: #6a737d; }
+        
+        /* Notes */
+        .note { background: #fff8e1; padding: 12px; border-radius: 8px; border-left: 4px solid #fbbc04; margin: 12px 0; }
+        .note-info { background: #e8f0fe; border-left-color: #4285f4; }
+        .note-success { background: #e6f4ea; border-left-color: #34a853; }
+        .note-danger { background: #fce8e6; border-left-color: #ea4335; }
+        .note-title { color: #1a73e8; font-weight: bold; margin-bottom: 6px; }
+        
+        /* Tracker Section */
+        .tracker-flow { display: flex; flex-direction: column; gap: 10px; margin: 15px 0; }
+        .tracker-step { display: flex; align-items: center; gap: 15px; background: #fff; padding: 15px; border-radius: 8px; border: 1px solid #e0e0e0; }
+        .step-num { width: 30px; height: 30px; border-radius: 50%; background: #1a73e8; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: bold; }
+        .step-content { flex: 1; }
+        .step-title { font-weight: bold; color: #1a73e8; }
+        .step-desc { color: #5f6368; font-size: 0.85em; }
+        
+        /* Kalman Filter Diagram */
+        .kalman-diagram { display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; margin: 20px 0; }
+        .kalman-box { background: #fff; border: 2px solid #4285f4; border-radius: 10px; padding: 15px; min-width: 200px; text-align: center; }
+        .kalman-state { background: #e8f0fe; padding: 8px; border-radius: 6px; margin: 8px 0; font-family: monospace; }
+        
+        /* Match Process */
+        .match-flow { display: flex; justify-content: center; gap: 30px; margin: 20px 0; align-items: flex-start; }
+        .match-stage { background: #fff; border: 2px solid #34a853; border-radius: 10px; padding: 15px; min-width: 250px; }
+        .match-title { text-align: center; color: #34a853; font-weight: bold; margin-bottom: 10px; }
+        
+        /* Key Points */
+        .keypoints-container { display: flex; justify-content: center; gap: 30px; margin: 20px 0; }
+        .keypoints-diagram { position: relative; width: 180px; height: 280px; background: linear-gradient(135deg, #fff 0%, #f8f9fa 100%); border-radius: 10px; border: 2px solid #e0e0e0; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .kpt { position: absolute; width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 9px; color: #fff; font-weight: bold; transition: transform 0.2s ease, box-shadow 0.2s ease; cursor: pointer; }
+        .kpt:hover { transform: scale(1.3); box-shadow: 0 0 10px rgba(0,0,0,0.3); z-index: 10; }
+        .kpt.head { background: #ea4335; }
+        .kpt.shoulder { background: #34a853; }
+        .kpt.hip { background: #fbbc04; }
+        .kpt.ankle { background: #4285f4; }
+        .kpt-line { position: absolute; background: #ddd; height: 2px; transform-origin: left center; z-index: 0; }
+        
+        /* Timeline Animation */
+        .timeline { display: flex; justify-content: space-between; padding: 20px 0; position: relative; margin: 20px 0; }
+        .timeline::before { content: ''; position: absolute; top: 50%; left: 0; right: 0; height: 4px; background: linear-gradient(90deg, #34a853, #fbbc04, #ea4335, #c62828, #4285f4, #34a853); border-radius: 2px; }
+        .timeline-point { position: relative; z-index: 1; text-align: center; animation: fadeInUp 0.5s ease forwards; opacity: 0; }
+        .timeline-point:nth-child(1) { animation-delay: 0.1s; }
+        .timeline-point:nth-child(2) { animation-delay: 0.2s; }
+        .timeline-point:nth-child(3) { animation-delay: 0.3s; }
+        .timeline-point:nth-child(4) { animation-delay: 0.4s; }
+        .timeline-point:nth-child(5) { animation-delay: 0.5s; }
+        .timeline-point:nth-child(6) { animation-delay: 0.6s; }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .timeline-dot { width: 28px; height: 28px; border-radius: 50%; margin: 0 auto 8px; border: 3px solid #fff; box-shadow: 0 3px 10px rgba(0,0,0,0.25); transition: transform 0.3s ease; }
+        .timeline-dot:hover { transform: scale(1.2); }
+        .timeline-label { font-size: 0.8em; color: #5f6368; font-weight: 500; }
+        
+        .section { margin-bottom: 40px; }
+        .highlight { color: #ea4335; font-weight: bold; }
+        
+        /* Track State */
+        .track-state-flow { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin: 15px 0; align-items: center; }
+        .track-state-box { padding: 10px 20px; border-radius: 8px; text-align: center; font-weight: 500; }
+        .track-state-new { background: #fff3e0; border: 2px solid #fbbc04; color: #f57c00; }
+        .track-state-tentative { background: #e8f0fe; border: 2px solid #4285f4; color: #4285f4; }
+        .track-state-confirmed { background: #e6f4ea; border: 2px solid #34a853; color: #34a853; }
+        .track-state-lost { background: #fce8e6; border: 2px solid #ea4335; color: #ea4335; }
+    </style>
+</head>
+<body>
+<div class="container">
+
+<h1>跌倒检测 Pipeline 全流程详解</h1>
+
+<!-- ========== SECTION 1: Pipeline Overview ========== -->
+<div class="section">
+<h2>1. Pipeline 整体流程</h2>
+
+<div class="note note-info">
+    <div class="note-title">核心设计理念</div>
+    采用 <strong>skip-frame</strong> 机制：检测帧每 N+1 帧运行一次（默认 N=2，即每3帧检测），跳帧时仅预测轨迹和推理分类器。
+    目标：满足边缘设备 ~34ms 总延迟预算（HiSilicon 3516C，15M DDR）。
+</div>
+
+<!-- Detection Frame Flow -->
+<h3>1.1 检测帧流程（Detection Frame）</h3>
+<div class="flow-container">
+    <div class="flow-box data"><h4>输入帧</h4><p>frame (H,W,3)</p></div>
+    <div class="arrow">→</div>
+    <div class="flow-box main"><h4>YOLOv8n 检测</h4><p>Person Detector<br>conf_thresh=0.3</p></div>
+    <div class="arrow">→</div>
+    <div class="flow-box main"><h4>ByteTrack Lite</h4><p>轨迹跟踪更新<br>两阶段匹配</p></div>
+    <div class="arrow">→</div>
+    <div class="flow-box main"><h4>YOLOv8n-Pose</h4><p>全帧姿态估计<br>17 COCO关键点</p></div>
+</div>
+
+<div class="arrow-down">↓</div>
+
+<div class="flow-container">
+    <div class="flow-box main"><h4>分类器推理</h4><p>SimpleFallClassifier<br>96×96 ROI → sigmoid</p></div>
+    <div class="arrow">→</div>
+    <div class="flow-box main"><h4>规则引擎</h4><p>RuleEngine.evaluate()<br>A/B/C/D/E/F 规则</p></div>
+    <div class="arrow">→</div>
+    <div class="flow-box main"><h4>融合决策</h4><p>FusionDecision.update()<br>状态机驱动</p></div>
+    <div class="arrow">→</div>
+    <div class="flow-box data"><h4>输出结果</h4><p>is_falling, should_alarm<br>track_scores, flags</p></div>
+</div>
+
+<!-- Skip Frame Flow -->
+<h3>1.2 跳帧流程（Skip Frame）</h3>
+<div class="flow-container">
+    <div class="flow-box skip"><h4>输入帧</h4><p>跳过检测</p></div>
+    <div class="arrow" style="color:#999">→</div>
+    <div class="flow-box skip"><h4>轨迹预测</h4><p>Kalman predict<br>不更新匹配</p></div>
+    <div class="arrow" style="color:#999">→</div>
+    <div class="flow-box skip"><h4>复用关键点</h4><p>_last_track_kpts<br>或 KptTracker</p></div>
+    <div class="arrow" style="color:#999">→</div>
+    <div class="flow-box"><h4>分类器推理</h4><p>每帧运行</p></div>
+</div>
+
+<div class="arrow-down" style="color:#999">↓</div>
+
+<div class="flow-container">
+    <div class="flow-box skip"><h4>规则引擎</h4><p>复用kpts</p></div>
+    <div class="arrow" style="color:#999">→</div>
+    <div class="flow-box skip"><h4>融合决策</h4><p>时序累积</p></div>
+    <div class="arrow" style="color:#999">→</div>
+    <div class="flow-box skip"><h4>输出结果</h4><p>基于时序决策</p></div>
+</div>
+
+<!-- Frame Type Decision -->
+<h3>1.3 帧类型判定</h3>
+<div class="formula-box">
+    <div class="formula">run_detection = (frame_counter % (skip_frames + 1)) == 0</div>
+    <div class="formula-desc">默认 skip_frames=2，每3帧的第0帧运行检测</div>
+</div>
+
+</div>
+
+<!-- ========== SECTION 2: Tracker ========== -->
+<div class="section">
+<h2>2. 目标跟踪详解（ByteTrackLite）</h2>
+
+<div class="note note-info">
+    <div class="note-title">ByteTrackLite 设计</div>
+    裁剪版 ByteTrack，仅用 IoU 匹配，无外观特征（ReID）。适合边缘设备，减少计算开销。<br>
+    核心思想：<strong>两阶段匹配</strong>，高分检测框优先匹配，低分检测框补充匹配，提高遮挡场景鲁棒性。
+</div>
+
+<!-- Tracker Flow -->
+<h3>2.1 跟踪流程步骤</h3>
+<div class="tracker-flow">
+    <div class="tracker-step">
+        <div class="step-num">1</div>
+        <div class="step-content">
+            <div class="step-title">预测已有轨迹（Kalman Filter）</div>
+            <div class="step-desc">对所有 tracks 执行 predict()，更新位置和速度估计，age/time_since_update 递增</div>
+        </div>
+    </div>
+    <div class="tracker-step">
+        <div class="step-num">2</div>
+        <div class="step-content">
+            <div class="step-title">分离高/低分检测框</div>
+            <div class="step-desc">dets_high: conf ≥ track_thresh (0.5)，dets_low: conf < track_thresh</div>
+        </div>
+    </div>
+    <div class="tracker-step">
+        <div class="step-num">3</div>
+        <div class="step-content">
+            <div class="step-title">第一次匹配：active tracks + 高分检测框</div>
+            <div class="step-desc">active_tracks = confirmed + tentative，使用 IoU cost matrix + Hungarian 算法匹配</div>
+        </div>
+    </div>
+    <div class="tracker-step">
+        <div class="step-num">4</div>
+        <div class="step-content">
+            <div class="step-title">第二次匹配：未匹配 tracks + 低分检测框</div>
+            <div class="step-desc">为第一次未匹配的轨迹尝试与低分检测框关联，减少遮挡丢失</div>
+        </div>
+    </div>
+    <div class="tracker-step">
+        <div class="step-num">5</div>
+        <div class="step-content">
+            <div class="step-title">标记未匹配轨迹为丢失</div>
+            <div class="step-desc">调用 mark_missed()，tentative 直接删除，confirmed 若 time_since_update > max_age (30帧) 则删除</div>
+        </div>
+    </div>
+    <div class="tracker-step">
+        <div class="step-num">6</div>
+        <div class="step-content">
+            <div class="step-title">新建轨迹</div>
+            <div class="step-desc">未匹配的高分检测框 → 新建 tentative track，分配新 track_id</div>
+        </div>
+    </div>
+</div>
+
+<!-- Two-Stage Match -->
+<h3>2.2 两阶段匹配详解</h3>
+<div class="match-flow">
+    <div class="match-stage">
+        <div class="match-title">第一阶段：高分匹配</div>
+        <div class="code-block"><pre>
+<span class="code-comment"># 匹配对象</span>
+tracks: confirmed + tentative
+dets: conf ≥ track_thresh (0.5)
+
+<span class="code-comment"># 匹配算法</span>
+cost = 1.0 - IoU(track.bbox, det.bbox)
+matches = Hungarian(cost_matrix)
+
+<span class="code-comment"># 匹配条件</span>
+cost ≤ match_thresh (0.2)
+→ IoU ≥ 0.8
+        </pre></div>
+        <div class="note note-success">
+            <strong>目的：</strong>高置信度检测框优先关联，确保稳定跟踪
+        </div>
+    </div>
+    <div class="match-stage">
+        <div class="match-title">第二阶段：低分补充</div>
+        <div class="code-block"><pre>
+<span class="code-comment"># 匹配对象</span>
+tracks: 第一阶段未匹配的
+dets: conf < track_thresh
+
+<span class="code-comment"># 同样使用 IoU 匹配</span>
+cost = 1.0 - IoU(...)
+matches = Hungarian(cost_matrix)
+        </pre></div>
+        <div class="note note-info">
+            <strong>目的：</strong>低分检测框挽救未匹配轨迹，处理遮挡/模糊场景
+        </div>
+    </div>
+</div>
+
+<!-- Kalman Filter -->
+<h3>2.3 卡尔曼滤波器（KalmanFilter）</h3>
+
+<div class="card">
+    <div class="card-header">状态向量（8维）</div>
+    <div class="kalman-diagram">
+        <div class="kalman-box">
+            <h4>位置状态 (4维)</h4>
+            <div class="kalman-state">cx, cy, w, h</div>
+            <p style="font-size:0.8em;color:#5f6368">中心坐标 + 宽高</p>
+        </div>
+        <div class="kalman-box">
+            <h4>速度状态 (4维)</h4>
+            <div class="kalman-state">vx, vy, vw, vh</div>
+            <p style="font-size:0.8em;color:#5f6368">各方向速度</p>
+        </div>
+    </div>
+    <div class="formula-box">
+        <div class="formula">state = [cx, cy, w, h, vx, vy, vw, vh]</div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">Predict / Update 循环</div>
+    <div class="flow-container">
+        <div class="flow-box data"><h4>上一帧状态</h4><p>mean, covariance</p></div>
+        <div class="arrow">→</div>
+        <div class="flow-box main"><h4>Predict</h4><p>预测新位置<br>增加不确定性</p></div>
+        <div class="arrow">→</div>
+        <div class="flow-box data"><h4>检测框</h4><p>measurement</p></div>
+        <div class="arrow">→</div>
+        <div class="flow-box main"><h4>Update</h4><p>融合检测<br>修正估计</p></div>
+    </div>
+    <div class="code-block"><pre>
+<span class="code-comment"># Predict: 状态转移</span>
+mean = F @ mean  <span class="code-comment"># F: 状态转移矩阵</span>
+cov = F @ cov @ F.T + Q  <span class="code-comment"># Q: 过程噪声</span>
+
+<span class="code-comment"># Update: 观测修正</span>
+K = cov @ H.T @ inv(H @ cov @ H.T + R)  <span class="code-comment"># Kalman增益</span>
+mean = mean + K @ (z - H @ mean)  <span class="code-comment"># z: 检测框测量</span>
+cov = cov - K @ H @ cov
+    </pre></div>
+</div>
+
+<!-- Track State -->
+<h3>2.4 轨迹状态转换</h3>
+<div class="track-state-flow">
+    <div class="track-state-box track-state-new">新建<br>hits=1</div>
+    <div class="arrow">→</div>
+    <div class="track-state-box track-state-tentative">tentative<br>hits < min_hits</div>
+    <div class="arrow">→</div>
+    <div class="track-state-box track-state-confirmed">confirmed<br>hits ≥ min_hits (3)</div>
+    <div class="arrow">→</div>
+    <div class="track-state-box track-state-lost">丢失<br>time_since_update > max_age</div>
+</div>
+
+<table>
+    <tr><th>状态</th><th>条件</th><th>行为</th></tr>
+    <tr><td class="highlight">tentative</td><td>hits < min_hits (3)</td><td>尚未稳定，不参与第二次匹配</td></tr>
+    <tr><td class="highlight">confirmed</td><td>hits ≥ min_hits</td><td>稳定轨迹，参与两次匹配</td></tr>
+    <tr><td class="highlight">删除</td><td>tentative 丢失 或 time_since_update > max_age (30帧)</td><td>从 tracks 列表中移除</td></tr>
+</table>
+
+<!-- IoU Cost -->
+<h3>2.5 IoU Cost Matrix</h3>
+<div class="formula-box">
+    <div class="formula">cost_matrix[i,j] = 1.0 - IoU(track_i.bbox, det_j.bbox)</div>
+    <div class="formula-desc">IoU ≥ 0.8 时 cost ≤ 0.2，满足 match_thresh 条件</div>
+</div>
+
+<div class="code-block"><pre>
+<span class="code-keyword">def</span> <span class="code-string">iou_cost</span>(tracks, detections):
+    cost_matrix = np.zeros((len(tracks), len(detections)))
+    <span class="code-keyword">for</span> i, track <span class="code-keyword">in</span> enumerate(tracks):
+        <span class="code-keyword">for</span> j, det <span class="code-keyword">in</span> enumerate(detections):
+            cost_matrix[i, j] = <span class="code-number">1.0</span> - iou(track.to_tlbr(), det.bbox)
+    <span class="code-keyword">return</span> cost_matrix
+</pre></div>
+
+<!-- Key Parameters -->
+<h3>2.6 关键参数</h3>
+<table class="param-table">
+    <tr><th>参数</th><th>默认值</th><th>说明</th></tr>
+    <tr><td>track_thresh</td><td>0.5</td><td>高分检测框阈值，用于第一阶段匹配</td></tr>
+    <tr><td>match_thresh</td><td>0.2</td><td>匹配成本阈值（cost ≤ 0.2 = IoU ≥ 0.8）</td></tr>
+    <tr><td>max_age</td><td>30帧</td><td>轨迹最大丢失帧数，超过则删除</td></tr>
+    <tr><td>min_hits</td><td>3</td><td>tentative → confirmed 需要的最少匹配次数</td></tr>
+</table>
+
+</div>
+
+<!-- ========== SECTION 3: Rule Engine ========== -->
+<div class="section">
+<h2>3. 规则引擎详解（RuleEngine）</h2>
+
+<div class="note note-info">
+    <div class="note-title">规则得分计算</div>
+    S_rule = (A + B + C + D + E + F) / 6，每条规则等权贡献，触发越多分数越高。<br>
+    若 visible_ratio < visible_ratio_min 且 F 未触发，则 score *= 0.5（可见性惩罚）。
+</div>
+
+<!-- Rule Cards -->
+<div class="rules-grid">
+
+<!-- Rule A -->
+<div class="rule-card A">
+    <div class="rule-title"><span class="rule-badge">A</span> 高度压缩 + 多点贴地</div>
+    <div class="rule-desc">检测人体高度压缩（躺卧特征）+ 关键点贴地数量</div>
+    <div class="rule-condition">
+flags["A"] = is_compressed AND (n_ground ≥ 2) AND (visible_ratio ≥ 0.5)
+
+is_compressed = (h_ratio < 0.6) OR (kpt_aspect > 1.5) OR (torso_angle > 55°)
+    </div>
+    <table>
+        <tr><td>h_ratio</td><td>|head_y - ankle_y| / bbox_h，站立≈0.85，躺卧≈0.3</td></tr>
+        <tr><td>kpt_aspect</td><td>关键点水平宽度/垂直高度，>1.5表示水平展开</td></tr>
+        <tr><td>torso_angle</td><td>肩膀-臀部连线与垂直方向夹角，>55°表示躯干倾斜</td></tr>
+        <tr><td>n_ground</td><td>bbox底部40%区域内的关键点数量</td></tr>
+    </table>
+    <div class="note note-danger">
+        <strong>排除条件：</strong>若 posture=="sitting" 且 hip_ratio<0.45 且 torso_angle≤45°，强制 flags["A"]=False
+    </div>
+</div>
+
+<!-- Rule B -->
+<div class="rule-card B">
+    <div class="rule-title"><span class="rule-badge">B</span> 地面 ROI 判定</div>
+    <div class="rule-desc">检测最低关键点是否位于地面区域</div>
+    <div class="rule-condition">
+if ground_roi is None:
+    flags["B"] = n_near_ground ≥ 1
+else:
+    flags["B"] = all(point_in_polygon(p, ground_roi))
+    </div>
+    <table>
+        <tr><td>ground_roi</td><td>可选：预定义地面多边形区域</td></tr>
+        <tr><td>lowest3</td><td>置信度最高的3个最低关键点</td></tr>
+        <tr><td>ground_y_thresh</td><td>bbox底部40%边界</td></tr>
+    </table>
+</div>
+
+<!-- Rule C -->
+<div class="rule-card C">
+    <div class="rule-title"><span class="rule-badge">C</span> 由动到静 / 持续静止</div>
+    <div class="rule-desc">检测运动轨迹的变化：快速运动后突然静止</div>
+    <div class="rule-condition">
+displacements[i] = sqrt(dx² + dy²) * fps  <span class="code-comment"># px/s</span>
+
+flags["C"] = (avg_early > 50 px/s) AND (avg_late < 20 px/s)
+
+<span class="code-comment"># 或躺卧持续静止</span>
+if posture == "lying":
+    flags["C"] = total_avg < 20 px/s
+    </div>
+    <table>
+        <tr><td>motion_thresh</td><td>运动期阈值 50 px/s</td></tr>
+        <tr><td>static_thresh</td><td>静止期阈值 20 px/s</td></tr>
+        <tr><td>motion_window</td><td>历史窗口 1.5秒</td></tr>
+    </table>
+</div>
+
+<!-- Rule D -->
+<div class="rule-card D">
+    <div class="rule-title"><span class="rule-badge">D</span> 垂直方向快速下降</div>
+    <div class="rule-desc">检测人体中心点垂直方向的快速下移速度</div>
+    <div class="rule-condition">
+vy_px_s = (recent_y[-1] - recent_y[0]) / (window-1) * fps
+
+flags["D"] = (vy > 200 px/s) AND ((h_ratio < 0.6) OR (posture == "lying"))
+    </div>
+    <table>
+        <tr><td>fall_vy_thresh</td><td>垂直速度阈值 200 px/s</td></tr>
+        <tr><td>window</td><td>计算窗口 ≈0.2秒</td></tr>
+    </table>
+    <div class="note note-info">
+        <strong>注意：</strong>需同时满足姿态压缩，避免正常下坡误触发
+    </div>
+</div>
+
+<!-- Rule E -->
+<div class="rule-card E">
+    <div class="rule-title"><span class="rule-badge">E</span> 向下加速度辅助</div>
+    <div class="rule-desc">检测垂直方向的加速度特征</div>
+    <div class="rule-condition">
+vys[i] = (y[i] - y[i-1]) * fps
+accel = (vys[-1] - vys[0]) / (len(vys) / fps)
+
+flags["E"] = (accel > 100 px/s²) AND (posture in {"lying", "compressed"})
+    </div>
+    <table>
+        <tr><td>accel_thresh</td><td>加速度阈值 100 px/s²</td></tr>
+    </table>
+</div>
+
+<!-- Rule F -->
+<div class="rule-card F">
+    <div class="rule-title"><span class="rule-badge">F</span> 关键点不可见检测</div>
+    <div class="rule-desc">检测关键点几乎完全不可见（极端姿态或遮挡）</div>
+    <div class="rule-condition">
+visible_ratio = sum(kpts[:,2] > 0.1) / 17
+
+flags["F"] = visible_ratio < 0.1  <span class="code-comment"># <17%可见</span>
+    </div>
+    <div class="note note-danger">
+        <strong>场景：</strong>跌倒后被遮挡、极端姿势导致姿态估计失败
+    </div>
+</div>
+
+</div>
+
+<!-- Body Metrics -->
+<h3>3.1 人体指标计算</h3>
+<div class="keypoints-container">
+    <div class="keypoints-diagram">
+        <!-- Skeleton Lines (SVG) -->
+        <svg style="position:absolute;top:0;left:0;width:100%;height:100%;z-index:0">
+            <!-- Head connections -->
+            <line x1="81" y1="24" x2="90" y2="24" stroke="#ea4335" stroke-width="2" opacity="0.6"/>
+            <line x1="81" y1="24" x2="72" y2="24" stroke="#ea4335" stroke-width="2" opacity="0.6"/>
+            <!-- Shoulder line -->
+            <line x1="64" y1="59" x2="116" y2="59" stroke="#34a853" stroke-width="2" opacity="0.6"/>
+            <!-- Left shoulder to hip -->
+            <line x1="64" y1="59" x2="64" y2="129" stroke="#9e9e9e" stroke-width="2" opacity="0.5"/>
+            <!-- Right shoulder to hip -->
+            <line x1="116" y1="59" x2="116" y2="129" stroke="#9e9e9e" stroke-width="2" opacity="0.5"/>
+            <!-- Hip line -->
+            <line x1="64" y1="129" x2="116" y2="129" stroke="#fbbc04" stroke-width="2" opacity="0.6"/>
+            <!-- Left hip to ankle -->
+            <line x1="64" y1="129" x2="64" y2="264" stroke="#9e9e9e" stroke-width="2" opacity="0.5"/>
+            <!-- Right hip to ankle -->
+            <line x1="116" y1="129" x2="116" y2="264" stroke="#9e9e9e" stroke-width="2" opacity="0.5"/>
+            <!-- Center vertical line -->
+            <line x1="90" y1="24" x2="90" y2="90" stroke="#9e9e9e" stroke-width="1" opacity="0.3" stroke-dasharray="4"/>
+        </svg>
+        <!-- Key points -->
+        <div class="kpt head" style="left:81px;top:15px">0</div>
+        <div class="kpt head" style="left:90px;top:15px">1</div>
+        <div class="kpt head" style="left:72px;top:15px">2</div>
+        <div class="kpt shoulder" style="left:55px;top:50px">5</div>
+        <div class="kpt shoulder" style="left:107px;top:50px">6</div>
+        <div class="kpt hip" style="left:55px;top:120px">11</div>
+        <div class="kpt hip" style="left:107px;top:120px">12</div>
+        <div class="kpt ankle" style="left:55px;top:255px">15</div>
+        <div class="kpt ankle" style="left:107px;top:255px">16</div>
+        <div style="position:absolute;top:5px;left:-100px;font-size:0.75em;color:#5f6368">
+            0,1,2: 头部<br>→ head_y
+        </div>
+        <div style="position:absolute;top:45px;left:-100px;font-size:0.75em;color:#5f6368">
+            5,6: 肩膀<br>→ torso_angle
+        </div>
+        <div style="position:absolute;top:115px;left:-100px;font-size:0.75em;color:#5f6368">
+            11,12: 髋部<br>→ hip_ratio
+        </div>
+        <div style="position:absolute;top:250px;left:-100px;font-size:0.75em;color:#5f6368">
+            15,16: 脚踝<br>→ lower_y
+        </div>
+    </div>
+    <div style="padding: 15px;">
+        <table class="param-table">
+            <tr><th>指标</th><th>计算公式</th></tr>
+            <tr><td>h_ratio</td><td>|head_y - ankle_y| / bbox_h</td></tr>
+            <tr><td>hip_ratio</td><td>|head_y - hip_y| / bbox_h</td></tr>
+            <tr><td>kpt_aspect</td><td>kpt_span_w / kpt_span_h</td></tr>
+            <tr><td>torso_angle</td><td>arctan2(|dx|, |dy|)</td></tr>
+            <tr><td>visible_ratio</td><td>置信度>0.1的关键点数 / 17</td></tr>
+        </table>
+    </div>
+</div>
+
+</div>
+
+<!-- ========== SECTION 4: Posture Classification ========== -->
+<div class="section">
+<h2>4. 姿态分类（_classify_posture）</h2>
+
+<div class="posture-flow">
+    <div class="posture-box standing">standing<br>h_ratio > 0.75</div>
+    <div class="arrow">→</div>
+    <div class="posture-box sitting">sitting<br>0.5~0.75<br>hip_ratio < 0.45</div>
+    <div class="arrow">→</div>
+    <div class="posture-box crouching">crouching<br>0.35~0.5</div>
+    <div class="arrow">→</div>
+    <div class="posture-box lying">lying<br>h_ratio ≤ 0.35<br>或 kpt_aspect>1.5</div>
+</div>
+
+<h3>4.1 姿态判定优先级</h3>
+<div class="code-block"><pre>
+<span class="code-comment"># 优先检测光轴方向跌倒（水平展开）</span>
+<span class="code-keyword">if</span> kpt_aspect > <span class="code-number">1.5</span> <span class="code-keyword">or</span> torso_angle > <span class="code-number">55</span>: posture = <span class="code-string">"lying"</span>
+
+<span class="code-comment"># 检测框明显变宽 + 压缩</span>
+<span class="code-keyword">elif</span> bbox_aspect > <span class="code-number">1.3</span> <span class="code-keyword">and</span> kpt_aspect > <span class="code-number">1.0</span> <span class="code-keyword">and</span> h_ratio < <span class="code-number">0.65</span>: posture = <span class="code-string">"lying"</span>
+
+<span class="code-comment"># 按高度压缩程度分层</span>
+<span class="code-keyword">elif</span> h_ratio > <span class="code-number">0.75</span>: posture = <span class="code-string">"standing"</span>
+<span class="code-keyword">elif</span> h_ratio > <span class="code-number">0.50</span>: posture = <span class="code-string">"sitting"</span> (if hip_ratio < 0.45)
+<span class="code-keyword">elif</span> h_ratio > <span class="code-number">0.35</span>: posture = <span class="code-string">"crouching"</span>
+<span class="code-keyword">else</span>: posture = <span class="code-string">"lying"</span>
+</pre></div>
+
+<h3>4.2 分类器得分辅助修正</h3>
+<table>
+    <tr><th>条件</th><th>修正动作</th></tr>
+    <tr><td>cls_score > cls_posture_t1 (0.85)</td><td>强制 posture = "lying"</td></tr>
+    <tr><td>cls_score < cls_posture_t2 (0.2)</td><td>强制 posture = "standing"</td></tr>
+    <tr><td>cls_score 在 [t2, t1] 区间</td><td>若原为"standing"，降级为"sitting"</td></tr>
+</table>
+
+</div>
+
+<!-- ========== SECTION 5: Fusion Decision ========== -->
+<div class="section">
+<h2>5. 融合决策详解（FusionDecision）</h2>
+
+<!-- Score Formula -->
+<h3>5.1 融合得分公式</h3>
+<div class="formula-box">
+    <div class="formula">S_final = α × S_rule + β × S_cls + γ × S_temporal</div>
+    <div class="formula-desc">
+        默认权重：α=0.35（规则）, β=0.45（分类器）, γ=0.20（时序平滑）<br>
+        S_temporal = 最近 fps 帧分类器得分的滑动平均
+    </div>
+</div>
+
+<!-- State Machine -->
+<h3>5.2 状态机转换详解</h3>
+
+<h4>核心变量说明</h4>
+<table class="param-table">
+    <tr><th>变量</th><th>作用状态</th><th>含义</th></tr>
+    <tr><td>_consecutive_above</td><td>NORMAL</td><td>连续超阈值帧数，低分时立即归零</td></tr>
+    <tr><td>_above_count</td><td>SUSPECTED</td><td>累计超阈值帧数</td></tr>
+    <tr><td>_below_count</td><td>SUSPECTED</td><td>累计低于阈值帧数</td></tr>
+    <tr><td>_miss_frames</td><td>ALARM_SENT</td><td>连续低于阈值帧数</td></tr>
+    <tr><td>_recovery_frames</td><td>RECOVERING</td><td>恢复期累计帧数</td></tr>
+</table>
+
+<h4>完整转换条件表</h4>
+<table style="width:100%;margin:15px 0">
+    <tr style="background:#f8f9fa">
+        <th style="width:15%">当前状态</th>
+        <th style="width:12%">输入条件</th>
+        <th style="width:10%">目标状态</th>
+        <th style="width:43%">转换条件（详细）</th>
+        <th style="width:20%">说明</th>
+    </tr>
+    <tr>
+        <td class="highlight" style="background:#e6f4ea">NORMAL</td>
+        <td>高分</td>
+        <td style="background:#fff3e0">SUSPECTED</td>
+        <td><code>_consecutive_above ≥ 3</code></td>
+        <td>连续3帧超阈值</td>
+    </tr>
+    <tr>
+        <td class="highlight" style="background:#e6f4ea">NORMAL</td>
+        <td>低分</td>
+        <td style="background:#e6f4ea">NORMAL</td>
+        <td><code>_consecutive_above = 0</code></td>
+        <td>计数重置，保持原状态</td>
+    </tr>
+    <tr style="border-top:2px solid #ddd">
+        <td class="highlight" style="background:#fff3e0">SUSPECTED</td>
+        <td>高分</td>
+        <td style="background:#fce8e6">FALLING</td>
+        <td>
+            <strong>路径1:</strong> <code>_above_count ≥ min_frames && (cls_bypass || fall_sequence)</code><br>
+            <strong>路径2:</strong> <code>_above_count ≥ 2×min_frames && posture ∈ {lying,crouching,unknown}</code>
+        </td>
+        <td>姿态序列检查或Fallback</td>
+    </tr>
+    <tr>
+        <td class="highlight" style="background:#fff3e0">SUSPECTED</td>
+        <td>高分</td>
+        <td style="background:#fff3e0">SUSPECTED</td>
+        <td><code>_above_count++</code>（未满足转换条件）</td>
+        <td>继续累积观察</td>
+    </tr>
+    <tr>
+        <td class="highlight" style="background:#fff3e0">SUSPECTED</td>
+        <td>低分</td>
+        <td style="background:#e6f4ea">NORMAL</td>
+        <td><code>_below_count > _above_count</code></td>
+        <td style="color:#ea4335"><strong>比例恢复：低分帧数需超过高分帧数</strong></td>
+    </tr>
+    <tr>
+        <td class="highlight" style="background:#fff3e0">SUSPECTED</td>
+        <td>低分</td>
+        <td style="background:#fff3e0">SUSPECTED</td>
+        <td><code>_below_count++</code>（未满足恢复条件）</td>
+        <td>继续累积低分</td>
+    </tr>
+    <tr style="border-top:2px solid #ddd">
+        <td class="highlight" style="background:#fce8e6">FALLING</td>
+        <td>自动</td>
+        <td style="background:#ea4335;color:#fff">ALARM_SENT</td>
+        <td><code>_should_alarm = True; _cooldown_counter = cooldown_frames</code></td>
+        <td>仅持续1帧，触发告警</td>
+    </tr>
+    <tr style="border-top:2px solid #ddd">
+        <td class="highlight" style="background:#ea4335;color:#fff">ALARM_SENT</td>
+        <td>高分</td>
+        <td style="background:#ea4335;color:#fff">ALARM_SENT</td>
+        <td><code>_miss_frames = 0</code></td>
+        <td>重置计数，保持告警状态</td>
+    </tr>
+    <tr>
+        <td class="highlight" style="background:#ea4335;color:#fff">ALARM_SENT</td>
+        <td>低分</td>
+        <td style="background:#e8f0fe">RECOVERING</td>
+        <td><code>_miss_frames ≥ 75帧 (3秒)</code></td>
+        <td>连续低分3秒进入恢复</td>
+    </tr>
+    <tr>
+        <td class="highlight" style="background:#ea4335;color:#fff">ALARM_SENT</td>
+        <td>低分</td>
+        <td style="background:#ea4335;color:#fff">ALARM_SENT</td>
+        <td><code>_miss_frames++</code>（未满足恢复条件）</td>
+        <td>继续累积低分帧</td>
+    </tr>
+    <tr style="border-top:2px solid #ddd">
+        <td class="highlight" style="background:#e8f0fe">RECOVERING</td>
+        <td>高分</td>
+        <td style="background:#ea4335;color:#fff">ALARM_SENT</td>
+        <td><code>_miss_frames = 0</code></td>
+        <td>高分立即回到告警状态</td>
+    </tr>
+    <tr>
+        <td class="highlight" style="background:#e8f0fe">RECOVERING</td>
+        <td>低分</td>
+        <td style="background:#e6f4ea">NORMAL</td>
+        <td><code>_recovery_frames ≥ 12帧 (0.5秒)</code></td>
+        <td>确认恢复正常</td>
+    </tr>
+</table>
+
+<h4>状态转换流程图</h4>
+<div class="state-flow-diagram">
+<!-- NORMAL row -->
+<div class="state-row">
+    <div class="state-node normal-node">NORMAL</div>
+    <div class="state-conditions">
+        <div style="display:flex;align-items:center;gap:10px">
+            <div class="condition-box cond-green"><strong>条件:</strong> is_above_thresh && consecutive_above ≥ 3</div>
+            <div class="flow-arrow">→</div>
+            <div class="state-node suspected-node" style="min-width:90px;padding:12px;font-size:0.95em">SUSPECTED</div>
+        </div>
+        <div class="condition-box cond-gray"><strong>条件:</strong> !is_above_thresh → consecutive_above = 0 (保持NORMAL)</div>
+    </div>
+</div>
+<!-- SUSPECTED row -->
+<div class="state-row">
+    <div class="state-node suspected-node">SUSPECTED</div>
+    <div class="state-conditions">
+        <div style="display:flex;align-items:center;gap:10px">
+            <div class="condition-box cond-red" style="flex:1"><strong>→ FALLING:</strong> is_above_thresh && above_count ≥ min_frames && (cls_bypass || fall_sequence || fallback)</div>
+            <div class="state-node falling-node" style="min-width:80px;padding:10px;font-size:0.85em">FALLING<br>(1帧)</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+            <div class="condition-box cond-green" style="flex:1"><strong>→ NORMAL:</strong> !is_above_thresh && below_count > above_count <span style="color:#ea4335;font-weight:bold">（比例恢复）</span></div>
+            <div class="state-node normal-node" style="min-width:80px;padding:10px;font-size:0.85em">NORMAL</div>
+        </div>
+        <div class="condition-box cond-yellow"><strong>保持:</strong> 高分累积 above_count++ 或 低分累积 below_count++（未满足转换条件）</div>
+    </div>
+</div>
+<!-- FALLING row -->
+<div class="state-row">
+    <div class="state-node falling-node">FALLING</div>
+    <div class="state-conditions">
+        <div style="display:flex;align-items:center;gap:10px">
+            <div class="condition-box cond-red"><strong>自动转换:</strong> should_alarm = True, cooldown_counter = cooldown_frames</div>
+            <div class="flow-arrow">→</div>
+            <div class="state-node alarm-node" style="min-width:100px">ALARM_SENT</div>
+        </div>
+    </div>
+</div>
+<!-- ALARM_SENT row -->
+<div class="state-row">
+    <div class="state-node alarm-node">ALARM_SENT</div>
+    <div class="state-conditions">
+        <div class="condition-box cond-gray"><strong>保持:</strong> is_above_thresh → miss_frames = 0 (重置计数)</div>
+        <div style="display:flex;align-items:center;gap:10px">
+            <div class="condition-box cond-blue" style="flex:1"><strong>→ RECOVERING:</strong> !is_above_thresh && miss_frames ≥ 75帧 (3秒)</div>
+            <div class="state-node recovering-node" style="min-width:80px;padding:10px;font-size:0.85em">RECOVERING</div>
+        </div>
+    </div>
+</div>
+<!-- RECOVERING row -->
+<div class="state-row">
+    <div class="state-node recovering-node">RECOVERING</div>
+    <div class="state-conditions">
+        <div style="display:flex;align-items:center;gap:10px">
+            <div class="condition-box cond-red" style="flex:1"><strong>→ ALARM_SENT:</strong> is_above_thresh (高分立即回告警)</div>
+            <div class="state-node alarm-node" style="min-width:80px;padding:10px;font-size:0.85em">ALARM_SENT</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+            <div class="condition-box cond-green" style="flex:1"><strong>→ NORMAL:</strong> !is_above_thresh && recovery_frames ≥ 12帧 (0.5秒)</div>
+            <div class="state-node normal-node" style="min-width:80px;padding:10px;font-size:0.85em">NORMAL</div>
+        </div>
+    </div>
+</div>
+</div>
+
+<div class="note note-danger">
+    <strong>关键点：</strong>
+    <ul style="margin:5px 0">
+        <li>SUSPECTED→NORMAL 使用<strong>比例恢复</strong>：低分帧数需超过高分帧数（如5帧高分需6帧低分恢复）</li>
+        <li>FALLING状态仅持续<strong>1帧</strong>，唯一触发 should_alarm=True 的时刻</li>
+        <li>RECOVERING高分时会<strong>立即</strong>回到ALARM_SENT，防止过早恢复</li>
+    </ul>
+</div>
+</pre>
+</div>
+
+<!-- State Description -->
+<h3>5.4 状态含义与返回值</h3>
+<table>
+    <tr><th>状态</th><th>含义</th><th>decide()</th><th>should_alarm()</th><th>恢复条件</th></tr>
+    <tr><td class="highlight">NORMAL</td><td>正常状态，未检测到跌倒</td><td>False</td><td>False</td><td>-</td></tr>
+    <tr><td class="highlight">SUSPECTED</td><td>疑似跌倒，分数持续超阈值</td><td>False</td><td>False</td><td><strong>below_count > above_count</strong><br>（低分帧数超过高分帧数）</td></tr>
+    <tr><td class="highlight">FALLING</td><td>确认跌倒（仅持续1帧）</td><td>True</td><td><strong>True（一次性）</strong></td><td>立即→ALARM_SENT</td></tr>
+    <tr><td class="highlight">ALARM_SENT</td><td>已发送告警，进入冷却期</td><td>True</td><td>False</td><td>miss_frames ≥ 3s → RECOVERING<br>高分回归保持ALARM_SENT</td></tr>
+    <tr><td class="highlight">RECOVERING</td><td>恢复期，分数降低</td><td>False</td><td>False</td><td>高分→ALARM_SENT<br>低分≥0.5s→NORMAL</td></tr>
+</table>
+
+<!-- Fall Sequence Check -->
+<h3>5.4 姿态序列检查</h3>
+<div class="note note-info">
+    <div class="note-title">检查逻辑</div>
+    最近 sequence_check_frames 帧内：
+    <ol>
+        <li>既有 upright 姿态</li>
+        <li>又有 fall 姿态</li>
+        <li>当前帧为 fall 姿态</li>
+        <li>fall_count > upright_count</li>
+    </ol>
+</div>
+
+<h3>5.5 Fallback 机制</h3>
+<div class="code-block"><pre>
+<span class="code-comment"># SUSPECTED 长期保持但姿态序列不满足</span>
+<span class="code-keyword">if</span> above_count >= max(sequence_check_frames, alarm_min_frames * <span class="code-number">2</span>):
+    <span class="code-comment"># 仅跌倒姿态触发 fallback</span>
+    <span class="code-keyword">if</span> posture in {<span class="code-string">"crouching"</span>, <span class="code-string">"lying"</span>, <span class="code-string">"unknown"</span>}:
+        state = FALLING
+</pre></div>
+<div class="note note-danger">
+    <strong>重要：</strong>sitting/standing 不触发 fallback，防止坐姿误判
+</div>
+
+</div>
+
+<!-- ========== SECTION 6: Classifier ========== -->
+<div class="section">
+<h2>6. 分类器输入与处理</h2>
+
+<h3>6.1 ROI 预处理</h3>
+<div class="code-block"><pre>
+<span class="code-comment"># 1. 提取 ROI，扩展10px</span>
+roi_crop = frame[y1-10:y2+10, x1-10:x2+10]
+
+<span class="code-comment"># 2. 保持长宽比 resize 到 96×96</span>
+scale = <span class="code-number">96.0</span> / max(roi_h, roi_w)
+roi_resized = resize(roi_crop, (new_w, new_h))
+roi[:new_h, :new_w] = roi_resized
+
+<span class="code-comment"># 3. BGR→RGB，transpose，normalize</span>
+roi = roi.transpose(<span class="code-number">2</span>,<span class="code-number">0</span>,<span class="code-number">1</span>) / <span class="code-number">255.0</span>
+</pre></div>
+
+<h3>6.2 分类器类型</h3>
+<table>
+    <tr><th>类型</th><th>输入</th><th>说明</th></tr>
+    <tr><td>SimpleFallClassifier</td><td>ROI (1,3,96,96)</td><td>图像分类，2-class softmax</td></tr>
+    <tr><td>FallClassifier</td><td>ROI + kpts + motion</td><td>3分支融合网络</td></tr>
+</table>
+
+</div>
+
+<!-- ========== SECTION 7: Parameters ========== -->
+<div class="section">
+<h2>7. 关键参数配置表</h2>
+
+<h3>7.1 跟踪参数</h3>
+<table class="param-table">
+    <tr><th>参数</th><th>默认值</th><th>说明</th></tr>
+    <tr><td>track_thresh</td><td>0.5</td><td>高分检测框阈值</td></tr>
+    <tr><td>match_thresh</td><td>0.2</td><td>匹配成本阈值（IoU≥0.8）</td></tr>
+    <tr><td>max_age</td><td>30帧</td><td>轨迹最大丢失帧数</td></tr>
+    <tr><td>min_hits</td><td>3</td><td>tentative→confirmed 最少匹配</td></tr>
+</table>
+
+<h3>7.2 规则引擎参数</h3>
+<table class="param-table">
+    <tr><th>参数</th><th>默认值</th><th>说明</th></tr>
+    <tr><td>h_ratio_thresh</td><td>0.60</td><td>高度压缩阈值</td></tr>
+    <tr><td>n_ground_min</td><td>2</td><td>最少贴地点数</td></tr>
+    <tr><td>motion_thresh</td><td>50 px/s</td><td>运动期阈值</td></tr>
+    <tr><td>static_thresh</td><td>20 px/s</td><td>静止期阈值</td></tr>
+    <tr><td>fall_vy_thresh</td><td>200 px/s</td><td>垂直速度阈值</td></tr>
+    <tr><td>accel_thresh</td><td>100 px/s²</td><td>加速度阈值</td></tr>
+    <tr><td>cls_posture_t1</td><td>0.85</td><td>分类器高分强制lying</td></tr>
+    <tr><td>cls_posture_t2</td><td>0.20</td><td>分类器低分强制standing</td></tr>
+</table>
+
+<h3>7.3 融合决策参数</h3>
+<table class="param-table">
+    <tr><th>参数</th><th>默认值</th><th>说明</th></tr>
+    <tr><td>alpha</td><td>0.35</td><td>规则分权重</td></tr>
+    <tr><td>beta</td><td>0.45</td><td>分类器分权重</td></tr>
+    <tr><td>gamma</td><td>0.20</td><td>时序平滑权重</td></tr>
+    <tr><td>alarm_thresh</td><td>0.70</td><td>告警阈值，S_final≥此值判定为高分</td></tr>
+    <tr><td>enter_suspected_min_frames</td><td>3</td><td>NORMAL→SUSPECTED 需连续超阈值帧数</td></tr>
+    <tr><td>alarm_min_frames</td><td>5</td><td>SUSPECTED→FALLING 最小高分帧数</td></tr>
+    <tr><td>sequence_check_frames</td><td>8</td><td>姿态序列检查窗口帧数</td></tr>
+    <tr><td>cls_bypass_thresh</td><td>0.85</td><td>分类器高置信度阈值，可绕过姿态序列检查</td></tr>
+    <tr><td>alarm_reset_seconds</td><td>3.0s</td><td>ALARM_SENT→RECOVERING 需连续低分时间</td></tr>
+    <tr><td>recovery_seconds</td><td>0.5s</td><td>RECOVERING→NORMAL 恢复确认时间</td></tr>
+    <tr><td>cooldown_seconds</td><td>5.0s</td><td>告警冷却期，防止频繁上报</td></tr>
+</table>
+<div class="note note-info">
+    <strong>注意：</strong>SUSPECTED→NORMAL 使用<strong>比例恢复机制</strong>（below_count > above_count），而非固定时间参数。
+</div>
+
+<h3>7.4 Pipeline参数</h3>
+<table class="param-table">
+    <tr><th>参数</th><th>默认值</th><th>说明</th></tr>
+    <tr><td>skip_frames</td><td>2</td><td>跳帧数（每3帧检测）</td></tr>
+    <tr><td>fps</td><td>25</td><td>帧率</td></tr>
+</table>
+
+</div>
+
+<div class="note note-success">
+    <div class="note-title">核心设计要点</div>
+    <ul>
+        <li><strong>ByteTrackLite：</strong>两阶段IoU匹配，高分优先+低分补充，提高遮挡鲁棒性</li>
+        <li><strong>卡尔曼滤波：</strong>8维状态向量预测轨迹位置，跳帧时保持跟踪</li>
+        <li><strong>规则引擎：</strong>6条规则覆盖几何、运动、可见性特征</li>
+        <li><strong>状态机：</strong>渐进式状态转换，差异化恢复时间防抖动</li>
+        <li><strong>跳帧优化：</strong>检测稀疏运行，分类器每帧推理，满足边缘延迟</li>
+    </ul>
+</div>
+
+</div>
+
+</div>
+</body>
+</html>
