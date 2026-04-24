@@ -111,7 +111,7 @@
         
 /* State Graph SVG Diagram */
          .state-graph-container { background: #fff; border-radius: 16px; padding: 15px 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); margin: 20px 0; }
-         .state-graph-svg { width: 100%; max-width: 1000px; height: auto; min-height: 480px; display: block; margin: 0 auto; }
+         .state-graph-svg { width: 100%; max-width: 1000px; height: auto; min-height: 520px; display: block; margin: 0 auto; }
          .graph-node { cursor: pointer; transition: filter 0.3s ease; }
          .graph-node:hover { filter: brightness(1.1); }
          .node-circle { transition: all 0.3s ease; }
@@ -469,7 +469,7 @@ aspect_bonus = <span class="code-number">0.0</span>
 <h3>4.2 状态机转换</h3>
 
 <div class="state-graph-container">
-    <svg class="state-graph-svg" viewBox="0 0 1000 480">
+    <svg class="state-graph-svg" viewBox="0 0 1000 520">
         <!-- Definitions -->
         <defs>
             <marker id="arrowhead-main" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
@@ -551,8 +551,8 @@ aspect_bonus = <span class="code-number">0.0</span>
         </g>
 
         <!-- Edge: NORMAL self-loop (向上弯曲): 起点(188,60)左上偏 → 终点(252,60)右上偏，跨小扇形 -->
-        <path class="edge-path loop-edge" d="M 188 60 C 188 -5, 252 -5, 252 60" stroke="#9e9e9e" marker-end="url(#arrowhead-loop)"/>
-        <g transform="translate(220, -3)">
+        <path class="edge-path loop-edge" d="M 188 60 C 188 15, 252 15, 252 60" stroke="#9e9e9e" marker-end="url(#arrowhead-loop)"/>
+        <g transform="translate(220, 22)">
             <rect class="edge-label-box" x="-22" y="-8" width="44" height="16" fill="#f5f5f5"/>
             <text class="edge-label-cond" x="0" y="2" text-anchor="middle">低分保持</text>
         </g>
@@ -626,7 +626,7 @@ aspect_bonus = <span class="code-number">0.0</span>
         <text x="45" y="92" font-size="10" fill="#5f6368">START</text>
 
         <!-- YOLO-World specific note inside SVG -->
-        <g transform="translate(500, 440)">
+        <g transform="translate(500, 480)">
             <rect fill="#f3e5f5" x="-480" y="-15" width="960" height="30" rx="6"/>
             <g transform="translate(-400, 0)">
                 <rect fill="#1a73e8" x="0" y="-5" width="20" height="3" rx="1"/>
