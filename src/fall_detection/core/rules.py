@@ -148,6 +148,10 @@ class RuleEngine:
             and (visible_ratio >= self.visible_ratio_min)
         )
 
+        # 明确坐姿不触发 Rule A（sitting 时 hip_ratio < 0.45 且躯干不水平）
+        if posture == "sitting" and hip_ratio < 0.45 and torso_angle <= 45:
+            flags["A"] = False
+
         # 额外约束：如果脚踝不可见但hip_ratio显示人明显直立且无水平展开特征，压低规则A置信
         if not has_ankles and hip_ratio > 0.7 and kpt_aspect <= 1.2 and torso_angle <= 45:
             flags["A"] = False

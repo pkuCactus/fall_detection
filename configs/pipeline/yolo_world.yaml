@@ -46,7 +46,8 @@ fusion:
   alarm_min_frames: 3
   sequence_check_frames: 25
   cls_bypass_thresh: 1.0  # 允许高置信度直接预测绕过姿态序列检查（YOLO-World 可直接检测 lying）
-  reset_seconds: 0.5
+  suspected_reset_seconds: 0.75
+  alarm_reset_seconds: 3.0
   cooldown_seconds: 3.0
   recovery_seconds: 0.5
 

@@ -67,7 +67,8 @@ def yolo_world_config(tmp_path):
             "alarm_min_frames": 3,
             "sequence_check_frames": 6,
             "cls_bypass_thresh": 1.0,
-            "reset_seconds": 0.5,
+            "suspected_reset_seconds": 0.75,
+            "alarm_reset_seconds": 3.0,
             "cooldown_seconds": 3.0,
             "recovery_seconds": 0.5,
         },
@@ -189,7 +190,9 @@ class TestYOLOWorldFallPipeline:
         mock_track.to_tlbr.return_value = np.array([100.0, 100.0, 300.0, 200.0])  # wide box
 
         det_info = {1: {"class_name": "person lying on floor", "class_id": 7, "conf": 0.9}}
-        score, posture, debug = pipeline._compute_fall_score(mock_track, det_info, np.zeros((480, 640, 3), dtype=np.uint8))
+        score, posture, debug = pipeline._compute_fall_score(
+            mock_track, det_info, np.zeros((480, 640, 3), dtype=np.uint8)
+        )
 
         assert posture == "lying"
         assert score > 0.8
@@ -206,7 +209,9 @@ class TestYOLOWorldFallPipeline:
         mock_track.to_tlbr.return_value = np.array([100.0, 100.0, 150.0, 300.0])  # tall box
 
         det_info = {1: {"class_name": "person standing", "class_id": 0, "conf": 0.9}}
-        score, posture, debug = pipeline._compute_fall_score(mock_track, det_info, np.zeros((480, 640, 3), dtype=np.uint8))
+        score, posture, debug = pipeline._compute_fall_score(
+            mock_track, det_info, np.zeros((480, 640, 3), dtype=np.uint8)
+        )
 
         assert posture == "standing"
         assert score == pytest.approx(0.0, abs=1e-6)

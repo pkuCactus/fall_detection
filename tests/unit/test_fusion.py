@@ -17,9 +17,7 @@ class TestFusionDecisionInit:
 
     def test_custom_init(self):
         """测试自定义参数初始化."""
-        fd = FusionDecision(
-            alpha=0.5, beta=0.3, gamma=0.2, alarm_thresh=0.6, alarm_min_frames=3
-        )
+        fd = FusionDecision(alpha=0.5, beta=0.3, gamma=0.2, alarm_thresh=0.6, alarm_min_frames=3)
         assert fd.alpha == 0.5
         assert fd.beta == 0.3
         assert fd.gamma == 0.2
@@ -67,22 +65,44 @@ class TestStateMachineTransitions:
     """测试状态机流转."""
 
     def test_normal_to_suspected(self):
-        """测试NORMAL → SUSPECTED转换."""
+        """测试NORMAL → SUSPECTED转换（需连续多帧超阈值）."""
         fd = FusionDecision(alarm_thresh=0.5)
 
         # 低分，保持NORMAL
         fd.update(rule_score=0.2, cls_score=0.2, posture="standing")
         assert fd.get_state()["state"] == "normal"
 
-        # 高分，触发SUSPECTED
+        # 单帧高分，仍保持NORMAL（需要连续3帧）
+        fd.update(rule_score=0.8, cls_score=0.9, posture="standing")
+        assert fd.get_state()["state"] == "normal"
+        fd.update(rule_score=0.8, cls_score=0.9, posture="standing")
+        assert fd.get_state()["state"] == "normal"
+
+        # 第3帧高分，触发SUSPECTED
         fd.update(rule_score=0.8, cls_score=0.9, posture="standing")
         assert fd.get_state()["state"] == "suspected"
 
+    def test_suspected_to_normal_by_below_above_ratio(self):
+        """测试SUSPECTED → NORMAL：低于阈值的帧数 > 超过阈值的帧数时恢复."""
+        fd = FusionDecision(alarm_thresh=0.5)
+
+        # 连续3帧高分进入SUSPECTED（above_count=3）
+        for _ in range(3):
+            fd.update(rule_score=0.8, cls_score=0.9, posture="standing")
+        assert fd.get_state()["state"] == "suspected"
+
+        # 3帧低分：below_count=3，仍不大于 above_count=3，保持SUSPECTED
+        for _ in range(3):
+            fd.update(rule_score=0.1, cls_score=0.1, posture="standing")
+        assert fd.get_state()["state"] == "suspected"
+
+        # 第4帧低分：below_count=4 > above_count=3，恢复NORMAL
+        fd.update(rule_score=0.1, cls_score=0.1, posture="standing")
+        assert fd.get_state()["state"] == "normal"
+
     def test_suspected_to_falling_with_cls_bypass(self):
         """测试分类器高置信度绕过姿态序列直接进入FALLING."""
-        fd = FusionDecision(
-            alarm_thresh=0.5, alarm_min_frames=5, sequence_check_frames=8, cls_bypass_thresh=0.85
-        )
+        fd = FusionDecision(alarm_thresh=0.5, alarm_min_frames=5, sequence_check_frames=8, cls_bypass_thresh=0.85)
 
         # 持续高分但分类器置信度低于bypass阈值，姿态序列不满足（全程lying，无站立/坐姿）
         fd.update(rule_score=0.8, cls_score=0.8, posture="lying")
@@ -100,9 +120,7 @@ class TestStateMachineTransitions:
 
     def test_suspected_to_falling_with_sequence(self):
         """测试SUSPECTED → FALLING转换（需要姿态序列）."""
-        fd = FusionDecision(
-            alarm_thresh=0.5, alarm_min_frames=3, sequence_check_frames=5
-        )
+        fd = FusionDecision(alarm_thresh=0.5, alarm_min_frames=3, sequence_check_frames=5)
 
         # 连续高分 + 姿态序列（站→跌）
         fd.update(rule_score=0.8, cls_score=0.9, posture="standing")
@@ -117,9 +135,7 @@ class TestStateMachineTransitions:
 
     def test_falling_to_alarm_sent(self):
         """测试FALLING → ALARM_SENT转换."""
-        fd = FusionDecision(
-            alarm_thresh=0.5, alarm_min_frames=2, sequence_check_frames=4
-        )
+        fd = FusionDecision(alarm_thresh=0.5, alarm_min_frames=2, sequence_check_frames=4)
 
         # 触发完整流程
         fd.update(rule_score=0.9, cls_score=0.9, posture="standing")
@@ -143,7 +159,8 @@ class TestStateMachineTransitions:
             alarm_thresh=0.5,
             alarm_min_frames=2,
             sequence_check_frames=4,
-            reset_seconds=0.1,  # 短恢复期
+            suspected_reset_seconds=0.04,  # 1帧
+            alarm_reset_seconds=0.1,  # 短恢复期
         )
 
         # 触发告警
@@ -166,7 +183,8 @@ class TestStateMachineTransitions:
             alarm_thresh=0.5,
             alarm_min_frames=2,
             sequence_check_frames=4,
-            reset_seconds=0.1,
+            suspected_reset_seconds=0.04,
+            alarm_reset_seconds=0.1,
             recovery_seconds=0.1,
         )
 
@@ -189,9 +207,7 @@ class TestPostureSequenceCheck:
 
     def test_sequence_with_transition(self):
         """测试有姿态转换的序列."""
-        fd = FusionDecision(
-            alarm_thresh=0.5, alarm_min_frames=2, sequence_check_frames=5
-        )
+        fd = FusionDecision(alarm_thresh=0.5, alarm_min_frames=2, sequence_check_frames=5)
 
         # 站→跌的转换序列
         fd.update(rule_score=0.9, cls_score=0.9, posture="standing")
@@ -206,9 +222,7 @@ class TestPostureSequenceCheck:
 
     def test_sequence_without_transition(self):
         """测试无姿态转换的序列（全程躺卧）."""
-        fd = FusionDecision(
-            alarm_thresh=0.5, alarm_min_frames=3, sequence_check_frames=8
-        )
+        fd = FusionDecision(alarm_thresh=0.5, alarm_min_frames=3, sequence_check_frames=8)
 
         # 全程lying，无站→跌转换
         for _ in range(10):
@@ -321,9 +335,7 @@ class TestEdgeCases:
 
     def test_rapid_state_changes(self):
         """测试快速状态变化."""
-        fd = FusionDecision(
-            alarm_thresh=0.5, alarm_min_frames=2, sequence_check_frames=4
-        )
+        fd = FusionDecision(alarm_thresh=0.5, alarm_min_frames=2, sequence_check_frames=4)
 
         # 高分→低分→高分交替
         for i in range(20):
@@ -340,9 +352,7 @@ class TestDecideMethod:
 
     def test_decide_in_falling_state(self):
         """测试FALLING状态时decide返回True."""
-        fd = FusionDecision(
-            alarm_thresh=0.5, alarm_min_frames=2, sequence_check_frames=4
-        )
+        fd = FusionDecision(alarm_thresh=0.5, alarm_min_frames=2, sequence_check_frames=4)
 
         # 触发到FALLING状态
         fd.update(rule_score=0.9, cls_score=0.9, posture="standing")

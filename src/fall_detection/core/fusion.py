@@ -8,6 +8,7 @@ logger = logging.getLogger(__name__)
 
 class FallState(Enum):
     """跌倒检测状态机."""
+
     NORMAL = "normal"
     SUSPECTED = "suspected"
     FALLING = "falling"
@@ -28,7 +29,8 @@ class FusionDecision:
         alarm_thresh: float = 0.70,
         alarm_min_frames: int = 5,
         sequence_check_frames: int = 8,
-        reset_seconds: float = 3.0,
+        suspected_reset_seconds: float = 0.25,
+        alarm_reset_seconds: float = 2.0,
         cooldown_seconds: float = 5.0,
         recovery_seconds: float = 2.0,
         cls_bypass_thresh: float = 1.0,
@@ -40,10 +42,12 @@ class FusionDecision:
         self.alarm_thresh = cfg.get("alarm_thresh", alarm_thresh)
         self.alarm_min_frames = cfg.get("alarm_min_frames", alarm_min_frames)
         self.sequence_check_frames = cfg.get("sequence_check_frames", sequence_check_frames)
-        self.reset_seconds = cfg.get("reset_seconds", reset_seconds)
+        self.suspected_reset_frames = int(cfg.get("suspected_reset_seconds", suspected_reset_seconds) * fps)
+        self.alarm_reset_frames = int(cfg.get("alarm_reset_seconds", alarm_reset_seconds) * fps)
         self.cooldown_frames = int(cfg.get("cooldown_seconds", cooldown_seconds) * fps)
         self.recovery_frames = int(cfg.get("recovery_seconds", recovery_seconds) * fps)
         self.cls_bypass_thresh = cfg.get("cls_bypass_thresh", cls_bypass_thresh)
+        self.enter_suspected_min_frames = cfg.get("enter_suspected_min_frames", 3)
         self.fps = fps
 
         self._cls_history = deque(maxlen=max(5, fps))
@@ -52,6 +56,9 @@ class FusionDecision:
         self._miss_frames = 0
         self._recovery_frames = 0
         self._cooldown_counter = 0
+        self._consecutive_above = 0  # NORMAL 状态下连续超阈值帧数
+        self._above_count = 0        # SUSPECTED 状态下累计超阈值帧数
+        self._below_count = 0        # SUSPECTED 状态下累计低于阈值帧数
 
         self._state = FallState.NORMAL
         self._S_final = 0.0
@@ -65,11 +72,7 @@ class FusionDecision:
         self._cls_history.append(cls_score)
         self._posture_history.append(posture)
         self._S_temporal = sum(self._cls_history) / len(self._cls_history)
-        self._S_final = (
-            self.alpha * rule_score
-            + self.beta * cls_score
-            + self.gamma * self._S_temporal
-        )
+        self._S_final = self.alpha * rule_score + self.beta * cls_score + self.gamma * self._S_temporal
 
         if self._cooldown_counter > 0:
             self._cooldown_counter -= 1
@@ -78,30 +81,36 @@ class FusionDecision:
 
         if self._state == FallState.NORMAL:
             if is_above_thresh:
-                self._alarm_frames = 1
-                self._miss_frames = 0
-                self._state = FallState.SUSPECTED
+                self._consecutive_above += 1
+                if self._consecutive_above >= self.enter_suspected_min_frames:
+                    self._state = FallState.SUSPECTED
+                    self._above_count = self._consecutive_above
+                    self._below_count = 0
+                    self._consecutive_above = 0
+            else:
+                self._consecutive_above = 0
 
         elif self._state == FallState.SUSPECTED:
             if is_above_thresh:
-                self._alarm_frames += 1
-                self._miss_frames = 0
+                self._above_count += 1
                 cls_bypass = cls_score >= self.cls_bypass_thresh
                 min_frames = max(2, self.alarm_min_frames // 2) if cls_bypass else self.alarm_min_frames
-                if self._alarm_frames >= min_frames:
+                if self._above_count >= min_frames:
                     # 增加姿态序列一致性检查：必须有站/坐 -> 跌的转换
                     # 分类器高置信度时可绕过该检查
                     if cls_bypass or self._check_fall_sequence():
                         self._state = FallState.FALLING
-                    elif self._alarm_frames >= max(self.sequence_check_frames, self.alarm_min_frames * 2):
-                        # Fallback：长期保持高置信度 suspected 且未恢复，直接判定为跌倒
-                        self._state = FallState.FALLING
+                    elif self._above_count >= max(self.sequence_check_frames, self.alarm_min_frames * 2):
+                        # Fallback：长期保持高置信度 suspected 且未恢复，需当前姿态为跌倒姿态才判定
+                        if posture in {"crouching", "lying", "unknown"}:
+                            self._state = FallState.FALLING
                     # 其余情况继续停留在 SUSPECTED 观察
             else:
-                self._miss_frames += 1
-                if self._miss_frames >= int(self.reset_seconds * self.fps):
-                    self._alarm_frames = 0
-                    self._miss_frames = 0
+                self._below_count += 1
+                if self._below_count > self._above_count:
+                    self._above_count = 0
+                    self._below_count = 0
+                    self._consecutive_above = 0
                     self._state = FallState.NORMAL
 
         elif self._state == FallState.FALLING:
@@ -112,7 +121,7 @@ class FusionDecision:
         elif self._state == FallState.ALARM_SENT:
             if not is_above_thresh:
                 self._miss_frames += 1
-                if self._miss_frames >= int(self.reset_seconds * self.fps):
+                if self._miss_frames >= self.alarm_reset_frames:
                     self._state = FallState.RECOVERING
                     self._recovery_frames = 0
             else:
@@ -135,10 +144,12 @@ class FusionDecision:
         要求：最近 sequence_check_frames 帧内，既有站立/坐姿，又有倒下/躺卧姿态.
         """
         if len(self._posture_history) < self.sequence_check_frames:
-            logger.debug("[Fusion] posture_history too short: %d < %d", len(self._posture_history), self.sequence_check_frames)
+            logger.debug(
+                "[Fusion] posture_history too short: %d < %d", len(self._posture_history), self.sequence_check_frames
+            )
             return False
 
-        recent = list(self._posture_history)[-self.sequence_check_frames:]
+        recent = list(self._posture_history)[-self.sequence_check_frames :]
         upright_postures = {"standing", "sitting"}
         fall_postures = {"crouching", "lying"}
 
@@ -148,7 +159,14 @@ class FusionDecision:
         current_is_fall = recent[-1] in fall_postures
 
         result = has_upright and has_fall and current_is_fall
-        logger.debug("[Fusion] _check_fall_sequence: recent=%s, has_upright=%s, has_fall=%s, current_is_fall=%s, result=%s", recent, has_upright, has_fall, current_is_fall, result)
+        logger.debug(
+            "[Fusion] _check_fall_sequence: recent=%s, has_upright=%s, has_fall=%s, current_is_fall=%s, result=%s",
+            recent,
+            has_upright,
+            has_fall,
+            current_is_fall,
+            result,
+        )
         return result
 
     def decide(self) -> bool:
@@ -162,11 +180,14 @@ class FusionDecision:
         return {
             "S_final": self._S_final,
             "S_temporal": self._S_temporal,
-            "alarm_frames": self._alarm_frames,
+            "alarm_frames": self._above_count if self._state == FallState.SUSPECTED else self._alarm_frames,
             "is_falling": self.decide(),
             "state": self._state.value,
             "should_alarm": self._should_alarm,
             "cooldown_remaining": self._cooldown_counter,
+            "above_count": self._above_count,
+            "below_count": self._below_count,
+            "consecutive_above": self._consecutive_above,
         }
 
     def reset(self):
@@ -175,6 +196,9 @@ class FusionDecision:
         self._miss_frames = 0
         self._recovery_frames = 0
         self._cooldown_counter = 0
+        self._consecutive_above = 0
+        self._above_count = 0
+        self._below_count = 0
         self._should_alarm = False
         self._cls_history.clear()
         self._posture_history.clear()

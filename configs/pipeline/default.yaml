@@ -40,9 +40,11 @@ fusion:
   gamma: 0.2      # 保持时序平滑权重
   alarm_thresh: 0.50  # 提高告警阈值，减少日常动作误报
   alarm_min_frames: 3
+  enter_suspected_min_frames: 3  # 连续多少帧超阈值才进入SUSPECTED
   sequence_check_frames: 8    # 姿态转换序列检查窗口（帧）
   cls_bypass_thresh: 0.85     # 分类器高置信度阈值，超过可绕过姿态序列检查（1.0=禁用）
-  reset_seconds: 0.5       # 0.5秒无检测后进入恢复期（快速恢复）
+  suspected_reset_seconds: 0.75  # suspected状态恢复时间（秒）
+  alarm_reset_seconds: 3.0       # alarm状态恢复时间（秒）
   cooldown_seconds: 3.0    # 3秒冷却期，防止频繁上报
   recovery_seconds: 0.5    # 0.5秒恢复确认期，快速恢复正常
 
