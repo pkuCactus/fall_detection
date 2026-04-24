@@ -620,48 +620,6 @@ aspect_bonus = <span class="code-number">0.0</span>
             <text class="edge-label-cond" x="0" y="2" text-anchor="middle">累积</text>
         </g>
 
-        <!-- Edge: SUSPECTED → FALLING -->
-        <path class="edge-path main-edge" d="M 238 160 L 462 160" stroke="#ea4335" marker-end="url(#arrowhead-danger)"/>
-        <g transform="translate(350, 135)">
-            <rect class="edge-label-box edge-danger" x="-42" y="-10" width="84" height="20"/>
-            <text class="edge-label-text" x="0" y="3" text-anchor="middle">above≥3, 序列</text>
-        </g>
-
-        <!-- Edge: SUSPECTED → NORMAL -->
-        <path class="edge-path loop-edge" d="M 162 160 C 100 160, 100 90, 162 80" stroke="#34a853" marker-end="url(#arrowhead-success)"/>
-        <g transform="translate(80, 120)">
-            <rect class="edge-label-box edge-success" x="-32" y="-10" width="64" height="20"/>
-            <text class="edge-label-text" x="0" y="3" text-anchor="middle">比例恢复</text>
-        </g>
-
-        <!-- Edge: FALLING → ALARM_SENT -->
-        <path class="edge-path main-edge" d="M 500 198 L 500 242" stroke="#c62828" marker-end="url(#arrowhead-danger)"/>
-        <g transform="translate(555, 220)">
-            <rect class="edge-label-box edge-danger" x="-40" y="-10" width="80" height="20"/>
-            <text class="edge-label-text" x="0" y="3" text-anchor="middle">告警触发!</text>
-        </g>
-
-        <!-- Edge: ALARM_SENT → RECOVERING -->
-        <path class="edge-path main-edge" d="M 538 280 L 742 280" stroke="#4285f4" marker-end="url(#arrowhead-main)"/>
-        <g transform="translate(640, 255)">
-            <rect class="edge-label-box edge-highlight" x="-40" y="-10" width="80" height="20"/>
-            <text class="edge-label-text" x="0" y="3" text-anchor="middle">低分≥75帧</text>
-        </g>
-
-        <!-- Edge: RECOVERING → ALARM_SENT -->
-        <path class="edge-path loop-edge" d="M 780 242 C 780 200, 620 200, 538 242" stroke="#ea4335" marker-end="url(#arrowhead-danger)"/>
-        <g transform="translate(660, 190)">
-            <rect class="edge-label-box edge-danger" x="-38" y="-10" width="76" height="20"/>
-            <text class="edge-label-text" x="0" y="3" text-anchor="middle">高分立即返回</text>
-        </g>
-
-        <!-- Edge: RECOVERING → NORMAL -->
-        <path class="edge-path main-edge" d="M 780 242 C 780 140, 600 40, 238 60" stroke="#34a853" marker-end="url(#arrowhead-success)"/>
-        <g transform="translate(520, 35)">
-            <rect class="edge-label-box edge-success" x="-40" y="-10" width="80" height="20"/>
-            <text class="edge-label-text" x="0" y="3" text-anchor="middle">低分≥12帧</text>
-        </g>
-
         <!-- Start indicator -->
         <circle cx="70" cy="60" r="8" fill="#9c27b0"/>
         <path d="M 78 60 L 165 60" stroke="#9c27b0" stroke-width="2" marker-end="url(#arrowhead-main)"/>
