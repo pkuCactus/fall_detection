@@ -117,7 +117,7 @@
          .node-circle { transition: all 0.3s ease; }
          .graph-node:hover .node-circle { stroke-width: 3; }
          .node-label { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11px; font-weight: 700; fill: #fff; pointer-events: none; }
-         .node-sublabel { font-size: 8px; fill: #fff; opacity: 0.8; pointer-events: none; }
+         .node-sublabel { font-size: 10px; font-weight: 600; fill: #fff; pointer-events: none; }
          .edge-path { stroke-width: 2; fill: none; transition: stroke-width 0.2s ease; }
          .edge-path:hover { stroke-width: 3; }
          .edge-arrow { fill: currentColor; }
@@ -599,9 +599,9 @@ aspect_bonus = <span class="code-number">0.0</span>
             <text class="edge-label-text" x="0" y="3" text-anchor="middle">低分≥75帧</text>
         </g>
 
-        <!-- Edge: RECOVERING → ALARM_SENT (回退): 从RECOVERING顶部向左弯曲到ALARM_SENT顶部 -->
-        <path class="edge-path loop-edge" d="M 850 322 C 850 260, 620 260, 578 322" stroke="#ea4335" marker-end="url(#arrowhead-danger)"/>
-        <g transform="translate(710, 250)">
+        <!-- Edge: RECOVERING → ALARM_SENT (回退): 从RECOVERING顶部向左弯曲到ALARM_SENT顶部中点 -->
+        <path class="edge-path loop-edge" d="M 850 322 C 850 240, 540 240, 540 322" stroke="#ea4335" marker-end="url(#arrowhead-danger)"/>
+        <g transform="translate(695, 235)">
             <rect class="edge-label-box edge-danger" x="-38" y="-10" width="76" height="20"/>
             <text class="edge-label-text" x="0" y="3" text-anchor="middle">高分立即返回</text>
         </g>
