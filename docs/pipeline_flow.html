@@ -63,8 +63,8 @@
         .trans-cond { background: #fff; padding: 8px 12px; border-radius: 6px; font-size: 0.75em; color: #5f6368; max-width: 180px; text-align: center; border: 1px dashed #1a73e8; }
         
 /* State Graph SVG Diagram */
-         .state-graph-container { background: #fff; border-radius: 16px; padding: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); margin: 20px auto; }
-         .state-graph-svg { width: 100%; height: auto; min-height: 440px; display: block; }
+         .state-graph-container { background: #fff; border-radius: 16px; padding: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); margin: 20px auto; max-width: 920px; }
+         .state-graph-svg { width: 100%; height: auto; min-height: 460px; display: block; max-width: 900px; margin: 0 auto; }
          .graph-node { cursor: pointer; transition: filter 0.3s ease; }
          .graph-node:hover { filter: brightness(1.1); }
          .node-circle { transition: all 0.3s ease; }
@@ -1015,20 +1015,6 @@ flags["F"] = visible_ratio < 0.1  <span class="code-comment"># <17%可见</span>
             </g>
         </g>
     </svg>
-</div>
-        <div class="legend-item">
-            <div class="legend-line loop"></div>
-            <span>回退/保持转换</span>
-        </div>
-        <div class="legend-item">
-            <div class="legend-node alarm"></div>
-            <span>告警状态</span>
-        </div>
-        <div class="legend-item">
-            <div class="legend-node falling"></div>
-            <span>瞬态(FALLING仅1帧)</span>
-        </div>
-    </div>
 </div>
 
 <div class="note note-danger">
