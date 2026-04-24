@@ -469,7 +469,7 @@ aspect_bonus = <span class="code-number">0.0</span>
 <h3>4.2 状态机转换</h3>
 
 <div class="state-graph-container">
-    <svg class="state-graph-svg" viewBox="0 0 900 400">
+    <svg class="state-graph-svg" viewBox="0 0 900 420">
         <!-- Definitions -->
         <defs>
             <marker id="arrowhead-main" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
@@ -497,7 +497,7 @@ aspect_bonus = <span class="code-number">0.0</span>
         </defs>
 
         <!-- NORMAL Node -->
-        <g class="graph-node" transform="translate(130, 55)">
+        <g class="graph-node" transform="translate(200, 60)">
             <circle class="node-circle" cx="0" cy="0" r="38" fill="url(#grad-yw-normal)" stroke="#34a853" stroke-width="2" filter="url(#shadow)"/>
             <text class="node-label" x="0" y="4" text-anchor="middle">NORMAL</text>
             <defs><linearGradient id="grad-yw-normal" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -506,7 +506,7 @@ aspect_bonus = <span class="code-number">0.0</span>
         </g>
 
         <!-- SUSPECTED Node -->
-        <g class="graph-node" transform="translate(130, 155)">
+        <g class="graph-node" transform="translate(200, 160)">
             <circle class="node-circle" cx="0" cy="0" r="38" fill="url(#grad-yw-suspected)" stroke="#fbbc04" stroke-width="2" filter="url(#shadow)"/>
             <text class="node-label" x="0" y="4" text-anchor="middle">SUSPECTED</text>
             <defs><linearGradient id="grad-yw-suspected" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -515,17 +515,17 @@ aspect_bonus = <span class="code-number">0.0</span>
         </g>
 
         <!-- FALLING Node -->
-        <g class="graph-node" transform="translate(450, 155)">
+        <g class="graph-node" transform="translate(500, 160)">
             <circle class="node-circle" cx="0" cy="0" r="38" fill="url(#grad-yw-falling)" stroke="#ea4335" stroke-width="2" filter="url(#glow-red)"/>
             <text class="node-label" x="0" y="-2" text-anchor="middle">FALLING</text>
-            <text class="node-sublabel" x="0" y="9" text-anchor="middle">(1帧)</text>
+            <text class="node-sublabel" x="0" y="9" text-anchor="middle">(瞬态)</text>
             <defs><linearGradient id="grad-yw-falling" x1="0%" y1="0%" x2="100%" y2="100%">
                 <stop offset="0%" style="stop-color:#ea4335"/><stop offset="100%" style="stop-color:#c62828"/>
             </linearGradient></defs>
         </g>
 
         <!-- ALARM_SENT Node -->
-        <g class="graph-node" transform="translate(450, 270)">
+        <g class="graph-node" transform="translate(500, 280)">
             <circle class="node-circle" cx="0" cy="0" r="38" fill="url(#grad-yw-alarm)" stroke="#c62828" stroke-width="2" filter="url(#shadow)"/>
             <text class="node-label" x="0" y="-3" text-anchor="middle">ALARM</text>
             <text class="node-sublabel" x="0" y="7" text-anchor="middle">_SENT</text>
@@ -535,7 +535,7 @@ aspect_bonus = <span class="code-number">0.0</span>
         </g>
 
         <!-- RECOVERING Node -->
-        <g class="graph-node" transform="translate(750, 270)">
+        <g class="graph-node" transform="translate(780, 280)">
             <circle class="node-circle" cx="0" cy="0" r="38" fill="url(#grad-yw-recovering)" stroke="#4285f4" stroke-width="2" filter="url(#shadow)"/>
             <text class="node-label" x="0" y="4" text-anchor="middle">RECOVERING</text>
             <defs><linearGradient id="grad-yw-recovering" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -544,120 +544,104 @@ aspect_bonus = <span class="code-number">0.0</span>
         </g>
 
         <!-- Edge: NORMAL → SUSPECTED -->
-        <path class="edge-path main-edge" d="M 130 93 L 130 117" stroke="#f57c00" marker-end="url(#arrowhead-warning)"/>
-        <g transform="translate(175, 105)">
-            <rect class="edge-label-box edge-warning" x="-42" y="-14" width="84" height="28"/>
-            <text class="edge-label-text" x="0" y="-4" text-anchor="middle">S≥0.6, ≥3帧</text>
-            <text class="edge-label-badge" x="0" y="6" text-anchor="middle">高分触发</text>
+        <path class="edge-path main-edge" d="M 200 98 L 200 122" stroke="#f57c00" marker-end="url(#arrowhead-warning)"/>
+        <g transform="translate(260, 110)">
+            <rect class="edge-label-box edge-warning" x="-38" y="-10" width="76" height="20"/>
+            <text class="edge-label-text" x="0" y="3" text-anchor="middle">S≥0.6, ≥3帧</text>
         </g>
 
         <!-- Edge: NORMAL self-loop -->
-        <path class="edge-path loop-edge" d="M 92 55 C 60 55, 60 25, 92 35" stroke="#9e9e9e" marker-end="url(#arrowhead-loop)"/>
-        <g transform="translate(35, 32)">
-            <rect class="edge-label-box" x="-25" y="-10" width="50" height="20" fill="#f5f5f5"/>
-            <text class="edge-label-cond" x="0" y="3" text-anchor="middle">低分保持</text>
+        <path class="edge-path loop-edge" d="M 162 60 C 130 60, 130 30, 162 40" stroke="#9e9e9e" marker-end="url(#arrowhead-loop)"/>
+        <g transform="translate(105, 35)">
+            <rect class="edge-label-box" x="-22" y="-8" width="44" height="16" fill="#f5f5f5"/>
+            <text class="edge-label-cond" x="0" y="2" text-anchor="middle">低分保持</text>
         </g>
 
         <!-- Edge: SUSPECTED → FALLING -->
-        <path class="edge-path main-edge" d="M 168 155 L 412 155" stroke="#ea4335" marker-end="url(#arrowhead-danger)"/>
-        <g transform="translate(290, 125)">
-            <rect class="edge-label-box edge-danger" x="-68" y="-14" width="136" height="28"/>
-            <text class="edge-label-text" x="0" y="-4" text-anchor="middle">above≥3, 序列</text>
-            <text class="edge-label-badge" x="0" y="6" text-anchor="middle">确认跌倒</text>
+        <path class="edge-path main-edge" d="M 238 160 L 462 160" stroke="#ea4335" marker-end="url(#arrowhead-danger)"/>
+        <g transform="translate(350, 135)">
+            <rect class="edge-label-box edge-danger" x="-42" y="-10" width="84" height="20"/>
+            <text class="edge-label-text" x="0" y="3" text-anchor="middle">above≥3, 序列</text>
         </g>
 
         <!-- Edge: SUSPECTED → NORMAL -->
-        <path class="edge-path loop-edge" d="M 92 155 C 40 155, 40 80, 92 80" stroke="#34a853" marker-end="url(#arrowhead-success)"/>
-        <g transform="translate(25, 117)">
-            <rect class="edge-label-box edge-success" x="-42" y="-14" width="84" height="28"/>
-            <text class="edge-label-text" x="0" y="-4" text-anchor="middle">比例恢复</text>
-            <text class="edge-label-badge" x="0" y="6" text-anchor="middle">below>above</text>
+        <path class="edge-path loop-edge" d="M 162 160 C 100 160, 100 90, 162 80" stroke="#34a853" marker-end="url(#arrowhead-success)"/>
+        <g transform="translate(80, 120)">
+            <rect class="edge-label-box edge-success" x="-32" y="-10" width="64" height="20"/>
+            <text class="edge-label-text" x="0" y="3" text-anchor="middle">比例恢复</text>
         </g>
 
         <!-- Edge: SUSPECTED self-loop -->
-        <path class="edge-path loop-edge" d="M 130 193 C 130 225, 95 225, 95 193" stroke="#9e9e9e" marker-end="url(#arrowhead-loop)"/>
-        <g transform="translate(60, 210)">
-            <rect class="edge-label-box" x="-35" y="-10" width="70" height="20" fill="#f5f5f5"/>
-            <text class="edge-label-cond" x="0" y="3" text-anchor="middle">累积计数</text>
+        <path class="edge-path loop-edge" d="M 200 198 C 200 230, 165 230, 165 198" stroke="#9e9e9e" marker-end="url(#arrowhead-loop)"/>
+        <g transform="translate(130, 215)">
+            <rect class="edge-label-box" x="-28" y="-8" width="56" height="16" fill="#f5f5f5"/>
+            <text class="edge-label-cond" x="0" y="2" text-anchor="middle">累积计数</text>
         </g>
 
         <!-- Edge: FALLING → ALARM_SENT -->
-        <path class="edge-path main-edge" d="M 450 193 L 450 232" stroke="#c62828" marker-end="url(#arrowhead-danger)"/>
-        <g transform="translate(495, 212)">
-            <rect class="edge-label-box edge-danger" x="-48" y="-14" width="96" height="28"/>
-            <text class="edge-label-text" x="0" y="-4" text-anchor="middle">自动转换</text>
-            <text class="edge-label-badge" x="0" y="6" text-anchor="middle">告警触发</text>
+        <path class="edge-path main-edge" d="M 500 198 L 500 242" stroke="#c62828" marker-end="url(#arrowhead-danger)"/>
+        <g transform="translate(555, 220)">
+            <rect class="edge-label-box edge-danger" x="-40" y="-10" width="80" height="20"/>
+            <text class="edge-label-text" x="0" y="3" text-anchor="middle">告警触发!</text>
         </g>
 
         <!-- Edge: ALARM_SENT self-loop -->
-        <path class="edge-path loop-edge" d="M 488 270 C 520 270, 520 300, 488 290" stroke="#c62828" marker-end="url(#arrowhead-danger)"/>
-        <g transform="translate(530, 285)">
-            <rect class="edge-label-box" x="-32" y="-10" width="64" height="20" fill="#fce8e6" stroke="#ea4335"/>
-            <text class="edge-label-cond" x="0" y="3" text-anchor="middle">高分归零</text>
+        <path class="edge-path loop-edge" d="M 538 280 C 570 280, 570 310, 538 300" stroke="#c62828" marker-end="url(#arrowhead-danger)"/>
+        <g transform="translate(580, 295)">
+            <rect class="edge-label-box" x="-26" y="-8" width="52" height="16" fill="#fce8e6" stroke="#ea4335"/>
+            <text class="edge-label-cond" x="0" y="2" text-anchor="middle">高分归零</text>
         </g>
 
         <!-- Edge: ALARM_SENT → RECOVERING -->
-        <path class="edge-path main-edge" d="M 488 270 L 712 270" stroke="#4285f4" marker-end="url(#arrowhead-main)"/>
-        <g transform="translate(600, 240)">
-            <rect class="edge-label-box edge-highlight" x="-52" y="-14" width="104" height="28"/>
-            <text class="edge-label-text" x="0" y="-4" text-anchor="middle">低分≥75帧</text>
-            <text class="edge-label-badge" x="0" y="6" text-anchor="middle">进入恢复</text>
+        <path class="edge-path main-edge" d="M 538 280 L 742 280" stroke="#4285f4" marker-end="url(#arrowhead-main)"/>
+        <g transform="translate(640, 255)">
+            <rect class="edge-label-box edge-highlight" x="-40" y="-10" width="80" height="20"/>
+            <text class="edge-label-text" x="0" y="3" text-anchor="middle">低分≥75帧</text>
         </g>
 
         <!-- Edge: RECOVERING → ALARM_SENT -->
-        <path class="edge-path loop-edge" d="M 750 232 C 750 190, 580 190, 488 232" stroke="#ea4335" marker-end="url(#arrowhead-danger)"/>
-        <g transform="translate(620, 182)">
-            <rect class="edge-label-box edge-danger" x="-44" y="-14" width="88" height="28"/>
-            <text class="edge-label-text" x="0" y="-4" text-anchor="middle">高分立即返回</text>
-            <text class="edge-label-badge" x="0" y="6" text-anchor="middle">防过早恢复</text>
+        <path class="edge-path loop-edge" d="M 780 242 C 780 200, 620 200, 538 242" stroke="#ea4335" marker-end="url(#arrowhead-danger)"/>
+        <g transform="translate(660, 190)">
+            <rect class="edge-label-box edge-danger" x="-38" y="-10" width="76" height="20"/>
+            <text class="edge-label-text" x="0" y="3" text-anchor="middle">高分立即返回</text>
         </g>
 
         <!-- Edge: RECOVERING → NORMAL -->
-        <path class="edge-path main-edge" d="M 750 232 C 750 140, 600 35, 168 55" stroke="#34a853" marker-end="url(#arrowhead-success)"/>
-        <g transform="translate(480, 28)">
-            <rect class="edge-label-box edge-success" x="-55" y="-14" width="110" height="28"/>
-            <text class="edge-label-text" x="0" y="-4" text-anchor="middle">低分≥12帧</text>
-            <text class="edge-label-badge" x="0" y="6" text-anchor="middle">→NORMAL</text>
+        <path class="edge-path main-edge" d="M 780 242 C 780 140, 600 40, 238 60" stroke="#34a853" marker-end="url(#arrowhead-success)"/>
+        <g transform="translate(520, 35)">
+            <rect class="edge-label-box edge-success" x="-40" y="-10" width="80" height="20"/>
+            <text class="edge-label-text" x="0" y="3" text-anchor="middle">低分≥12帧</text>
         </g>
 
         <!-- Edge: RECOVERING self-loop -->
-        <path class="edge-path loop-edge" d="M 788 270 C 830 270, 830 300, 788 290" stroke="#9e9e9e" marker-end="url(#arrowhead-loop)"/>
-        <g transform="translate(845, 285)">
-            <rect class="edge-label-box" x="-28" y="-10" width="56" height="20" fill="#f5f5f5"/>
-            <text class="edge-label-cond" x="0" y="3" text-anchor="middle">累积</text>
+        <path class="edge-path loop-edge" d="M 818 280 C 850 280, 850 310, 818 300" stroke="#9e9e9e" marker-end="url(#arrowhead-loop)"/>
+        <g transform="translate(860, 295)">
+            <rect class="edge-label-box" x="-22" y="-8" width="44" height="16" fill="#f5f5f5"/>
+            <text class="edge-label-cond" x="0" y="2" text-anchor="middle">累积</text>
         </g>
 
         <!-- Start indicator -->
-        <circle cx="80" cy="55" r="6" fill="#9c27b0"/>
-        <path d="M 86 55 L 110 55" stroke="#9c27b0" stroke-width="2" marker-end="url(#arrowhead-main)"/>
-        <text x="55" y="67" font-size="8" fill="#5f6368">START</text>
+        <circle cx="70" cy="60" r="8" fill="#9c27b0"/>
+        <path d="M 78 60 L 165 60" stroke="#9c27b0" stroke-width="2" marker-end="url(#arrowhead-main)"/>
+        <text x="45" y="72" font-size="10" fill="#5f6368">START</text>
 
-        <!-- YOLO-World specific note -->
-        <g transform="translate(450, 370)">
-            <rect fill="#f3e5f5" x="-140" y="-12" width="280" height="24" rx="4"/>
-            <text font-size="9" fill="#9c27b0" font-weight="500" x="0" y="4" text-anchor="middle">YOLO-World: cls_bypass_thresh=1.0 (禁用绕过)</text>
+        <!-- YOLO-World specific note inside SVG -->
+        <g transform="translate(450, 380)">
+            <rect fill="#f3e5f5" x="-430" y="-15" width="860" height="30" rx="6"/>
+            <g transform="translate(-350, 0)">
+                <rect fill="#1a73e8" x="0" y="-5" width="20" height="3" rx="1"/>
+                <text x="25" y="3" font-size="10" fill="#5f6368">主路径</text>
+            </g>
+            <g transform="translate(-230, 0)">
+                <rect fill="url(#yw-loop-pattern)" x="0" y="-5" width="20" height="3" rx="1"/>
+                <text x="25" y="3" font-size="10" fill="#5f6368">回退/保持</text>
+                <defs><pattern id="yw-loop-pattern" patternUnits="userSpaceOnUse" width="6" height="3"><rect fill="#9e9e9e" x="0" y="0" width="4" height="3"/></pattern></defs>
+            </g>
+            <g transform="translate(100, 0)">
+                <text font-size="9" fill="#9c27b0" font-weight="500" x="0" y="3" text-anchor="middle">YOLO-World: cls_bypass_thresh=1.0 (禁用绕过)</text>
+            </g>
         </g>
     </svg>
-
-    <!-- Legend -->
-    <div class="graph-legend">
-        <div class="legend-item">
-            <div class="legend-line main"></div>
-            <span>主路径转换</span>
-        </div>
-        <div class="legend-item">
-            <div class="legend-line loop"></div>
-            <span>回退/保持</span>
-        </div>
-        <div class="legend-item">
-            <div class="legend-node alarm"></div>
-            <span>告警状态</span>
-        </div>
-        <div class="legend-item">
-            <div class="legend-node falling"></div>
-            <span>瞬态</span>
-        </div>
-    </div>
 </div>
 
 <h3>4.3 关键参数</h3>
