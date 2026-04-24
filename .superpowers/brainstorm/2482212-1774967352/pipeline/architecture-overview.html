@@ -1,0 +1,123 @@
+<h2>端侧跌倒检测系统架构 — 方案1：Keypoint Pipeline（实际实现）</h2>
+<p class="subtitle">海思3516C（0.5T INT8 / 15M DDR / 30M Flash）| YOLOv8n + 17关键点 + 规则引擎 + 分类器融合</p>
+
+<div style="font-family:monospace;font-size:13px;line-height:1.8;max-width:900px;margin:20px auto;">
+  <div style="background:#e8f4e8;padding:8px 16px;border-radius:6px;margin:6px 0;text-align:center;font-weight:bold;">
+    输入：1920×1080 @ 25fps → 抽帧（每3帧检测1次，skip_frames=2）
+  </div>
+  <div style="text-align:center;color:#666;">↓</div>
+  <div style="display:flex;gap:12px;justify-content:center;">
+    <div style="background:#d0e7ff;padding:10px 16px;border-radius:6px;text-align:center;flex:1;">
+      <strong>模块1：人体检测器</strong><br/>
+      <small>YOLOv8n<br/>输入 832×448 INT8<br/>权重 ≤ 3M</small>
+    </div>
+  </div>
+  <div style="text-align:center;color:#666;">↓ 检测框 + 置信度</div>
+  <div style="display:flex;gap:12px;justify-content:center;">
+    <div style="background:#fff3cd;padding:10px 16px;border-radius:6px;text-align:center;flex:1;">
+      <strong>模块2：ByteTrack-lite</strong><br/>
+      <small>卡尔曼滤波 + IoU匹配（高置信度优先，低置信度二次匹配）<br/>无 ReID 网络，Track 状态：tentative → confirmed<br/>耗时 ~2ms</small>
+    </div>
+  </div>
+  <div style="text-align:center;color:#666;">↓ Track ROI（抽帧时预测补位，可选 SimpleKeypointTracker 光流预测）</div>
+  <div style="display:flex;gap:12px;justify-content:center;">
+    <div style="background:#f8d7da;padding:10px 16px;border-radius:6px;text-align:center;flex:1;">
+      <strong>模块3：17关键点姿态估计</strong><br/>
+      <small>YOLOv8n-pose 全帧推理 → IoU匹配 track bbox<br/>COCO格式（nose, eyes, ears, shoulders, elbows, wrists, hips, knees, ankles）<br/>权重 ≤ 2.5M，耗时 ~12ms</small>
+    </div>
+  </div>
+  <div style="text-align:center;color:#666;">↓ 17 keypoints (x, y, conf) + 姿态分类（standing/sitting/crouching/lying/unknown）</div>
+  <div style="display:flex;gap:12px;justify-content:center;">
+    <div style="background:#d1ecf1;padding:10px 16px;border-radius:6px;text-align:center;flex:1;">
+      <strong>模块4：规则引擎（6规则快速筛选）</strong><br/>
+      <small>A 高度压缩 + 多点贴地（含光轴方向倒下检测）<br/>B 地面区域判定（ROI 或 bbox底部40%）<br/>C 由动到静或持续静止<br/>D 垂直快速下降<br/>E 加速度辅助<br/>F 关键点完全不可见（异常触发）<br/>输出 S_rule ∈ [0, 1]，接收 cls_score 辅助姿态分类</small>
+    </div>
+  </div>
+  <div style="text-align:center;color:#666;">↓ 规则疑似触发（S_rule ≥ trigger_thresh）→ 启动分类器</div>
+  <div style="display:flex;gap:12px;justify-content:center;">
+    <div style="background:#e2e3f3;padding:10px 16px;border-radius:6px;text-align:center;flex:1;">
+      <strong>模块5：跌倒分类器（二选一）</strong><br/>
+      <small><strong>方案A：融合分类器</strong>（ROI 96×96 + 17关键点 + 8维运动特征）<br/>权重 ≤ 0.15M，耗时 ~3ms<br/><strong>方案B：简单分类器</strong>（仅96×96图像输入，2-class softmax）<br/>更轻量，适合边缘部署</small>
+    </div>
+  </div>
+  <div style="text-align:center;color:#666;">↓ S_cls ∈ [0, 1]</div>
+  <div style="display:flex;gap:12px;justify-content:center;">
+    <div style="background:#212529;color:#fff;padding:10px 16px;border-radius:6px;text-align:center;flex:1;">
+      <strong>模块6：融合决策器 FusionDecision（状态机）</strong><br/>
+      <small>S_final = α·S_rule + β·S_cls + γ·S_temporal<br/>状态机：NORMAL → SUSPECTED → FALLING → ALARM_SENT → RECOVERING<br/>cls_bypass_thresh 高置信度绕过姿态序列检查并减半 alarm_min_frames<br/>姿态序列检查要求：站/坐 → 跌 转换 + fall 姿态 majority<br/>enter_suspected_min_frames 防止瞬态抖动进入 SUSPECTED</small>
+    </div>
+  </div>
+  <div style="text-align:center;color:#666;">↓</div>
+  <div style="background:#c3e6cb;padding:8px 16px;border-radius:6px;margin:6px 0;text-align:center;font-weight:bold;">
+    输出：跌倒告警（Track ID + 置信度 + 姿态状态 + 规则flags）
+  </div>
+</div>
+
+<div class="section" style="max-width:900px;margin:30px auto;">
+  <h3>核心设计要点</h3>
+  <ul>
+    <li><strong>抽帧策略</strong>：检测器每3帧运行一次（skip_frames=2），跟踪器预测补帧；姿态估计和分类器每帧都推理（skip帧复用/预测关键点）。总耗时 ~34ms。</li>
+    <li><strong>可选关键点跟踪器</strong>：<code>SimpleKeypointTracker</code> 支持 alpha 平滑、速度衰减、光流预测（默认关闭，避免闪烁）。</li>
+    <li><strong>内存管理</strong>：YOLOv8n（~3M）+ YOLOv8n-pose（~2.5M）+ 分类器（~0.15M），INT8权重合计 &lt; 6M，峰值DDR ~12M。</li>
+    <li><strong>17关键点</strong>：COCO格式，全帧推理后通过IoU(阈值0.1)匹配track bbox，未匹配bbox得零关键点。</li>
+    <li><strong>规则引擎</strong>：6规则等权平均（A/B/C/D/E/F），cls_score辅助姿态分类（cls_posture_t1/t2），光轴方向倒下检测（kpt_aspect/torso_angle），坐姿防误判（hip_ratio约束）。</li>
+    <li><strong>分类器选择</strong>：融合分类器（3分支特征融合）或简单分类器（单分支图像分类）；简单分类器自动降低融合alpha、提高beta、降低alarm_thresh。</li>
+    <li><strong>状态机防抖</strong>：NORMAL→SUSPECTED（需连续enter_suspected_min_frames超阈值）→FALLING（alarm_min_frames + 姿态序列检查，cls_bypass可绕过）→ALARM_SENT→RECOVERING，冷却期防止重复告警。</li>
+  </ul>
+</div>
+
+<div class="section" style="max-width:900px;margin:30px auto;background:#f8f9fa;padding:16px;border-radius:8px;">
+  <h3>实际性能基准（3516C模拟）</h3>
+  <table style="width:100%;border-collapse:collapse;">
+    <tr style="background:#e9ecef;font-weight:bold;">
+      <td style="padding:8px;border:1px solid #dee2e6;">模块</td>
+      <td style="padding:8px;border:1px solid #dee2e6;">耗时</td>
+      <td style="padding:8px;border:1px solid #dee2e6;">内存</td>
+    </tr>
+    <tr>
+      <td style="padding:8px;border:1px solid #dee2e6;">检测器 (YOLOv8n)</td>
+      <td style="padding:8px;border:1px solid #dee2e6;">~15ms</td>
+      <td style="padding:8px;border:1px solid #dee2e6;">~6M</td>
+    </tr>
+    <tr>
+      <td style="padding:8px;border:1px solid #dee2e6;">跟踪器 (ByteTrack-lite)</td>
+      <td style="padding:8px;border:1px solid #dee2e6;">~2ms</td>
+      <td style="padding:8px;border:1px solid #dee2e6;">~0.5M</td>
+    </tr>
+    <tr>
+      <td style="padding:8px;border:1px solid #dee2e6;">姿态估计 (YOLOv8n-pose)</td>
+      <td style="padding:8px;border:1px solid #dee2e6;">~12ms</td>
+      <td style="padding:8px;border:1px solid #dee2e6;">~5M</td>
+    </tr>
+    <tr>
+      <td style="padding:8px;border:1px solid #dee2e6;">规则引擎</td>
+      <td style="padding:8px;border:1px solid #dee2e6;">~1ms</td>
+      <td style="padding:8px;border:1px solid #dee2e6;">可忽略</td>
+    </tr>
+    <tr>
+      <td style="padding:8px;border:1px solid #dee2e6;">分类器</td>
+      <td style="padding:8px;border:1px solid #dee2e6;">~3ms</td>
+      <td style="padding:8px;border:1px solid #dee2e6;">~0.5M</td>
+    </tr>
+    <tr>
+      <td style="padding:8px;border:1px solid #dee2e6;">融合决策</td>
+      <td style="padding:8px;border:1px solid #dee2e6;">~1ms</td>
+      <td style="padding:8px;border:1px solid #dee2e6;">可忽略</td>
+    </tr>
+    <tr style="background:#d4edda;font-weight:bold;">
+      <td style="padding:8px;border:1px solid #dee2e6;">总计</td>
+      <td style="padding:8px;border:1px solid #dee2e6;">~34ms (满足25fps)</td>
+      <td style="padding:8px;border:1px solid #dee2e6;">~12M (满足15M DDR)</td>
+    </tr>
+  </table>
+</div>
+
+<div class="section" style="max-width:900px;margin:30px auto;background:#e7f3ff;padding:16px;border-radius:8px;">
+  <h3>测试覆盖与训练流程</h3>
+  <ul>
+    <li><strong>测试覆盖</strong>：444个测试用例，单元测试覆盖率90%+，覆盖所有核心模块（detector/tracker/pose/rules/fusion/classifier/pipeline）</li>
+    <li><strong>训练流程</strong>：7个阶段训练（检测器→姿态→跟踪器调优→特征提取→融合分类器→简单分类器→端到端评估），支持DDP多GPU训练</li>
+    <li><strong>数据格式</strong>：YOLO格式（检测/姿态训练）、COCO格式（简单分类器）、私有labels.json（融合分类器）、event_gt.json（端到端评估）</li>
+    <li><strong>工具支持</strong>：VOC转YOLO转换器、YOLO自动标注、VLM自动标注、YOLO-World验证/导出工具</li>
+  </ul>
+</div>
