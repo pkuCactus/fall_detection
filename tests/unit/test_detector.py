@@ -8,6 +8,11 @@ from fall_detection.core.detector import PersonDetector
 class TestPersonDetector:
     """Tests for PersonDetector class."""
 
+    def test_init_invalid_model_type(self):
+        """Test initialization with invalid model_type raises ValueError."""
+        with pytest.raises(ValueError, match="Unsupported model_type"):
+            PersonDetector(model_type='invalid')
+
     def test_init_with_model_path(self, mocker):
         """Test initialization with model_path parameter."""
         mock_yolo = mocker.patch('fall_detection.core.detector.YOLO')
@@ -143,6 +148,38 @@ class TestPersonDetector:
         detector = PersonDetector(model_name='yolov8n', imgsz=[448, 832])
 
         assert detector.input_size == [448, 832]
+
+    def test_init_sets_predictor_for_real_nn_module(self, mocker):
+        """Test that custom predictor is bound when model.model is a real nn.Module."""
+        import torch.nn as nn
+        mocker.patch('fall_detection.core.detector.DetectionPredictor.setup_model')
+        mock_yolo = mocker.patch('fall_detection.core.detector.YOLO')
+        mock_model = MagicMock()
+        mock_model.args = {'imgsz': 640}
+        real_module = nn.Module()
+        mock_model.model = real_module
+        mock_yolo.return_value = mock_model
+
+        detector = PersonDetector(model_name='yolov8n')
+
+        assert detector.model.predictor is not None
+
+    def test_scale_fill_predictor_pre_transform(self, mocker):
+        """Test _ScaleFillPredictor.pre_transform with auto=False."""
+        from fall_detection.core.detector import _ScaleFillPredictor
+        predictor = _ScaleFillPredictor.__new__(_ScaleFillPredictor)
+        predictor.imgsz = 640
+        predictor.args = MagicMock()
+        predictor.args.rect = True
+        mock_backend = MagicMock()
+        mock_backend.format = 'pt'
+        mock_backend.stride = 32
+        mock_backend.dynamic = False
+        predictor.model = mock_backend
+        img = np.zeros((480, 640, 3), dtype=np.uint8)
+        result = predictor.pre_transform([img])
+        assert len(result) == 1
+        assert result[0].shape == (640, 640, 3)
 
     def test_call_returns_person_detections(self, mocker):
         """Test __call__ returns person class detections."""
