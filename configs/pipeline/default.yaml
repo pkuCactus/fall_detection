@@ -44,7 +44,7 @@ fusion:
   sequence_check_frames: 25    # 姿态转换序列检查窗口（帧）
   cls_bypass_thresh: 0.85     # 分类器高置信度阈值，超过可绕过姿态序列检查（1.0=禁用）
   suspected_reset_seconds: 0.75  # suspected状态恢复时间（秒）
-  alarm_reset_seconds: 3.0       # alarm状态恢复时间（秒）
+  alarm_reset_seconds: 1.0       # alarm状态恢复时间（秒）
   cooldown_seconds: 3.0    # 3秒冷却期，防止频繁上报
   recovery_seconds: 0.5    # 0.5秒恢复确认期，快速恢复正常
 

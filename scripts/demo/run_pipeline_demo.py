@@ -235,6 +235,9 @@ def main():
         logger.info(f"  - Skip frames: {pipeline.skip_frames}")
         logger.info(f"  - FPS: {pipeline.fps}")
         logger.info(f"  - Detector input size: {size_str}")
+        logger.info("  - Pipeline config:")
+        for k, v in pipeline.cfg.items():
+            logger.info(f"    {k}: {v}")
 
     video_path = 0 if args.video == "0" else args.video
     cap = cv2.VideoCapture(video_path)

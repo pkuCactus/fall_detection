@@ -121,7 +121,7 @@ class FusionDecision:
         elif self._state == FallState.ALARM_SENT:
             if not is_above_thresh:
                 self._miss_frames += 1
-                if self._miss_frames >= self.alarm_reset_frames:
+                if self._miss_frames >= 5:
                     self._state = FallState.RECOVERING
                     self._recovery_frames = 0
             else:
