@@ -12,7 +12,6 @@ class _ScaleFillPredictor(DetectionPredictor):
     """自定义 Predictor：letterbox 使用 auto=False."""
 
     def pre_transform(self, im):
-        same_shapes = len({x.shape for x in im}) == 1
         letterbox = LetterBox(
             self.imgsz,
             auto=False,
