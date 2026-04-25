@@ -110,7 +110,7 @@ class TestPersonDetector:
         assert detector.imgsz == [640, 480]
 
     def test_call_with_custom_imgsz(self, mocker):
-        """Test __call__ passes custom imgsz to model."""
+        """Test __call__ passes custom imgsz and rect=False to model."""
         mock_yolo = mocker.patch('fall_detection.core.detector.YOLO')
         mock_model = MagicMock()
         mock_model.args = {'imgsz': 640}
@@ -125,7 +125,7 @@ class TestPersonDetector:
         img = np.zeros((480, 640, 3), dtype=np.uint8)
         detector(img)
 
-        mock_model.assert_called_once_with(img, verbose=False, imgsz=[640, 480])
+        mock_model.assert_called_once_with(img, verbose=False, imgsz=[640, 480], rect=False)
 
     def test_input_size_property(self, mocker):
         """Test input_size property returns imgsz."""
@@ -149,37 +149,16 @@ class TestPersonDetector:
 
         assert detector.input_size == [448, 832]
 
-    def test_init_sets_predictor_for_real_nn_module(self, mocker):
-        """Test that custom predictor is bound when model.model is a real nn.Module."""
-        import torch.nn as nn
-        mocker.patch('fall_detection.core.detector.DetectionPredictor.setup_model')
+    def test_init_sets_rect_false(self, mocker):
+        """Test that rect is set to False by default."""
         mock_yolo = mocker.patch('fall_detection.core.detector.YOLO')
         mock_model = MagicMock()
         mock_model.args = {'imgsz': 640}
-        real_module = nn.Module()
-        mock_model.model = real_module
         mock_yolo.return_value = mock_model
 
         detector = PersonDetector(model_name='yolov8n')
 
-        assert detector.model.predictor is not None
-
-    def test_scale_fill_predictor_pre_transform(self, mocker):
-        """Test _ScaleFillPredictor.pre_transform with auto=False."""
-        from fall_detection.core.detector import _ScaleFillPredictor
-        predictor = _ScaleFillPredictor.__new__(_ScaleFillPredictor)
-        predictor.imgsz = 640
-        predictor.args = MagicMock()
-        predictor.args.rect = True
-        mock_backend = MagicMock()
-        mock_backend.format = 'pt'
-        mock_backend.stride = 32
-        mock_backend.dynamic = False
-        predictor.model = mock_backend
-        img = np.zeros((480, 640, 3), dtype=np.uint8)
-        result = predictor.pre_transform([img])
-        assert len(result) == 1
-        assert result[0].shape == (640, 640, 3)
+        assert detector.rect is False
 
     def test_call_returns_person_detections(self, mocker):
         """Test __call__ returns person class detections."""
@@ -208,7 +187,7 @@ class TestPersonDetector:
         assert boxes[0]['bbox'] == [100.0, 200.0, 300.0, 400.0]
         assert boxes[0]['conf'] == 0.85
         assert boxes[0]['class_id'] == 0
-        mock_model.assert_called_once_with(img, verbose=False, imgsz=640)
+        mock_model.assert_called_once_with(img, verbose=False, imgsz=640, rect=False)
 
     def test_call_filters_non_person_classes(self, mocker):
         """Test __call__ filters out non-person class detections."""

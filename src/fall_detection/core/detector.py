@@ -8,18 +8,6 @@ from ultralytics.models.yolo.detect.predict import DetectionPredictor
 from fall_detection.utils.common import normalize_device
 
 
-class _ScaleFillPredictor(DetectionPredictor):
-    """自定义 Predictor：letterbox 使用 auto=False."""
-
-    def pre_transform(self, im):
-        letterbox = LetterBox(
-            self.imgsz,
-            auto=False,
-            stride=self.model.stride,
-        )
-        return [letterbox(image=x) for x in im]
-
-
 class PersonDetector:
     """封装 YOLOv8 人体检测器."""
 
@@ -36,13 +24,7 @@ class PersonDetector:
         self.imgsz = imgsz if imgsz is not None else getattr(self.model, "args", {}).get("imgsz", 640)
         if classes and hasattr(self.model, "set_classes"):
             self.model.set_classes(classes)
-        # 仅在真实 nn.Module 上绑定自定义 predictor，避免 mock 测试环境出错
-        if isinstance(getattr(self.model, "model", None), nn.Module):
-            device_str = normalize_device(device)
-            overrides = {"device": device_str, "imgsz": self.imgsz}
-            predictor = _ScaleFillPredictor(overrides=overrides)
-            predictor.setup_model(model=self.model.model, verbose=False)
-            self.model.predictor = predictor
+        self.rect = False  # ultralytics letter box not auto
 
     @property
     def input_size(self):
@@ -61,7 +43,7 @@ class PersonDetector:
         Returns:
             List[Dict]: 每个元素包含 bbox [x1, y1, x2, y2], conf, class_id, class_name.
         """
-        results = self.model(img, verbose=False, imgsz=self.imgsz)
+        results = self.model(img, verbose=False, imgsz=self.imgsz, rect=self.rect)
         boxes = []
         for result in results:
             if result.boxes is None:
