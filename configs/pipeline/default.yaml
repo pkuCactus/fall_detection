@@ -2,7 +2,7 @@ detector:
   conf_thresh: 0.3
   model_path: "runs/detect/yolov8n/person_detector/weights/best.pt"  # 检测器模型路径，null则使用默认yolov8n.pt
   classes: null      # 开放词汇检测器文本提示，如 ["person"]
-  imgsz: null        # 推理分辨率，null使用模型默认；可填整数(如640)或[w,h]如[640,480]
+  imgsz: [448, 832]        # 推理分辨率，null使用模型默认；可填整数(如640)或[w,h]如[640,480]
 
 pose_estimator:
   model_path: "data/models/pretrained/yolov8n-pose.pt"  # 姿态估计器模型路径，null则使用默认yolov8n-pose.pt
