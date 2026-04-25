@@ -32,7 +32,7 @@ def setup_logger(log_file):
 
     # 格式
     formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        '%(asctime)s - %(filename)s:%(lineno)d - %(levelname)s - %(message)s'
     )
     fh.setFormatter(formatter)
     ch.setFormatter(formatter)
@@ -222,7 +222,11 @@ def main():
 
     # 打印检测器输入分辨率
     detector_input_size = pipeline.detector.input_size
-    print(f"  Detector input size: {detector_input_size}x{detector_input_size}")
+    if isinstance(detector_input_size, (list, tuple)):
+        size_str = f"{detector_input_size[0]}x{detector_input_size[1]}"
+    else:
+        size_str = f"{detector_input_size}x{detector_input_size}"
+    print(f"  Detector input size: {size_str}")
 
     if logger:
         logger.info(f"  - Pipeline type: {'YOLO-World' if is_yolo_world else 'Standard'}")
@@ -230,7 +234,7 @@ def main():
             logger.info(f"  - Trigger threshold: {pipeline.trigger_thresh}")
         logger.info(f"  - Skip frames: {pipeline.skip_frames}")
         logger.info(f"  - FPS: {pipeline.fps}")
-        logger.info(f"  - Detector input size: {detector_input_size}x{detector_input_size}")
+        logger.info(f"  - Detector input size: {size_str}")
 
     video_path = 0 if args.video == "0" else args.video
     cap = cv2.VideoCapture(video_path)

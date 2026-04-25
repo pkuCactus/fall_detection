@@ -16,6 +16,7 @@ def yolo_world_config(tmp_path):
         "detector": {
             "conf_thresh": 0.3,
             "model_path": None,
+            "imgsz": [448, 832],
         },
         "yolo_world_fall": {
             "classes": [
@@ -85,7 +86,7 @@ class TestYOLOWorldFallPipeline:
     def test_init(self, mocker, yolo_world_config):
         mock_pd = mocker.patch("fall_detection.pipeline.yoloworld_pipeline.PersonDetector")
         mock_model = MagicMock()
-        mock_model.input_size = 640
+        mock_model.input_size = [448, 832]
         mock_pd.return_value = mock_model
 
         pipeline = YOLOWorldFallPipeline(yolo_world_config, device="cpu")
@@ -95,6 +96,9 @@ class TestYOLOWorldFallPipeline:
         assert pipeline.posture_map["person lying on floor"] == "lying"
         assert pipeline.fall_scores["person lying on floor"] == 0.95
         mock_pd.assert_called_once()
+        call_kwargs = mock_pd.call_args.kwargs
+        assert call_kwargs.get("imgsz") == [448, 832]
+        assert call_kwargs.get("model_type") == "yolo_world"
 
     def test_process_frame_detection(self, mocker, yolo_world_config, sample_frame):
         mock_pd = mocker.patch("fall_detection.pipeline.yoloworld_pipeline.PersonDetector")

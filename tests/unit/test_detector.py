@@ -133,6 +133,17 @@ class TestPersonDetector:
 
         assert detector.input_size == 320
 
+    def test_input_size_property_with_list(self, mocker):
+        """Test input_size property returns list imgsz."""
+        mock_yolo = mocker.patch('fall_detection.core.detector.YOLO')
+        mock_model = MagicMock()
+        mock_model.args = {'imgsz': 640}
+        mock_yolo.return_value = mock_model
+
+        detector = PersonDetector(model_name='yolov8n', imgsz=[448, 832])
+
+        assert detector.input_size == [448, 832]
+
     def test_call_returns_person_detections(self, mocker):
         """Test __call__ returns person class detections."""
         mock_yolo = mocker.patch('fall_detection.core.detector.YOLO')

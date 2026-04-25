@@ -1,8 +1,24 @@
 from typing import List, Dict
 import numpy as np
+import torch.nn as nn
 from ultralytics import YOLO, YOLOWorld
+from ultralytics.data.augment import LetterBox
+from ultralytics.models.yolo.detect.predict import DetectionPredictor
 
 from fall_detection.utils.common import normalize_device
+
+
+class _ScaleFillPredictor(DetectionPredictor):
+    """自定义 Predictor：letterbox 使用 auto=False."""
+
+    def pre_transform(self, im):
+        same_shapes = len({x.shape for x in im}) == 1
+        letterbox = LetterBox(
+            self.imgsz,
+            auto=False,
+            stride=self.model.stride,
+        )
+        return [letterbox(image=x) for x in im]
 
 
 class PersonDetector:
@@ -21,10 +37,17 @@ class PersonDetector:
         self.imgsz = imgsz if imgsz is not None else getattr(self.model, "args", {}).get("imgsz", 640)
         if classes and hasattr(self.model, "set_classes"):
             self.model.set_classes(classes)
+        # 仅在真实 nn.Module 上绑定自定义 predictor，避免 mock 测试环境出错
+        if isinstance(getattr(self.model, "model", None), nn.Module):
+            device_str = normalize_device(device)
+            overrides = {"device": device_str, "imgsz": self.imgsz}
+            predictor = _ScaleFillPredictor(overrides=overrides)
+            predictor.setup_model(model=self.model.model, verbose=False)
+            self.model.predictor = predictor
 
     @property
-    def input_size(self) -> int:
-        """返回模型输入分辨率."""
+    def input_size(self):
+        """返回模型输入分辨率（int 或 [w, h] list）."""
         return self.imgsz
 
     def __call__(self, img: np.ndarray, conf_thresh: float = 0.3, filter_class_id: int = 0) -> List[Dict]:
